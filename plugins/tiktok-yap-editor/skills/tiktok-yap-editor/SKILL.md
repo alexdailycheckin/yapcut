@@ -198,4 +198,4 @@ improvising.
 - No em/en dashes anywhere on screen or in messages.
 
 ---
-_Created by Alex Mureșan (https://alexmuresan.com). PolyForm Noncommercial License 1.0.0 — keep the NOTICE with any copy or derivative; commercial use: alex@alexmuresan.com._
+_Created by Alex Mureșan (https://alexmuresan.com). Creative Commons Attribution-NonCommercial 4.0 (CC BY-NC 4.0) — keep the NOTICE with any copy or derivative; commercial use: alex@alexmuresan.com._

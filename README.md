@@ -1,5 +1,7 @@
 # TikTok Yap Editor
 
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
+
 A standalone Claude Code skill that turns raw talking-head phone clips into finished,
 post-ready vertical TikTok / Reels / Shorts: transcript-first story cut, zero-dead-air
 jump-cut tightening, word-by-word burned captions in **your** brand, a burned text hook,
@@ -62,19 +64,19 @@ distribution. If this is useful, a credit and a link back are appreciated.
 
 ## License
 
-Licensed under the **PolyForm Noncommercial License 1.0.0** (full text in
-[LICENSE.md](LICENSE.md); attribution in [NOTICE](NOTICE)).
+Licensed under **Creative Commons Attribution-NonCommercial 4.0 International
+(CC BY-NC 4.0)** (full text in [LICENSE](LICENSE); attribution in [NOTICE](NOTICE)).
 
 In plain English:
 
 - **Free to use, modify, and share for noncommercial purposes** — personal projects,
   learning, research, hobby use, nonprofits, schools.
-- **You must keep the credit.** Any copy, fork, or derivative you pass on has to keep the
-  `Required Notice` line from [NOTICE](NOTICE) (Copyright Alex Mureșan, alexmuresan.com).
-  That is the attribution requirement, not optional.
-- **Commercial use is not granted by this license.** Selling it, building a paid product or
-  service on it, or running it inside a for-profit company's operations needs a separate
-  commercial license. Contact **alex@alexmuresan.com**.
+- **You must give credit.** Any copy, fork, or derivative has to credit
+  "Alex Mureșan (https://alexmuresan.com)" and keep the notice. That is the attribution
+  requirement, not optional.
+- **No commercial use under this license.** Selling it, building a paid product or service
+  on it, or running it inside a for-profit company's operations needs a separate commercial
+  license. Contact **alex@alexmuresan.com**.
 
 This keeps it open for people to use and learn from while reserving the commercial rights.
 A license does not stop a determined copier, but it makes credit a legal obligation that
