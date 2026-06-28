@@ -44,7 +44,7 @@ OVRFILE="$WD/${OUTBASE}_overlays.json"; [ -f "$OVRFILE" ] || OVRFILE=""
 python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$WD/full_${OUTBASE}.mp4" \
   --silence-db -42 --padr 0.04 --padl 0.07 --min-gap 0.28 --d 0.10
 echo "--- blackdetect (cut) ---"
-ffmpeg -i "$WD/full_${OUTBASE}.mp4" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
+ffmpeg -nostdin -i "$WD/full_${OUTBASE}.mp4" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  NO black frames"
 DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$WD/full_${OUTBASE}.mp4")
 echo "--- dur: $DUR ---"
@@ -81,6 +81,6 @@ PY
 
 # 4. compose: burn captions, loudnorm -14, clean CFR re-encode
 bash "$SCRIPTS/compose_ass.sh" "$WD/full_${OUTBASE}.mp4" "$WD/cap_${OUTBASE}.ass" "$OUT" 2>&1 | grep -E "wrote|I:"
-ffmpeg -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
+ffmpeg -nostdin -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  FINAL: NO black frames"
 echo "DONE -> $OUT"
