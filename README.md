@@ -39,6 +39,9 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
 
 ## What's new in 2.0
 
+- **Redesigned dashboard** (dark by default, with a light/dark toggle): Inter + Geist
+  Mono, pill tabs with live count badges, and a clean card layout. Lane labels and an
+  optional "in partnership with X" credit are config-driven via `radar-config.json`.
 - **Bundled Outlier Radar + dashboard** with the editor (this used to be the editor alone).
 - **Discovery-driven and creator-agnostic** research: any niche, not one person's.
 - **Dashboard read laid out like a script:** HOOK (bold) / SCRIPT (one sentence per line) /

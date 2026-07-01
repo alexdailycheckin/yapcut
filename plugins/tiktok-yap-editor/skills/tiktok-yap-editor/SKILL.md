@@ -341,6 +341,28 @@ Driven by `build_ass.py` + `brand-config.json`, applied by `yapfull.sh`:
   `accent_hex` even when captions are scale-only.
 All real/typeset, no AI-generated assets.
 
+## On-screen hook styles (native / minimal / branded)
+Two ways to burn the hook. The **inline ASS hook** (`build_ass.py --hook`, auto-fit so
+it never clips) is the default, fast path. For a designed, typography-driven hook, use
+`hook_styles.py`, which renders a transparent 1080x1920 PNG you overlay on the cut for
+the hook window (~0.15-5s). Three styles, all auto-shrink so nothing ever clips:
+```bash
+python3 scripts/hook_styles.py --style branded \
+  --setup "SETUP LINE|OPTIONAL SECOND" --payoff "the tension underneath" \
+  [--eyebrow POV] --brand brand-config.json --out .yap_build/hook.png
+# then burn it for the hook window:
+ffmpeg -i cut.mp4 -i .yap_build/hook.png -filter_complex \
+  "[0][1]overlay=0:0:enable='between(t,0.15,5.2)'" -c:a copy out.mp4
+```
+- **native** = looks typed in TikTok: SF NS Rounded Heavy, white + dark outline, balanced.
+- **minimal** = tight brand sans (`caption_font`), big statement + smaller context line,
+  no outline, subtle shadow only.
+- **branded** = the house style: SETUP big in a condensed display face (Anton) in the
+  brand `accent_hex`, uppercase, up to 2 lines; PAYOFF in an italic serif (Hoefler Text
+  Italic), white, ALWAYS one line. NO outline, NO shadow (font-classification contrast is
+  the point). Colours/fonts come from `brand-config.json`. Rules: the payoff never wraps
+  or clips; emphasis spans a phrase, not one word before a period.
+
 ## Decisions to ask (and proven defaults)
 | Decision | Default |
 |---|---|

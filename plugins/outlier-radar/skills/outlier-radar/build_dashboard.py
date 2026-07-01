@@ -32,6 +32,21 @@ def _lane_label(key, default):
 PRIMARY_LABEL = _lane_label("primary_lane", "Industry")
 SECONDARY_LABEL = _lane_label("secondary_lane", "Viral videos")
 LEADERS_HDR = CFG.get("leaders_header") or "From leaders you study"
+# optional "in partnership with X" pill in the header (empty = hidden).
+# If the partner is "Reach", render its brand mark; otherwise text only.
+PARTNER = (CFG.get("partner") or "").strip()
+REACH_MARK = ('<svg class="pmark" width="16" height="16" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">'
+              '<rect width="32" height="32" rx="8" fill="#0F0F0F"></rect>'
+              '<rect x="1" y="1" width="30" height="30" rx="7" stroke="white" stroke-opacity="0.12" stroke-width="2"></rect>'
+              '<path d="M8.718 23.161V11.185l4.938 2.716V26l-4.938-2.839Z" fill="#B5F7FF"></path>'
+              '<path d="M23.9 16.928l-8.025 4.691v-5.081l7.901-4.425.124 4.815Z" fill="white"></path>'
+              '<path d="M25.997 21.679l-5.087-3.003-5.036 2.942 5.185 2.9 4.938-2.839Z" fill="url(#ycReachA)"></path>'
+              '<path d="M13.651 6 8.713 8.84l10.179 6.016 4.884-2.743L13.651 6Z" fill="url(#ycReachB)"></path>'
+              '<defs><linearGradient id="ycReachA" x1="23.199" y1="22.063" x2="16.276" y2="16.48" gradientUnits="userSpaceOnUse"><stop stop-color="white"></stop><stop offset="1" stop-color="#00BED8"></stop></linearGradient>'
+              '<linearGradient id="ycReachB" x1="25.875" y1="15.683" x2="11.93" y2="7.003" gradientUnits="userSpaceOnUse"><stop stop-color="#00BED8"></stop><stop offset="0.58" stop-color="white"></stop></linearGradient></defs></svg>')
+_pmark = REACH_MARK if PARTNER.lower() == "reach" else ""
+PARTNER_HTML = (f'<span class="partner">in partnership with {_pmark}<b>{PARTNER}</b></span>'
+                if PARTNER else "")
 
 weeks = []
 for f in sorted(glob.glob(os.path.join(HERE, "weeks", "*.json")), reverse=True):
@@ -89,6 +104,8 @@ HTML = r"""<!DOCTYPE html>
   textarea.notes{width:100%;margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13px;resize:vertical;min-height:34px}
   .btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px;font:inherit;font-size:12.5px;cursor:pointer;color:#374151}
   .btn:hover{background:var(--accent-soft);border-color:var(--accent)}
+  .btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.on:hover{background:var(--accent);color:#fff}
   .toggle{cursor:pointer;color:var(--accent);font-size:12.5px;background:none;border:0;padding:0;font:inherit}
   .pill{font-size:11px;padding:2px 8px;border-radius:999px;background:#eef1f4;color:#4b5563;font-weight:600}
   .hide{display:none}
@@ -115,24 +132,139 @@ HTML = r"""<!DOCTYPE html>
   .collapse.show{display:block}
   @media(max-width:680px){.stats{grid-template-columns:repeat(2,1fr)}}
 </style>
+<style>
+  /* ---- YapCut design: dark theme (imported from the Claude Design) ---- */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
+  :root{
+    --bg:#141414; --card:#0f0f0f; --surface2:#191919; --ink:#f7f7f7; --muted:#a3a3a3; --dim:#d6d6d6;
+    --line:#242424; --line-strong:#424242; --accent:#15b79e; --accent-deep:#107569; --accent-soft:rgba(21,183,158,.15);
+    --idea:#5b5b5b; --filmed:#0ba5ec; --posted:#15b79e;
+    --read-bg:#122120; --dir-bg:#181818; --val-bg:#0f1f16; --cta-bg:#101a24;
+    --chip-bg:#242424; --chip-ink:#c9c9c9; --badge-ready-bg:rgba(21,183,158,.16); --badge-ready-ink:#5fe0c9;
+    --badge-draft-bg:#242424; --badge-draft-ink:#9a9a9a; --input-bg:#141414; --seg-bg:#141414;
+    --shadow:0 1px 2px rgba(0,0,0,.5);
+    --font:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --mono:'Geist Mono',ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7f9; --card:#ffffff; --surface2:#eef0f3; --ink:#16191d; --muted:#6b7280; --dim:#374151;
+    --line:#e6e8eb; --line-strong:#d3d8de; --accent:#0f766e; --accent-deep:#0f766e; --accent-soft:#e6f3f1;
+    --idea:#9ca3af; --filmed:#2563eb; --posted:#0f766e;
+    --read-bg:#eef5f4; --dir-bg:#f4f5f7; --val-bg:#f0faf3; --cta-bg:#eef3fb;
+    --chip-bg:#eef1f4; --chip-ink:#4b5563; --badge-ready-bg:#dcfce7; --badge-ready-ink:#166534;
+    --badge-draft-bg:#f1f5f9; --badge-draft-ink:#64748b; --input-bg:#ffffff; --seg-bg:#ffffff;
+    --shadow:0 1px 2px rgba(16,25,40,.05),0 4px 16px rgba(16,25,40,.04);
+  }
+  body{background:var(--bg);color:var(--ink);font-family:var(--font)}
+  .wrap{max-width:1120px}
+  /* brand bar */
+  .brandbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:2px 0 22px;border-bottom:1px solid var(--line);margin-bottom:26px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:38px;height:38px;border-radius:10px;background:var(--accent-deep);display:grid;place-items:center;flex:none}
+  .brandname{font-size:18px;font-weight:800;letter-spacing:-.01em}
+  .byline{font-size:14px;color:var(--muted);font-weight:500}
+  .brandright{display:flex;align-items:center;gap:10px}
+  .partner{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:6px 12px}
+  .partner b{color:var(--ink);font-weight:700}
+  .themetoggle{width:38px;height:38px;border-radius:10px;border:1px solid var(--line-strong);background:var(--card);color:var(--ink);cursor:pointer;font-size:16px;line-height:1}
+  .themetoggle:hover{border-color:var(--accent)}
+  /* hero */
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  h1{font-size:36px;font-weight:700;letter-spacing:-.02em;margin:12px 0 0;color:var(--ink)}
+  .sub{color:var(--muted);max-width:700px;margin:10px 0 0;font-size:15px;line-height:1.5}
+  .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:20px 0 0}
+  /* buttons + select */
+  .btn{background:var(--card);color:var(--dim);border:1px solid var(--line-strong);border-radius:8px;padding:8px 13px}
+  .btn:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+  .btn.on,.btn.on:hover{background:var(--accent);border-color:var(--accent);color:#04120f}
+  select{background:var(--card);color:var(--ink);border:1px solid var(--line-strong);border-radius:8px}
+  /* stats */
+  .stats{margin:26px 0 8px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .stat .n{color:var(--ink);font-size:30px;font-weight:600;letter-spacing:-.02em}
+  .stat .l{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+  /* tabs as pills with count badges */
+  .tabs{border-bottom:0;gap:6px;flex-wrap:wrap;margin:28px 0 18px}
+  .tab{display:inline-flex;align-items:center;gap:8px;border:0;border-bottom:0;margin-bottom:0;border-radius:8px;padding:9px 13px;color:var(--muted);font-weight:600}
+  .tab:hover{color:var(--ink)}
+  .tab.on{background:var(--surface2);color:var(--ink);border-bottom:0;box-shadow:inset 0 0 0 1px var(--line-strong)}
+  .tab .cnt{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--chip-bg);color:var(--muted)}
+  .tab.on .cnt{background:var(--accent);color:#04120f}
+  .tab .cnt:empty{display:none}
+  /* cards + panels */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .ttl{color:var(--ink)}
+  .meta{color:var(--muted)} .meta b{color:var(--dim)}
+  .pill{background:var(--chip-bg);color:var(--chip-ink)}
+  .badge.ready{background:var(--badge-ready-bg);color:var(--badge-ready-ink)}
+  .badge.draft{background:var(--badge-draft-bg);color:var(--badge-draft-ink)}
+  .label{font-family:var(--mono);color:var(--muted)}
+  .readbox .val{background:var(--read-bg);border-left-color:var(--accent-deep)}
+  .readbox .sent.hook{color:var(--ink)}
+  .dirbox .val{background:var(--dir-bg);border-left-color:var(--line-strong);color:var(--muted)}
+  .valblk .val{background:var(--val-bg);border-left-color:var(--posted)}
+  .ctablk .val{background:var(--cta-bg);border-left-color:var(--filmed)}
+  .body{color:var(--dim)}
+  .link{color:var(--accent)}
+  /* inputs + segmented control */
+  .seg{border-color:var(--line-strong)}
+  .seg button{background:var(--seg-bg);color:var(--muted)}
+  .seg button.on[data-s="idea"]{background:var(--idea);color:#fff}
+  .seg button.on[data-s="filmed"]{background:var(--filmed);color:#fff}
+  .seg button.on[data-s="posted"]{background:var(--posted);color:#04120f}
+  input.views,input.plink,textarea.notes{background:var(--input-bg);color:var(--ink);border-color:var(--line-strong)}
+  input.views::placeholder,input.plink::placeholder,textarea.notes::placeholder{color:var(--muted)}
+  .toggle{color:var(--accent)}
+  /* icons in buttons + tabs */
+  .btn{display:inline-flex;align-items:center;gap:7px}
+  .btn svg{width:15px;height:15px;flex:none}
+  .tab .ti{width:15px;height:15px;flex:none}
+  /* header partner mark */
+  .partner .pmark{border-radius:6px;display:block;flex:none}
+  /* stat internals: label on top, number, then bar/sublabel */
+  .stat{display:flex;flex-direction:column}
+  .stat .l{margin:0 0 8px}
+  .stat .n{margin:0;font-size:30px}
+  .stat .n.accent{color:var(--accent)}
+  .stat .sub{font-size:12.5px;color:var(--muted);margin-top:auto;padding-top:12px}
+  .intentbar{display:flex;gap:4px;margin:14px 0 8px}
+  .intentbar>div{height:5px;border-radius:3px;min-width:4px}
+  .sga{background:var(--accent)} .sgb{background:var(--filmed)} .sgc{background:#ee46bc}
+  .barcap{font-size:12px;color:var(--muted)}
+  /* two-column hook row (text hook | visual hook), like the design */
+  .hookgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}
+  .hookgrid .block{margin:0}
+  @media(max-width:680px){.hookgrid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar">
-    <header><h1>Outlier Radar</h1><p id="sub"></p></header>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn" onclick="exportFilmed()" title="Copy every script you marked Filmed, with its edit spec, to paste into the editor session">Export filmed scripts</button>
-      <button class="btn" onclick="exportForBlog()" title="Save everything you marked Filmed or Posted this week to a JSON file the weekly routine turns into an AEO blog post">Export week for blog</button>
+  <div class="brandbar">
+    <div class="brand">
+      <div class="logo"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9" width="3" height="10" rx="1.5" fill="#fff"/><rect x="10.5" y="4" width="3" height="16" rx="1.5" fill="#fff"/><rect x="17.5" y="11" width="3" height="8" rx="1.5" fill="#fff"/></svg></div>
+      <div><span class="brandname">YapCut</span> <span class="byline">by alexmuresan.com</span></div>
+    </div>
+    <div class="brandright">__PARTNER__<button class="themetoggle" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">&#9790;</button></div>
+  </div>
+  <div class="hero">
+    <div class="eyebrow"><span class="dot"></span> Weekly content batch</div>
+    <h1>This week to film</h1>
+    <p id="sub" class="sub"></p>
+    <div class="actions">
+      <button class="btn" onclick="exportFilmed()" title="Copy every script you marked Filmed, with its edit spec, to paste into the editor session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>Export filmed scripts</button>
+      <button class="btn" onclick="exportForBlog()" title="Save everything you marked Filmed or Posted this week to a JSON file the weekly routine turns into an AEO blog post"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><path d="M16 6l-4-4-4 4"></path><path d="M12 2v13"></path></svg>Export week for blog</button>
+      <button class="btn" onclick="exportCarousels()" title="Save every script you flagged 'Carousel' to a queue file, then run build_carousels.py to render branded LinkedIn carousel PDFs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5"></path></svg>Export carousel queue</button>
       <select id="weekSel" onchange="render()"></select>
     </div>
   </div>
   <div class="stats" id="stats"></div>
   <div class="tabs">
-    <button class="tab on" data-t="dist" onclick="setTab('dist')">__PRIMARY_LABEL__ (to film)</button>
-    <button class="tab" data-t="office" onclick="setTab('office')">__SECONDARY_LABEL__ (to film)</button>
-    <button class="tab" data-t="filmed" onclick="setTab('filmed')">Filmed &amp; metrics</button>
-    <button class="tab" data-t="linkedin" onclick="setTab('linkedin')">LinkedIn posts</button>
-    <button class="tab" data-t="insp" onclick="setTab('insp')">Viral inspiration</button>
+    <button class="tab on" data-t="dist" onclick="setTab('dist')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"></rect><path d="m22 8-6 4 6 4V8Z"></path></svg>__PRIMARY_LABEL__ <span class="cnt" data-c="dist"></span></button>
+    <button class="tab" data-t="office" onclick="setTab('office')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>__SECONDARY_LABEL__ <span class="cnt" data-c="office"></span></button>
+    <button class="tab" data-t="filmed" onclick="setTab('filmed')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M8 17v-4"></path><path d="M13 17V8"></path><path d="M18 17v-7"></path></svg>Filmed &amp; metrics <span class="cnt" data-c="filmed"></span></button>
+    <button class="tab" data-t="linkedin" onclick="setTab('linkedin')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>LinkedIn posts <span class="cnt" data-c="linkedin"></span></button>
+    <button class="tab" data-t="insp" onclick="setTab('insp')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"></path></svg>Viral inspiration <span class="cnt" data-c="insp"></span></button>
   </div>
   <div id="ignrow" style="margin:-6px 0 14px;display:none"><label style="font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="showIgnored" onchange="render()" style="vertical-align:middle"> show ignored scripts</label></div>
   <div id="view"></div>
@@ -143,10 +275,31 @@ const KEY = "outlier-radar-tracking";
 let TAB = "dist";
 const track = JSON.parse(localStorage.getItem(KEY) || "{}");
 function save(){localStorage.setItem(KEY, JSON.stringify(track));}
-function t(id){return track[id] || {status:"idea", views:"", link:"", notes:""};}
+function t(id){return track[id] || {status:"idea", views:"", link:"", notes:"", carousel:false};}
 function setT(id, patch){track[id] = Object.assign(t(id), patch); save(); render();}
+function toggleCarousel(id){setT(id,{carousel:!t(id).carousel});}
 function setTab(x){TAB=x; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on", b.dataset.t===x)); render();}
 function esc(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+function applyTheme(mode){
+  if(mode==="light") document.documentElement.setAttribute("data-theme","light");
+  else document.documentElement.removeAttribute("data-theme");
+  const b=document.getElementById("themeBtn"); if(b) b.innerHTML = mode==="light" ? "&#9728;" : "&#9790;";
+  try{localStorage.setItem("yapcut-theme",mode);}catch(e){}
+}
+function toggleTheme(){ applyTheme(document.documentElement.getAttribute("data-theme")==="light"?"dark":"light"); }
+
+function poolCount(arr){return (arr||[]).filter(x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";}).length;}
+function updateTabCounts(w){
+  if(!w) return;
+  const set=(c,n)=>{const e=document.querySelector('.cnt[data-c="'+c+'"]'); if(e) e.textContent=n?String(n):"";};
+  const all=[].concat(w.distribution||[], w.office||[]);
+  set("dist", poolCount(w.distribution));
+  set("office", poolCount(w.office));
+  set("filmed", all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length);
+  set("linkedin", (w.distribution||[]).filter(x=>x.linkedin && t(x.id).status!=="ignored").length + (w.gtm_linkedin||[]).length);
+  set("insp", (w.inspiration||[]).length);
+}
 
 function curWeek(){return WEEKS.find(w=>w.week===document.getElementById("weekSel").value) || WEEKS[0];}
 
@@ -196,6 +349,29 @@ async function exportForBlog(){
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   alert(`Downloaded ${fname} (${items.length} script(s)).\\n\\nMove it into outlier-radar/blog-queue/ so the weekly routine finds it.`);
 }
+async function exportCarousels(){
+  const w=curWeek(); if(!w) return;
+  const all=[].concat(w.distribution||[], w.office||[]);
+  const items=all.filter(x=>t(x.id).carousel);
+  if(!items.length){alert("No scripts flagged for a carousel yet.\\n\\nClick the 'Carousel' button on any script card, then export.");return;}
+  const payload={week:w.week, positioning:w.positioning||"", exported_at:new Date().toISOString(), items};
+  const json=JSON.stringify(payload,null,2);
+  const fname=`carousel-queue-${w.week}.json`;
+  const note=`\\n\\nSave it in outlier-radar/carousels/, then run:\\n  python3 build_carousels.py\\nto render the PDFs.`;
+  if(window.showSaveFilePicker){
+    try{
+      const h=await window.showSaveFilePicker({suggestedName:fname, types:[{description:"JSON",accept:{"application/json":[".json"]}}]});
+      const ws=await h.createWritable(); await ws.write(json); await ws.close();
+      alert(`Saved ${items.length} script(s) to the carousel queue.`+note);
+      return;
+    }catch(e){ if(e.name==="AbortError") return; }
+  }
+  const blob=new Blob([json],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  alert(`Downloaded ${fname} (${items.length} script(s)).`+note);
+}
 function fallbackCopy(text,cb){
   const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
   try{document.execCommand("copy");}catch(e){}
@@ -204,16 +380,33 @@ function fallbackCopy(text,cb){
 
 function statsBar(){
   const w = curWeek(); if(!w) return;
+  const dist=w.distribution||[], office=w.office||[];
   let tofilm=0, filmed=0, posted=0, views=0, ignored=0;
-  [].concat(w.distribution||[], w.office||[]).forEach(x=>{
+  [].concat(dist, office).forEach(x=>{
     const s=t(x.id).status;
     if(s==="ignored") ignored++;
     else if(s==="posted"){posted++; views+=parseInt(t(x.id).views||0)||0;}
     else if(s==="filmed") filmed++;
     else tofilm++;
   });
-  const S=[["To film",tofilm],["Filmed",filmed],["Posted",posted],["Views logged",views.toLocaleString()],["Ignored",ignored]];
-  document.getElementById("stats").innerHTML = S.map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+  // intent bar under "To film": storytelling / educational / secondary lane
+  const isPool = x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";};
+  const story = dist.filter(x=>isPool(x)&&x.intent==="storytelling").length;
+  const edu   = dist.filter(x=>isPool(x)&&x.intent==="educational").length;
+  const off   = office.filter(isPool).length;
+  const tot   = story+edu+off;
+  const seg=(v,cls)=>`<div class="${cls}" style="flex:${tot?(v||0.0001):1}"></div>`;
+  const bar = `<div class="intentbar">${seg(story,'sga')}${seg(edu,'sgb')}${seg(off,'sgc')}</div>`
+            + `<div class="barcap">storytelling &middot; educational &middot; office</div>`;
+  const cards=[
+    {l:"To film", n:tofilm, extra:bar},
+    {l:"Filmed", n:filmed, sub:"ready to post"},
+    {l:"Posted", n:posted, sub:"live"},
+    {l:"Views logged", n:views.toLocaleString(), sub:"across posted", accent:true},
+    {l:"Ignored", n:ignored, sub:"skipped this week"},
+  ];
+  document.getElementById("stats").innerHTML = cards.map(c=>
+    `<div class="stat"><div class="l">${c.l}</div><div class="n${c.accent?' accent':''}">${c.n}</div>${c.extra||""}${c.sub?`<div class="sub">${c.sub}</div>`:""}</div>`).join("");
 }
 
 function tracker(id, withLink){
@@ -259,7 +452,7 @@ function readScript(x){
 function srcs(list){
   if(!list||!list.length) return "";
   const items=list.map(s=> s.url?`<a class="link" href="${esc(s.url)}" target="_blank">${esc(s.label)}</a>`:esc(s.label)).join(" &nbsp;&middot;&nbsp; ");
-  return `<div class="block srcblk"><div class="label">Sources (check before posting)</div><div class="val" style="font-size:13px">${items}</div></div>`;
+  return `<div class="block srcblk"><div class="label">Sources - check before posting</div><div class="val" style="font-size:13px">${items}</div></div>`;
 }
 
 function scriptCard(x, isSecondLane){
@@ -272,8 +465,7 @@ function scriptCard(x, isSecondLane){
   const title = x.title || x.mechanic || x.text_hook || "Untitled";
   // on-screen hooks always visible (these are SHOWN, not said); the full
   // spoken read (hook line + script) is one block, collapsed.
-  const hooks = block("Text hook (write on the video, not spoken)", x.text_hook, "hookblk")
-    + block("Visual hook (show this)", x.visual_hook, "hookblk");
+  const hooks = `<div class="hookgrid">${block("Text hook - write on the video", x.text_hook, "hookblk")}${block("Visual hook - show this", x.visual_hook, "hookblk")}</div>`;
   let collapsed = readScript(x)
     + block("Directions - DO this, do not read it", x.directions, "dirbox")
     + block("Value - what the viewer takes away", x.value, "valblk");
@@ -284,7 +476,7 @@ function scriptCard(x, isSecondLane){
   }
   const hasCollapse = collapsed.trim().length>0;
   return `<div class="card ${done?'done':''}">
-    <div class="cardhead"><p class="ttl" style="margin:0">${esc(title)}</p>${badge}${done?'<span class="pill">posted</span>':''}<button class="btn" style="margin-left:auto" onclick="setT('${x.id}',{status:'${r.status==='ignored'?'idea':'ignored'}'})">${r.status==='ignored'?'Restore':'Ignore'}</button></div>
+    <div class="cardhead"><p class="ttl" style="margin:0">${esc(title)}</p>${badge}${done?'<span class="pill">posted</span>':''}<span style="margin-left:auto;display:flex;gap:6px"><button class="btn ${r.carousel?'on':''}" onclick="toggleCarousel('${x.id}')" title="Flag this script for a LinkedIn carousel PDF, then use 'Export carousel queue'">${r.carousel?'Carousel ✓':'Carousel'}</button><button class="btn" onclick="setT('${x.id}',{status:'${r.status==='ignored'?'idea':'ignored'}'})">${r.status==='ignored'?'Restore':'Ignore'}</button></span></div>
     ${meta}
     ${srcs(x.sources)}
     ${hooks}
@@ -319,6 +511,7 @@ function render(){
   const w=curWeek(); if(!w){document.getElementById("view").innerHTML="No data yet.";return;}
   document.getElementById("sub").textContent = w.positioning || "";
   statsBar();
+  updateTabCounts(w);
   const showIgn = document.getElementById("showIgnored") && document.getElementById("showIgnored").checked;
   document.getElementById("ignrow").style.display = (TAB==="dist"||TAB==="office")?"block":"none";
   const pool = arr => showIgn
@@ -342,6 +535,9 @@ function render(){
 }
 
 (function init(){
+  let savedTheme=null; try{savedTheme=localStorage.getItem("yapcut-theme");}catch(e){}
+  if(!savedTheme) savedTheme=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark";
+  applyTheme(savedTheme);
   const sel=document.getElementById("weekSel");
   sel.innerHTML = WEEKS.map(w=>`<option value="${w.week}">Week of ${w.week}</option>`).join("");
   render();
@@ -353,6 +549,7 @@ function render(){
 out = (HTML.replace("/*WEEKS_DATA*/", DATA)
            .replace("__PRIMARY_LABEL__", PRIMARY_LABEL)
            .replace("__SECONDARY_LABEL__", SECONDARY_LABEL)
-           .replace("__LEADERS_HDR__", LEADERS_HDR))
+           .replace("__LEADERS_HDR__", LEADERS_HDR)
+           .replace("__PARTNER__", PARTNER_HTML))
 open(os.path.join(HERE, "dashboard.html"), "w").write(out)
 print(f"wrote dashboard.html from {len(weeks)} week(s)")

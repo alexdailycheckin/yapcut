@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""Turn YapCut scripts into LinkedIn carousel PDFs (branded, swipeable docs).
+
+Two ways to run:
+
+  python3 build_carousels.py                 # build every script in the newest
+                                             # carousels/carousel-queue-*.json
+                                             # (that's what the dashboard's
+                                             #  "Export carousel queue" writes)
+
+  python3 build_carousels.py d-2026-06-23-9  # build specific script id(s) by
+                                             # pulling them straight from weeks/*.json
+
+For each script it derives a 6-8 slide deck from the labelled fields
+(text_hook / spoken_hook / script / value / cta), writes an editable
+carousels/<id>.html, then renders carousels/<id>.pdf via headless Chrome.
+No extra dependencies: Chrome is the only thing it shells out to.
+
+The auto-slice is a solid first draft. To hand-tune a deck, edit its .html
+and re-run `render_html(<path>)` (or just re-run Chrome on it) - the pipeline
+never overwrites an .html you changed unless you pass --force.
+"""
+import json, os, sys, glob, re, subprocess, html as _html
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, "carousels")
+os.makedirs(OUT, exist_ok=True)
+
+CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+NAME = "Alex Muresan"
+# LinkedIn mark, inline so the deck stays self-contained (no external image).
+LI_SVG = ('<svg class="li" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" '
+          'fill="#0A66C2" aria-label="LinkedIn"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>')
+BYLINE = f'<span class="byline">{LI_SVG}<span class="nm">{NAME}</span></span>'
+
+# ---- brand (alexmuresan.com tokens) ----------------------------------------
+CSS = r"""
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+  :root{
+    --bone:#FFFFFB; --ink:#232323; --tang:#FF5A2A;
+    --ink-55:rgba(35,35,35,.56); --ink-12:rgba(35,35,35,.14);
+    --disp:'Bricolage Grotesque',system-ui,sans-serif;
+    --body:'Hanken Grotesk',system-ui,sans-serif;
+    --mono:'Space Mono',ui-monospace,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  @page{ size:1080px 1350px; margin:0; }
+  html,body{background:var(--bone);}
+  .slide{width:1080px;height:1350px;background:var(--bone);color:var(--ink);
+    padding:90px 96px;display:flex;flex-direction:column;
+    page-break-after:always;position:relative;overflow:hidden;font-family:var(--body);}
+  .slide:last-child{page-break-after:auto;}
+  .top{display:flex;justify-content:space-between;align-items:center;}
+  .kicker{font-family:var(--mono);font-size:26px;letter-spacing:.02em;color:var(--ink-55);text-transform:uppercase;}
+  .num{font-family:var(--mono);font-size:26px;color:var(--ink-55);}
+  .main{flex:1;display:flex;flex-direction:column;justify-content:center;}
+  .foot{display:flex;justify-content:space-between;align-items:center;}
+  .byline{display:flex;align-items:center;gap:14px;}
+  .byline .li{width:40px;height:40px;flex:none;}
+  .byline .nm{font-family:var(--disp);font-weight:700;font-size:32px;color:var(--ink);letter-spacing:-.01em;}
+  .swipe{font-family:var(--mono);font-size:26px;color:var(--tang);}
+  h1{font-family:var(--disp);font-weight:700;line-height:1.03;letter-spacing:-.02em;}
+  .big{font-size:112px;} .lead{font-size:84px;} .mid{font-size:60px;}
+  /* one font for the whole deck: body copy is Bricolage too, hierarchy by
+     size/weight/colour only, never by switching typeface. */
+  p.body{font-family:var(--disp);font-size:50px;line-height:1.24;font-weight:600;letter-spacing:-.01em;color:var(--ink);}
+  p.body + p.body{margin-top:34px;}
+  .muted{color:var(--ink-55);}
+  .stat{font-family:var(--disp);font-weight:800;font-size:150px;line-height:.95;letter-spacing:-.03em;}
+  .statsub{font-family:var(--mono);font-size:34px;color:var(--ink-55);margin-top:6px;}
+  .tang{color:var(--tang);}
+  .label{font-family:var(--mono);font-size:34px;color:var(--tang);text-transform:uppercase;letter-spacing:.03em;margin-bottom:32px;}
+  .rule{height:6px;width:120px;background:var(--tang);margin:40px 0;border-radius:9999px;}
+  .spacer{height:40px;}
+"""
+
+NUM_RE = re.compile(r"(\$?\d[\d,\.]*\s?(?:%|B|bn|billion|million|M|k|K|x)?\b|\$\d[\d,\.]*)")
+
+
+def esc(s):
+    # element-content escaping: only &, <, >. Apostrophes/quotes stay literal
+    # (we are never emitting into an attribute), so no &#x27; junk on slides.
+    return _html.escape(s or "", quote=False)
+
+
+def hl(s):
+    """Wrap the first number-ish token in a tang span for spark.
+
+    Operates on the RAW string and escapes each piece separately, so the
+    highlight can never land inside an HTML entity and split it."""
+    s = s or ""
+    m = NUM_RE.search(s)
+    if not m:
+        return esc(s)
+    return esc(s[:m.start()]) + f'<span class="tang">{esc(m.group(0))}</span>' + esc(s[m.end():])
+
+
+def split_sentences(text):
+    if not text:
+        return []
+    text = re.sub(r"\s*\n+\s*", " ", str(text))
+    parts = re.split(r"(?<=[.?!…])\s+(?=[A-Z\"'‘“£$])", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def group(sentences, per=2, cap=4):
+    """Bundle sentences into <=cap slides of ~per sentences each."""
+    if not sentences:
+        return []
+    n = max(1, min(cap, (len(sentences) + per - 1) // per))
+    per = (len(sentences) + n - 1) // n
+    return [sentences[i:i + per] for i in range(0, len(sentences), per)]
+
+
+def deck_from_script(x):
+    """Derive an ordered list of (kicker, html_body, cue) slides from a script."""
+    facet = (x.get("facet") or "").strip()
+    k_open = facet.replace("-", " ").title() if facet else "Distribution"
+    slides = []
+
+    # 1) cover: text_hook as the punch, first number blown up if there is one
+    hook = x.get("text_hook") or x.get("spoken_hook") or x.get("title") or ""
+    m = NUM_RE.search(hook)
+    if m and len(m.group(0)) >= 3:
+        rest = (hook[:m.start()] + hook[m.end():]).strip(" ?.-–")
+        cover = f'<div><span class="stat tang">{esc(m.group(0))}</span></div>'
+        if rest:
+            cover += f'<div class="spacer"></div><h1 class="lead">{esc(rest)}</h1>'
+    else:
+        cover = f'<h1 class="lead">{hl(hook)}</h1>'
+    slides.append((k_open, cover, "swipe"))
+
+    # 2..n) the argument: sentences of the spoken body, minus the opening hook line
+    body = split_sentences(x.get("script") or "")
+    hlines = set(split_sentences(x.get("spoken_hook") or ""))
+    body = [s for s in body if s not in hlines]
+    # drop a trailing question that duplicates the close
+    for chunk in group(body, per=2, cap=4):
+        html = "".join(f'<p class="body">{hl(s)}</p>' for s in chunk)
+        slides.append(("", html, "swipe"))
+
+    # n-1) the lesson: value line, eyebrowed
+    val = x.get("value") or ""
+    if val:
+        val = re.sub(r"^[A-Z\s]{3,}:\s*", "", val)  # strip a TYPE: prefix if present
+        slides.append(("The lesson",
+                        f'<div class="label">Steal this</div><h1 class="lead">{hl(val)}</h1>',
+                        "swipe"))
+
+    # n) the close: cta if present, else a generic prompt
+    cta = x.get("cta")
+    if cta:
+        close = f'<h1 class="mid">{hl(cta)}</h1>'
+    else:
+        close = ('<h1 class="lead">Your move.</h1><div class="spacer"></div>'
+                 '<p class="body">Save this. Then go use it this week.</p>')
+    slides.append(("Your move", close, "follow"))
+    return slides
+
+
+def render_deck(x):
+    slides = deck_from_script(x)
+    total = len(slides)
+    sec = []
+    for i, (kicker, body, cue) in enumerate(slides, 1):
+        cue_html = ('<span class="swipe">Follow for more &rarr;</span>' if cue == "follow"
+                    else '<span class="swipe">swipe &rarr;</span>')
+        sec.append(f"""<section class="slide">
+  <div class="top"><span class="kicker">{esc(kicker)}</span><span class="num">{i:02d} / {total:02d}</span></div>
+  <div class="main">{body}</div>
+  <div class="foot">{BYLINE}{cue_html}</div>
+</section>""")
+    return f"<style>{CSS}</style>\n" + "\n".join(sec)
+
+
+def to_pdf(html_path, pdf_path):
+    subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+                    "--virtual-time-budget=6000", f"--print-to-pdf={pdf_path}", html_path],
+                   check=True, capture_output=True)
+
+
+def build_one(x, force=False):
+    sid = x.get("id") or "carousel"
+    hp = os.path.join(OUT, f"{sid}.html")
+    pp = os.path.join(OUT, f"{sid}.pdf")
+    if os.path.exists(hp) and not force:
+        print(f"  {sid}: .html exists, reusing it (pass --force to regenerate). Rendering PDF.")
+    else:
+        open(hp, "w").write(render_deck(x))
+    to_pdf(hp, pp)
+    print(f"  {sid}: {os.path.relpath(pp, HERE)}")
+
+
+def load_weeks():
+    out = []
+    for f in sorted(glob.glob(os.path.join(HERE, "weeks", "*.json")), reverse=True):
+        try:
+            out.append(json.load(open(f)))
+        except Exception:
+            pass
+    return out
+
+
+def find_by_ids(ids):
+    want = set(ids)
+    found = {}
+    for w in load_weeks():
+        for x in (w.get("distribution") or []) + (w.get("office") or []):
+            if x.get("id") in want:
+                found[x["id"]] = x
+    return [found[i] for i in ids if i in found]
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    force = "--force" in sys.argv
+    if args:
+        items = find_by_ids(args)
+        missing = set(args) - {x.get("id") for x in items}
+        if missing:
+            print("not found in weeks/*.json:", ", ".join(sorted(missing)))
+    else:
+        q = sorted(glob.glob(os.path.join(OUT, "carousel-queue-*.json")), reverse=True)
+        if not q:
+            print("No carousel-queue-*.json in carousels/. Flag scripts in the dashboard "
+                  "and click 'Export carousel queue', or pass script id(s) as arguments.")
+            return
+        print("queue:", os.path.basename(q[0]))
+        items = json.load(open(q[0])).get("items", [])
+    if not items:
+        print("nothing to build.")
+        return
+    print(f"building {len(items)} carousel(s) ->")
+    for x in items:
+        build_one(x, force=force)
+    print("done.")
+
+
+if __name__ == "__main__":
+    main()
