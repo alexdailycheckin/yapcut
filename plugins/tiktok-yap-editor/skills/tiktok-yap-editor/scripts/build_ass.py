@@ -42,7 +42,7 @@ Notes on ASS:
   - We anchor every line middle-centre (\\an5) and \\pos it, so scaling a single
     word keeps the line centred.
 """
-import argparse, json, re, sys
+import argparse, json, os, re, sys
 
 W, H = 1080, 1920
 
@@ -82,6 +82,108 @@ def cs(t):
     return f"{h}:{m:02d}:{s:05.2f}"
 
 
+# --- hook auto-fit: the on-screen hook must NEVER run off the edge ----------
+# Burned text hooks are author-written (~6 words) and were repeatedly getting
+# clipped because ASS WrapStyle 2 does no auto-wrapping and a heavy display
+# font overflows 1080px after ~3-4 words. We measure the real rendered width
+# with the actual font file (Pillow) and wrap + shrink until the hook fits
+# inside a title-safe width. Degrades to a char-width estimate if Pillow or the
+# font file is unavailable, so it still wraps (never silently clips).
+_FONT_DIRS = [
+    os.path.expanduser("~/Library/Fonts"), "/Library/Fonts",
+    "/System/Library/Fonts", "/System/Library/Fonts/Supplemental",
+    os.path.expanduser("~/.fonts"), "/usr/share/fonts", "/usr/local/share/fonts",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "fonts"),
+]
+
+
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def resolve_font_file(name):
+    """Best-effort map an ASS font name -> a .ttf/.otf path on disk."""
+    target = _norm(name)
+    best = None
+    for d in _FONT_DIRS:
+        if not os.path.isdir(d):
+            continue
+        for fn in os.listdir(d):
+            if not fn.lower().endswith((".ttf", ".otf", ".ttc")):
+                continue
+            stem = _norm(os.path.splitext(fn)[0])
+            if stem == target:
+                return os.path.join(d, fn)
+            if best is None and (target in stem or stem in target):
+                best = os.path.join(d, fn)
+    return best
+
+
+def _measurer(font_name, spacing_px):
+    """Return measure(text, size)->px. Uses Pillow if possible, else estimate."""
+    path = resolve_font_file(font_name)
+    try:
+        from PIL import ImageFont  # noqa
+        cache = {}
+
+        def measure(text, size):
+            if not text:
+                return 0.0
+            f = cache.get(size)
+            if f is None:
+                f = ImageFont.truetype(path, size) if path else ImageFont.load_default()
+                cache[size] = f
+            try:
+                w = f.getlength(text)
+            except Exception:
+                w = f.getbbox(text)[2]
+            return w + spacing_px * max(0, len(text) - 1)
+        if path:
+            return measure
+    except Exception:
+        pass
+    # fallback: heavy display fonts run ~0.62 * size per glyph (caps a touch wider)
+    def measure(text, size):
+        return len(text) * (0.62 * size + spacing_px)
+    return measure
+
+
+def fit_hook(hlines, font_name, caps, spacing_px, base_size,
+             safe_w, max_lines, min_size):
+    """Wrap + shrink author hook lines so the widest fits in safe_w.
+
+    hlines: author segments (already split on '|'); each is a HARD break we
+    keep, but we may wrap a long segment further. Returns (lines, size)."""
+    measure = _measurer(font_name, spacing_px)
+    segs = [(l.upper() if caps else l).strip() for l in hlines if l.strip()]
+    if not segs:
+        return [], base_size
+
+    def wrap_at(size):
+        lines = []
+        for seg in segs:
+            cur = ""
+            for word in seg.split():
+                trial = (cur + " " + word).strip()
+                if not cur or measure(trial, size) <= safe_w:
+                    cur = trial
+                else:
+                    lines.append(cur); cur = word
+            if cur:
+                lines.append(cur)
+        return lines
+
+    size = base_size
+    while size >= min_size:
+        lines = wrap_at(size)
+        widest = max((measure(l, size) for l in lines), default=0)
+        if widest <= safe_w and len(lines) <= max_lines:
+            return lines, size
+        size -= 4
+    # floor: best effort at min_size (still wrapped, so worst case it shrank)
+    return wrap_at(min_size), min_size
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--words", required=True)
@@ -106,6 +208,13 @@ def main():
     ap.add_argument("--accent-hex", default="",
                     help="brand accent colour for hook spark + counter, even when "
                          "the caption highlight is scale-only (--accent none)")
+    ap.add_argument("--hook-safe-frac", type=float, default=0.90,
+                    help="fraction of the 1080px width the hook may occupy before it "
+                         "is wrapped/shrunk. The hook is NEVER allowed past this.")
+    ap.add_argument("--hook-max-lines", type=int, default=3,
+                    help="max hook lines; shrink the font rather than overflow this.")
+    ap.add_argument("--hook-min-size", type=int, default=54,
+                    help="floor for hook auto-shrink (px).")
     a = ap.parse_args()
 
     p = dict(PRESETS[a.preset])
@@ -180,7 +289,17 @@ def main():
     if a.hook:
         hlines = [s for s in a.hook.split("|") if s]
         if hlines:
-            disp_lines = [l.upper() if p["caps"] else l for l in hlines]
+            # NEVER let the hook clip: measure with the real font and wrap +
+            # shrink until the widest line fits a title-safe width. Author '|'
+            # breaks are kept as hard breaks; we only ADD breaks / shrink.
+            safe_w = a.hook_safe_frac * W
+            disp_lines, fit_size = fit_hook(
+                hlines, p["font"], p["caps"], p["spacing"],
+                p["hook_size"], safe_w, a.hook_max_lines, a.hook_min_size)
+            if fit_size != p["hook_size"]:
+                print(f"  hook auto-fit: {p['hook_size']}px -> {fit_size}px, "
+                      f"{len(disp_lines)} line(s) (safe width {int(safe_w)}px)")
+            p["hook_size"] = fit_size
             full = "\\N".join(disp_lines)
             hk_col = accent_ass if p["hook_accent"] else base_ass
             pos = f"\\an5\\pos({W // 2},{p['hook_y']})"

@@ -15,26 +15,26 @@
     "contact_lines": "extra lines under the handle, e.g. email + site",
     "cta_clip": "OPTIONAL absolute path to a reusable spoken-outro clip; if set, add it as the final clause in each clauses.json"
   },
-  "creator": "Alex Muresan",
-  "niche": "go-to-market distribution (the distribution guy)",
+  "creator": "Your Name",
+  "niche": "one line: what your channel is about",
   "pillars": [
-    "Distribution thesis",
-    "Human OS",
-    "In the arena"
+    "content pillar 1",
+    "content pillar 2",
+    "content pillar 3"
   ],
   "accounts": [
-    "alexmuresan.com"
+    "yoursite.com"
   ],
-  "caption_font": "Bricolage Grotesque ExtraBold",
+  "caption_font": "Montserrat Black",
   "label_font": "Space Mono",
   "caption_case": "off",
   "accent_hex": "#FF5A2A",
   "base_hex": "#FFFFFB",
   "ink_hex": "#232323",
-  "handle": "ALEXMURESAN.COM",
+  "handle": "YOURNAME.COM",
   "contact_lines": [
-    "alex.m@usereach.ai",
-    "usereach.ai"
+    "you@yoursite.com",
+    "yoursite.com"
   ],
   "cta_clip": "",
   "hook_anim": "typewriter"

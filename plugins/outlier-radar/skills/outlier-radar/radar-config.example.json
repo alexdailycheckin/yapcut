@@ -1,0 +1,25 @@
+{
+  "creator": "Your Name",
+  "site": "yoursite.com",
+  "niche": "one line: the subject you want to be known for (e.g. 'restaurant marketing', 'indie game dev', 'personal finance for freelancers')",
+  "facets": [
+    "sub-angle 1 to rotate and test",
+    "sub-angle 2",
+    "sub-angle 3"
+  ],
+  "voice": "how your scripts should sound (e.g. premise-first, blunt, contrarian-but-grounded, no em dashes)",
+  "primary_lane": {
+    "label": "Industry",
+    "definition": "your core niche: teach real, concrete value in your subject (educational / insight led)"
+  },
+  "secondary_lane": {
+    "label": "Viral videos",
+    "definition": "reach plays adjacent to your niche: borrow a proven viral mechanic to go viral. Lighter, less educational, optional."
+  },
+  "leaders_header": "From leaders you study",
+  "methods_file": "methods.md",
+  "leaders_file": "leaders-to-study.md",
+  "watch_accounts_file": "watch-accounts.md",
+  "linkedin_twins": false,
+  "blog_pipeline": false
+}

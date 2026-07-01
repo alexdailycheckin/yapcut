@@ -1,11 +1,20 @@
 {
-  "name": "alex-gtm-yap-editor",
-  "owner": { "name": "Alex Muresan" },
+  "name": "yapcut",
+  "owner": { "name": "Alex Muresan", "url": "https://alexmuresan.com" },
   "metadata": {
-    "description": "Standalone marketplace for the TikTok Yap Editor skill: turn raw talking-head phone clips into finished vertical TikTok/Reels/Shorts. Brand-agnostic (first-run brand discovery).",
-    "version": "1.0.0"
+    "description": "YapCut by alexmuresan.com: a two-part short-form content engine. Outlier Radar researches your niche, finds videos that went viral, and writes weekly ready-to-film scripts to a tracked dashboard. The TikTok Yap Editor turns your raw phone clips into finished vertical videos, talking-head or day-in-the-life. Both are creator-agnostic via a one-time discovery interview.",
+    "version": "2.0.0"
   },
   "plugins": [
-    { "name": "tiktok-yap-editor", "source": "./plugins/tiktok-yap-editor", "description": "Turn raw talking-head phone clips into finished vertical TikTok/Reels/Shorts: transcript-first story cut, zero-dead-air, brand captions, spoken-outro CTA. Brand-agnostic via brand-config." }
+    {
+      "name": "outlier-radar",
+      "source": "./plugins/outlier-radar",
+      "description": "Weekly viral-outlier research + ideation engine. Learns your niche once, finds short-form videos that beat their creator's baseline 5x+, extracts the transferable hook/format mechanic, and writes ~10 scripts per lane (your Industry lane + a Viral-videos reach lane) in your voice to a self-contained tracked dashboard."
+    },
+    {
+      "name": "tiktok-yap-editor",
+      "source": "./plugins/tiktok-yap-editor",
+      "description": "Turn raw phone clips into finished vertical TikTok/Reels/Shorts. Mode A talking-head: transcript-first cut, zero dead air, brand captions, an auto-fitted on-screen hook that never clips, automatic stutter/restart catching. Mode B day-in-the-life: script the voiceover, lock picture to b-roll, record to a guide. Brand-agnostic via first-run discovery."
+    }
   ]
 }
