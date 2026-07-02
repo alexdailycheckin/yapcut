@@ -180,6 +180,7 @@ look-down-at-script frame), `--min-gap 0.28`, `--d 0.10`.
 ffmpeg -i full.mp4 -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null -   # zero black flashes
 bash scripts/transcribe.sh full.mp4 .yap_build/w --words                # re-read line sequence (5b audit)
 python3 scripts/stutter_check.py --words .yap_build/w.json               # re-run on the CUT: must come back clean
+python3 scripts/retention_check.py --video full.mp4                     # retention gates (see Retention pass)
 ```
 Plus a seam contact-sheet (frames at each cut) to scan for any leftover look-down,
 and confirm loudness ~-14 after compose. The **line audit** lives here: fix
@@ -326,6 +327,57 @@ python3 scripts/sfxmix.py --in output/clip.mp4 --sfx sfx.json --out output/clip_
   clipping when hits stack on the voice).
 - Generated tones are CC0; this does NOT break the "no AI-generated assets" rule,
   which is about VISUALS (covers, b-roll, hero frames stay real footage only).
+
+## Retention pass (gates, every video, both modes)
+
+The editor optimises the retention curve, not just a clean cut. Watch-through is
+the metric. Four gates, run on the FINISHED cut (after captions/overlays, before
+finalize), all enforced by `retention_check.py` plus two eyeball checks:
+
+```bash
+python3 scripts/retention_check.py --video output/clip.mp4 \
+  --overlays .yap_build/<slug>_overlays.json --hook-end 5.2
+ffmpeg -i output/clip.mp4 -frames:v 1 .yap_build/frame0.png   # first-frame audit
+```
+
+1. **First-frame gate (eyeball frame0.png).** At 0.0s there must be motion or
+   mid-action framing (never settling in), the text hook readable in one
+   fixation, and something that differs from a generic talking head. If frame
+   zero could be any video in the feed, re-pick the hook clip in-point.
+2. **Re-hook gate (scripted).** Something must CHANGE on screen between ~2s and
+   ~3.5s: a cut, punch-in, text pop, or overlay landing with a raised stake.
+   The tool fails the build if the frame sits still through the window.
+3. **Pattern-interrupt budget (scripted).** No stretch longer than ~5s (short
+   form) or ~6s (60s+, pass `--max-gap 6`) without a visual event. The tool
+   prints every static stretch with a timestamp: fix each one by aiming an
+   overlay, counter, PiP evidence insert, or punch-in AT that timestamp, then
+   re-run. The longest static stretch is where people leave.
+4. **Loop-or-button ending (eyeball).** The last line either hard-stops on the
+   payoff or connects back to the first line so rewatches register. Never let
+   the energy trail off after the payoff.
+
+**Density levers, in order of preference:** a real cut > a PiP evidence insert >
+a number count-up > a source lower-third > a caption emphasis pop > a punch-in.
+Under-season: one event per beat, not per word. SFX hits should land ON these
+events (same timestamps), not between them.
+
+### Evidence inserts (PiP: show the company / article / chart)
+When the script names a company, an article, a chart, or a number, SHOW it.
+Real screenshots only (no AI, per Hard rules): screenshot the actual headline,
+pricing page, chart, or post; save to `.yap_build/evidence/`. Burn as
+picture-in-picture for 2-4s, placed in the upper-middle third, clear of the
+hook window and the caption line:
+```bash
+ffmpeg -i cut.mp4 -i .yap_build/evidence/shot.png -filter_complex \
+  "[1]scale=880:-1,pad=iw+16:ih+16:8:8:color=white[e];\
+   [0][e]overlay=(W-w)/2:260:enable='between(t,12.4,15.6)'" \
+  -c:a copy out.mp4
+```
+Rules: one insert per claim, on screen only while the claim is spoken, add a
+`whoosh` SFX hit on entry. Log each insert in the overlays JSON (`{"type":"pip",
+"start":12.4,"end":15.6}`) so retention_check counts it. An evidence insert does
+two jobs at once: pattern interrupt + receipts (credibility), so aim them first
+at the static stretches the tool flags, and always on the biggest claim.
 
 ## Motion layers (typewriter hook, source tags, number count-ups)
 Driven by `build_ass.py` + `brand-config.json`, applied by `yapfull.sh`:

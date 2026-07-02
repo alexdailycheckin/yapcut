@@ -37,6 +37,33 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
 
+## What's new in 2.2
+
+- **Retention gates in the editor.** New `retention_check.py` runs on every finished cut and
+  gates the build like the stutter checker: it fails if nothing changes on screen in the
+  re-hook window (~2-3.5s) and prints every static stretch over ~5s with the exact timestamp
+  to fix. Plus a documented visual-density playbook: text pops, count-ups, and PiP "evidence
+  inserts" (real screenshots of the company/article a claim names, receipts + pattern
+  interrupt in one).
+- **The virality-psychology lens** (`references/virality-psychology.md`): why things get
+  watched, held, shared, and copied, ending in a 5-question scoring checklist. Every script
+  now carries a `psych` field naming the principles it fires; QA fails anything generic.
+- **The two-question gate.** Every script must be entertaining INSIDE your niche (insider
+  material, not anyone-with-a-pulse funny) or teach something usable. Neither = killed and
+  replaced, no matter how good the mechanic.
+- **Early-signal trend detection.** The weekly sweep now has a hard 14-day freshness gate and
+  bans peaked-roundup sources; every digest opens with "3 rising signals" presented as shells
+  with your transferred version. Plus a mid-week **hot drop** trigger for same-day takes.
+- **Trend creation.** Named recurring formats per lane and a coined-terms pipeline
+  (`references/coined-terms-template.md`): name the problem your audience feels, plant the
+  exact term weekly, own the vocabulary.
+- **Feedback without the spreadsheet.** The zero-admin default is the outlier flag (tell it
+  when a video pops, it autopsies the winner and writes variations); the 2.1 performance
+  export stays as the opt-in data mode, and it never nags.
+- **Mode B + SFX scripts now actually ship.** `brollcut.py`, `vo_guide.py`, `storyfull.sh`,
+  `gen_sfx.py`, and `sfxmix.py` were documented but missing from the plugin; they are now
+  bundled, including a fix for SFX mixes without a music bed.
+
 ## What's new in 2.1
 
 - **Your data now lives in a workspace outside the skill folder** (default `~/outlier-radar/`):
