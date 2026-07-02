@@ -37,6 +37,27 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
 
+## What's new in 2.1
+
+- **Your data now lives in a workspace outside the skill folder** (default `~/outlier-radar/`):
+  config, weekly script batches, dashboard, carousels, performance exports. Plugin updates and
+  reinstalls never touch it. Override with `OUTLIER_RADAR_HOME` or `--dir`.
+- **The performance loop.** A new "Export performance" button on the dashboard saves what you
+  filmed, posted, and the views you got; the next weekly run reads it and biases the batch
+  toward the mechanics and facets that actually worked. The engine now compounds.
+- **Verified research only.** Every outlier and inspiration item must be a real post at a real
+  URL, and every metric carries a `verified` / `reported` / `estimated` confidence tag. If it
+  can't be sourced, it gets dropped, not guessed.
+- **Bundled hook library.** The 15 hook pattern families ship with the skill
+  (`references/hook-library.md`), so `text_hook` writing has its source material on any install.
+- **Example week included.** A fresh install renders a sample dashboard immediately; it
+  disappears as soon as your first real week exists.
+- **Carousel builder is fully yours.** Name, colours, and fonts come from the `brand` block in
+  `radar-config.json` (neutral defaults without one), and Chrome/Chromium is auto-detected on
+  macOS, Linux, and Windows.
+- **Day-in-the-life beats render on the dashboard** as a film-this table (role, VO line, b-roll,
+  duration) so Mode B scripts are usable straight off the card.
+
 ## What's new in 2.0
 
 - **Redesigned dashboard** (dark by default, with a light/dark toggle): Inter + Geist
@@ -81,11 +102,15 @@ python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py  # should print 
 
 ## Use
 
-- **Ideas:** in Claude Code say "run outlier radar". First time, it interviews you and saves
-  `radar-config.json`; after that it researches and writes your weekly scripts, then opens the
-  dashboard. Fill `positioning.md`, `methods.md` (your own how-to knowledge, so educational
-  scripts teach a real step), and optionally `leaders-to-study.md` and `watch-accounts.md` from
-  the provided templates.
+- **Ideas:** in Claude Code say "run outlier radar". First time, it interviews you and creates
+  your workspace (default `~/outlier-radar/`) with `radar-config.json` inside; after that it
+  researches and writes your weekly scripts, then opens the dashboard. Fill `positioning.md`,
+  `methods.md` (your own how-to knowledge, so educational scripts teach a real step), and
+  optionally `leaders-to-study.md` and `watch-accounts.md` in the workspace from the provided
+  templates.
+- **Close the loop:** after posting, log views on the dashboard and click "Export performance",
+  saving the file into `<workspace>/performance/`. The next weekly run reads it and doubles down
+  on what worked.
 - **Edit:** drop a folder of `.MOV`/`.mp4` clips and say "make a tiktok from these" (Mode A) or
   "script my voiceover and cut my day clips" (Mode B). First run asks the brand questions and
   saves `brand-config.json`.
@@ -99,13 +124,15 @@ python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py  # should print 
 ## What's inside
 
 - `plugins/outlier-radar/skills/outlier-radar/` — the research playbook (`SKILL.md`),
-  `build_dashboard.py`, `references/` (templates you fill), `radar-config.example.json`.
+  `build_dashboard.py`, `build_carousels.py`, `references/` (templates you fill + the hook
+  library + the mechanic library), `radar-config.example.json`, and a bundled example week.
 - `plugins/tiktok-yap-editor/skills/tiktok-yap-editor/` — the editor playbook + deterministic
   scripts (`yapcut.py`, `stutter_check.py`, `build_ass.py`, `brollcut.py`, `vo_guide.py`, and
   the drivers), `brand-config.example.json`.
 
-Your filled-in config and generated weeks/dashboard stay local (see `.gitignore`); only the
-templates ship.
+Your filled-in config, weekly batches, dashboard, and exports live in your workspace (default
+`~/outlier-radar/`), outside the repo and the plugin folder; only templates and the example
+week ship.
 
 ## Author
 

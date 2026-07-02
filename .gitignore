@@ -2,16 +2,22 @@
 .yap_build/
 .env
 
-# Outlier Radar: your filled-in personal working files + generated output stay LOCAL.
-# The *-template.md files and radar-config.example.json ARE tracked (they ship);
-# the unsuffixed filled versions below are not.
+# Outlier Radar: your data lives in a workspace OUTSIDE the repo (default
+# ~/outlier-radar/), so nothing personal should land here. The rules below
+# also cover legacy installs that kept data next to the scripts.
+# The *-template.md files, radar-config.example.json, and the bundled example
+# week ARE tracked (they ship); the unsuffixed filled versions are not.
 plugins/outlier-radar/skills/outlier-radar/radar-config.json
 plugins/outlier-radar/skills/outlier-radar/positioning.md
 plugins/outlier-radar/skills/outlier-radar/methods.md
 plugins/outlier-radar/skills/outlier-radar/leaders-to-study.md
 plugins/outlier-radar/skills/outlier-radar/watch-accounts.md
 plugins/outlier-radar/skills/outlier-radar/weeks/*.json
+!plugins/outlier-radar/skills/outlier-radar/weeks/0000-00-00-example.json
 plugins/outlier-radar/skills/outlier-radar/dashboard.html
+plugins/outlier-radar/skills/outlier-radar/performance/
+plugins/outlier-radar/skills/outlier-radar/carousels/
+plugins/outlier-radar/skills/outlier-radar/blog-queue/
 
 # TikTok Yap Editor: your filled brand config stays local (the example ships).
 plugins/tiktok-yap-editor/skills/tiktok-yap-editor/brand-config.json

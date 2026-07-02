@@ -1,0 +1,9 @@
+{
+  "name": "outlier-radar",
+  "description": "Weekly viral-outlier research + ideation engine. Learns your niche once, finds short-form videos that beat their creator's baseline 5x+, extracts the transferable hook/format mechanic, and writes ~10 scripts per lane in your voice to a self-contained tracked dashboard. Data lives in a local workspace (default ~/outlier-radar) that plugin updates never touch.",
+  "version": "2.1.0",
+  "author": {
+    "name": "Alex Muresan",
+    "url": "https://alexmuresan.com"
+  }
+}

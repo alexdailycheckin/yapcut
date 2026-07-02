@@ -21,5 +21,21 @@
   "leaders_file": "leaders-to-study.md",
   "watch_accounts_file": "watch-accounts.md",
   "linkedin_twins": false,
-  "blog_pipeline": false
+  "blog_pipeline": false,
+  "byline": "",
+  "partner": "",
+  "brand": {
+    "name": "Your Name (appears on carousel slides; defaults to 'creator' above)",
+    "colors": {
+      "bg": "#FFFFFF",
+      "ink": "#17191C",
+      "accent": "#0F766E"
+    },
+    "fonts": {
+      "display": "Inter",
+      "body": "Inter",
+      "mono": "Space Mono",
+      "google_import": "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap"
+    }
+  }
 }

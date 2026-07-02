@@ -10,7 +10,7 @@ on-screen hook for mute viewers, no consultant-speak, no em/en dashes).
 
 ## The seven parts (these are the JSON fields)
 
-1. **text_hook** - the ~6-word overlay burned on the video for mute scrollers. A hook family from tiktok-engine/hook-library.md, in your voice.
+1. **text_hook** - the ~6-word overlay burned on the video for mute scrollers. A hook family from `hook-library.md` (in this references folder), in your voice.
 2. **visual_hook** - what you physically show or do in the first 1-2 seconds (a prop, a screen, an action, a pattern interrupt). If it is pure talking head, say so ("straight to camera, high energy").
 3. **spoken_hook** - the opening 1-2 lines said out loud (it is usually two short lines, and reading it in two breaths is fine). It is NOT a separate thing to record: on the dashboard the whole read is laid out like a movie script in three labelled sections, **HOOK** (this field, rendered BOLD) then **SCRIPT** then **CTA (optional)**, each one sentence per line. Write the hook to flow straight into the script and never repeat it at the top of `script`. It is for the ear; the `text_hook` (for the eye) can and often should differ.
 4. **script** - the VERBATIM words to read out loud: the body that follows the hook section. Must follow tension -> value beats -> payoff. Written to be SPOKEN (contractions, short sentences, rhythm), not read like an essay. Do NOT restate the spoken_hook here; start from the next beat. The dashboard renders it as the **SCRIPT** section, one sentence per line, teleprompter style.
@@ -36,7 +36,7 @@ Secondary "Viral videos" lane scripts use the same fields as the primary lane: `
 The transferable laws behind why outliers travel, distilled from the mechanic
 library and crystallised by the @solidheaston teardown. They are NOT
 day-in-life-specific: apply them to any storytelling script, talking-head or VO,
-in any hook family from `tiktok-engine/hook-library.md`. When writing a
+in any hook family from `hook-library.md`. When writing a
 storytelling slot, run the idea through all six and rewrite the hook until it
 passes #1.
 
@@ -102,7 +102,7 @@ Why it travels, and the rules that port to any niche:
   curiosity at once. "Day in the life of a founder / marketer / operator" dies: a role carries no
   tension. Build the hook on a true tension about you (a cushy life, no office,
   no boss, paid to be online all day), then let the day pay it off. Pull the wording
-  from the taboo/confession + curiosity-gap families in `tiktok-engine/hook-library.md`
+  from the curiosity-gap + day-in-life/confession families in `hook-library.md`
   (families 8 and 12, fused).
 - **Hyper-specific deadpan narration is the retention engine.** Flat first-person
   VO, one precise mundane detail per beat ("my weight's been stuck at 197 for three

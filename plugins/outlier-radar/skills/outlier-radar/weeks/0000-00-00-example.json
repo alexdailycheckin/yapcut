@@ -1,0 +1,103 @@
+{
+  "week": "example",
+  "positioning": "Sample data so you can see how the dashboard works. Say 'run outlier radar' in Claude Code to run discovery and replace this with your first real week. Example niche: personal finance for freelancers.",
+  "distribution": [
+    {
+      "id": "d-example-1",
+      "title": "The tax account freelancers skip",
+      "facet": "cash flow",
+      "intent": "educational",
+      "mechanic": "Free-value utility + urgency",
+      "text_hook": "Stop lending the taxman money",
+      "visual_hook": "Phone in hand, banking app open, straight to camera",
+      "spoken_hook": "Every freelancer I know is doing their taxes backwards. You are lending the government money for free.",
+      "script": "The fix takes ten minutes. Open a second account and name it Tax. Every time you get paid, move 25 percent in before you touch the rest. Now the scary number in April is already sitting there. You stop pricing jobs from panic, and you can finally see what you actually earn.",
+      "directions": "Punch in on the banking app when you say the word Tax. On-screen text at the 25 percent line: '25% of every invoice'. Hard stop on the last line, no outro.",
+      "value": "Educational: a ten minute second-account setup that removes tax panic for good.",
+      "cta": "",
+      "qa": "passed",
+      "sources": [
+        { "label": "Replace with the real source you verified", "url": "https://example.com" }
+      ],
+      "linkedin": {
+        "id": "d-example-1-li",
+        "type": "educational",
+        "hook_arch": "specific claim",
+        "body": "Most freelancers do their taxes backwards.\n\nThey spend the year hoping the April number will be kind, then price their next three jobs out of panic when it is not.\n\nThe fix takes ten minutes: a second account named Tax, and 25 percent of every invoice moved in before you touch the rest.\n\nThe number stops being scary when it is already sitting there.\n\nWhat is the one money habit that actually stuck for you?",
+        "qa": "passed"
+      }
+    },
+    {
+      "id": "d-example-2",
+      "title": "Day in the life: chasing strangers for money",
+      "facet": "getting paid",
+      "intent": "storytelling",
+      "format": "day-in-life-vo",
+      "mechanic": "Taboo day-in-the-life VO",
+      "text_hook": "I chase strangers for money",
+      "visual_hook": "Laptop open on an unpaid invoice, deadpan face",
+      "spoken_hook": "Part of my job is chasing strangers for money they already owe me.",
+      "script": "Part of my job is chasing strangers for money they already owe me. This invoice is 43 days old. The client has viewed my reminder email four times. So today I am sending the one where I stop being polite. There is a version of this email that gets paid in 48 hours, and it is three sentences long.",
+      "directions": "Film real b-roll of the day: the invoice on screen, coffee, typing the email, hitting send, a walk. Flat deadpan VO recorded to the guide, no music swell.",
+      "value": "Relatable: every freelancer has this invoice, and the three-sentence email is the payoff.",
+      "cta": "",
+      "qa": "passed",
+      "beats": [
+        { "role": "hook", "text": "Part of my job is chasing strangers for money they already owe me.", "b_roll": "Laptop with the unpaid invoice on screen, slow push in", "target_dur": 2 },
+        { "role": "context", "text": "This invoice is 43 days old.", "b_roll": "Close-up of the invoice date, then your face, deadpan", "target_dur": 3 },
+        { "role": "beat", "text": "The client has viewed my reminder email four times.", "b_roll": "Email thread with read receipts, scroll slowly", "target_dur": 3 },
+        { "role": "turn", "text": "So today I am sending the one where I stop being polite.", "b_roll": "Typing the short email, cursor hovering over send", "target_dur": 3 },
+        { "role": "button", "text": "There is a version of this email that gets paid in 48 hours, and it is three sentences long.", "b_roll": "Hit send, close the laptop, walk away", "target_dur": 4 }
+      ]
+    }
+  ],
+  "office": [
+    {
+      "id": "o-example-1",
+      "title": "POV: the call that could have been an invoice reminder",
+      "borrows": "POV archetype title-card (played straight so the viewer casts a real person)",
+      "carries": "the client who books a 30 minute call to say one sentence",
+      "text_hook": "POV: this call could be an email",
+      "visual_hook": "Title card 'POV: your favourite client books a call', then you as the client",
+      "spoken_hook": "Hey! Great to see you. So, quick one.",
+      "script": "I just wanted to check we are aligned on the thing we aligned on yesterday. Perfect. Same time next week?",
+      "directions": "Play the client 100 percent straight, no wink. Cut to your dead stare for one beat before the last line.",
+      "value": "Relatable: 'someone finally said it' recognition for anyone who bills by the hour.",
+      "cta": "",
+      "qa": "passed",
+      "sources": [
+        { "label": "Replace with the real viral video this borrows from", "url": "https://example.com" }
+      ]
+    }
+  ],
+  "linkedin": [
+    {
+      "id": "li-example-1",
+      "type": "insight",
+      "hook_arch": "contrarian claim",
+      "body": "Raising your rate is the worst first move for a struggling freelance business.\n\nNot because the rate is right. Because the leak is usually elsewhere: 40 plus day payment terms, unscoped revisions, and one anchor client who is 60 percent of revenue.\n\nFix collection speed, scope, and concentration first. Then raise the rate from a position where you can afford a no.\n\nExample post from the leaders scan: replace with a real logged find.",
+      "qa": "passed",
+      "sources": [
+        { "label": "Replace with the real post URL", "url": "https://example.com" }
+      ]
+    }
+  ],
+  "inspiration": [
+    {
+      "creator": "@example.creator",
+      "platform": "tiktok",
+      "metric": "4.1M views vs a creator median around 80k",
+      "metric_confidence": "estimated",
+      "mechanic": "Relatable-callout list: hyper-specific insider proofs that drive tagging",
+      "link": "https://example.com"
+    },
+    {
+      "creator": "@another.example",
+      "platform": "instagram",
+      "metric": "620k views, reported by a teardown article",
+      "metric_confidence": "reported",
+      "mechanic": "Deadpan literal misread of in-group jargon",
+      "link": "https://example.com"
+    }
+  ]
+}

@@ -1,20 +1,47 @@
 #!/usr/bin/env python3
-"""Build a self-contained dashboard.html from weeks/*.json.
+"""Build dashboard.html from the workspace's weeks/*.json.
 
-Embeds all weekly data into one HTML file. Your tracking (status, views you got,
-posted link, notes) lives in the browser's localStorage keyed by stable item id,
-so regenerating the dashboard each week never wipes what you logged.
+Embeds all weekly data into one HTML file (web fonts load from Google Fonts
+when online, system fonts otherwise). Your tracking (status, views you got,
+posted link, notes) lives in the browser's localStorage keyed by stable item
+id, so regenerating the dashboard each week never wipes what you logged.
 
-Run: python3 build_dashboard.py   ->   writes dashboard.html
+All mutable data (radar-config.json, weeks/, dashboard.html) lives in a
+workspace directory OUTSIDE the skill folder, so plugin updates never touch
+it. Resolution order: --dir <path> | $OUTLIER_RADAR_HOME | ./radar-config.json
+in the current dir | ~/outlier-radar | legacy: next to this script.
+
+Run: python3 build_dashboard.py [--dir /path/to/workspace]
 """
-import json, os, glob
+import json, os, sys, glob
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# Optional radar-config.json lets any installer name their two lanes. Defaults
-# to the generic product labels so it works with no config at all.
+
+def resolve_workspace():
+    argv = sys.argv[1:]
+    for i, a in enumerate(argv):
+        if a == "--dir" and i + 1 < len(argv):
+            return os.path.abspath(os.path.expanduser(argv[i + 1]))
+        if a.startswith("--dir="):
+            return os.path.abspath(os.path.expanduser(a.split("=", 1)[1]))
+    env = os.environ.get("OUTLIER_RADAR_HOME")
+    if env:
+        return os.path.abspath(os.path.expanduser(env))
+    if os.path.exists(os.path.join(os.getcwd(), "radar-config.json")):
+        return os.getcwd()
+    home = os.path.join(os.path.expanduser("~"), "outlier-radar")
+    if os.path.exists(os.path.join(home, "radar-config.json")):
+        return home
+    return HERE
+
+
+WS = resolve_workspace()
+
+# Optional radar-config.json (in the workspace) lets any installer name their
+# two lanes. Defaults to the generic labels so it works with no config at all.
 CFG = {}
-_cfgp = os.path.join(HERE, "radar-config.json")
+_cfgp = os.path.join(WS, "radar-config.json")
 if os.path.exists(_cfgp):
     try:
         CFG = json.load(open(_cfgp))
@@ -32,28 +59,26 @@ def _lane_label(key, default):
 PRIMARY_LABEL = _lane_label("primary_lane", "Industry")
 SECONDARY_LABEL = _lane_label("secondary_lane", "Viral videos")
 LEADERS_HDR = CFG.get("leaders_header") or "From leaders you study"
-# optional "in partnership with X" pill in the header (empty = hidden).
-# If the partner is "Reach", render its brand mark; otherwise text only.
+BYLINE = CFG.get("byline") or "by alexmuresan.com"
+# optional "in partnership with X" pill in the header (empty = hidden)
 PARTNER = (CFG.get("partner") or "").strip()
-REACH_MARK = ('<svg class="pmark" width="16" height="16" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">'
-              '<rect width="32" height="32" rx="8" fill="#0F0F0F"></rect>'
-              '<rect x="1" y="1" width="30" height="30" rx="7" stroke="white" stroke-opacity="0.12" stroke-width="2"></rect>'
-              '<path d="M8.718 23.161V11.185l4.938 2.716V26l-4.938-2.839Z" fill="#B5F7FF"></path>'
-              '<path d="M23.9 16.928l-8.025 4.691v-5.081l7.901-4.425.124 4.815Z" fill="white"></path>'
-              '<path d="M25.997 21.679l-5.087-3.003-5.036 2.942 5.185 2.9 4.938-2.839Z" fill="url(#ycReachA)"></path>'
-              '<path d="M13.651 6 8.713 8.84l10.179 6.016 4.884-2.743L13.651 6Z" fill="url(#ycReachB)"></path>'
-              '<defs><linearGradient id="ycReachA" x1="23.199" y1="22.063" x2="16.276" y2="16.48" gradientUnits="userSpaceOnUse"><stop stop-color="white"></stop><stop offset="1" stop-color="#00BED8"></stop></linearGradient>'
-              '<linearGradient id="ycReachB" x1="25.875" y1="15.683" x2="11.93" y2="7.003" gradientUnits="userSpaceOnUse"><stop stop-color="#00BED8"></stop><stop offset="0.58" stop-color="white"></stop></linearGradient></defs></svg>')
-_pmark = REACH_MARK if PARTNER.lower() == "reach" else ""
-PARTNER_HTML = (f'<span class="partner">in partnership with {_pmark}<b>{PARTNER}</b></span>'
+PARTNER_HTML = (f'<span class="partner">in partnership with <b>{PARTNER}</b></span>'
                 if PARTNER else "")
 
+week_files = sorted(glob.glob(os.path.join(WS, "weeks", "*.json")), reverse=True)
+if not week_files and WS != HERE:
+    week_files = sorted(glob.glob(os.path.join(HERE, "weeks", "*.json")), reverse=True)
+    if week_files:
+        print("no weeks in the workspace yet: showing the bundled example week")
 weeks = []
-for f in sorted(glob.glob(os.path.join(HERE, "weeks", "*.json")), reverse=True):
+for f in week_files:
     try:
         weeks.append(json.load(open(f)))
     except Exception as e:
         print("skip", f, e)
+# hide the bundled sample once real weeks exist
+if len(weeks) > 1:
+    weeks = [w for w in weeks if str(w.get("week", "")).lower() != "example"]
 
 DATA = json.dumps(weeks)
 
@@ -236,6 +261,13 @@ HTML = r"""<!DOCTYPE html>
   .hookgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}
   .hookgrid .block{margin:0}
   @media(max-width:680px){.hookgrid{grid-template-columns:1fr}}
+  /* beats table (day-in-life-vo scripts) */
+  .beatswrap{background:var(--dir-bg);border-left:3px solid var(--accent-deep);padding:10px 13px;border-radius:8px;overflow-x:auto}
+  .beats{width:100%;border-collapse:collapse;font-size:13.5px}
+  .beats th{text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:4px 12px 4px 0}
+  .beats td{padding:6px 12px 6px 0;border-top:1px solid var(--line);vertical-align:top}
+  .beats td.bmut{color:var(--muted)}
+  .beats td.brole{font-family:var(--mono);font-size:11px;text-transform:uppercase;color:var(--accent);white-space:nowrap}
 </style>
 </head>
 <body>
@@ -243,7 +275,7 @@ HTML = r"""<!DOCTYPE html>
   <div class="brandbar">
     <div class="brand">
       <div class="logo"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9" width="3" height="10" rx="1.5" fill="#fff"/><rect x="10.5" y="4" width="3" height="16" rx="1.5" fill="#fff"/><rect x="17.5" y="11" width="3" height="8" rx="1.5" fill="#fff"/></svg></div>
-      <div><span class="brandname">YapCut</span> <span class="byline">by alexmuresan.com</span></div>
+      <div><span class="brandname">YapCut</span> <span class="byline">__BYLINE__</span></div>
     </div>
     <div class="brandright">__PARTNER__<button class="themetoggle" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">&#9790;</button></div>
   </div>
@@ -255,6 +287,7 @@ HTML = r"""<!DOCTYPE html>
       <button class="btn" onclick="exportFilmed()" title="Copy every script you marked Filmed, with its edit spec, to paste into the editor session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>Export filmed scripts</button>
       <button class="btn" onclick="exportForBlog()" title="Save everything you marked Filmed or Posted this week to a JSON file the weekly routine turns into an AEO blog post"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><path d="M16 6l-4-4-4 4"></path><path d="M12 2v13"></path></svg>Export week for blog</button>
       <button class="btn" onclick="exportCarousels()" title="Save every script you flagged 'Carousel' to a queue file, then run build_carousels.py to render branded LinkedIn carousel PDFs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5"></path></svg>Export carousel queue</button>
+      <button class="btn" onclick="exportPerformance()" title="Save everything you tracked (status, views, notes) across all weeks so the next radar run learns what worked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>Export performance</button>
       <select id="weekSel" onchange="render()"></select>
     </div>
   </div>
@@ -297,7 +330,7 @@ function updateTabCounts(w){
   set("dist", poolCount(w.distribution));
   set("office", poolCount(w.office));
   set("filmed", all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length);
-  set("linkedin", (w.distribution||[]).filter(x=>x.linkedin && t(x.id).status!=="ignored").length + (w.gtm_linkedin||[]).length);
+  set("linkedin", (w.distribution||[]).filter(x=>x.linkedin && t(x.id).status!=="ignored").length + (w.linkedin||w.gtm_linkedin||[]).length);
   set("insp", (w.inspiration||[]).length);
 }
 
@@ -372,6 +405,39 @@ async function exportCarousels(){
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   alert(`Downloaded ${fname} (${items.length} script(s)).`+note);
 }
+async function exportPerformance(){
+  const weeksOut = WEEKS.map(w=>{
+    const office=w.office||[];
+    const items=[].concat(w.distribution||[], office).map(x=>{
+      const r=t(x.id);
+      if(r.status==="idea" && !r.views && !r.notes && !r.link) return null;
+      return {id:x.id, title:x.title||"", lane:office.includes(x)?"secondary":"primary",
+              mechanic:x.mechanic||x.borrows||"", facet:x.facet||"", intent:x.intent||"",
+              value:x.value||"", qa:x.qa||"", status:r.status, views:r.views||"",
+              link:r.link||"", notes:r.notes||""};
+    }).filter(Boolean);
+    return items.length?{week:w.week, items}:null;
+  }).filter(Boolean);
+  if(!weeksOut.length){alert("No tracking logged yet.\\n\\nMark scripts Filmed or Posted and log views, then export. This file is what lets the next radar run learn from your results.");return;}
+  const payload={exported_at:new Date().toISOString(), weeks:weeksOut};
+  const json=JSON.stringify(payload,null,2);
+  const latest=weeksOut[0].week;
+  const fname=`performance-${latest}.json`;
+  const note=`\\n\\nSave it in your workspace's performance/ folder (default ~/outlier-radar/performance/) so the next radar run reads it and doubles down on what worked.`;
+  if(window.showSaveFilePicker){
+    try{
+      const h=await window.showSaveFilePicker({suggestedName:fname, types:[{description:"JSON",accept:{"application/json":[".json"]}}]});
+      const ws=await h.createWritable(); await ws.write(json); await ws.close();
+      alert(`Saved performance for ${weeksOut.length} week(s).`+note);
+      return;
+    }catch(e){ if(e.name==="AbortError") return; }
+  }
+  const blob=new Blob([json],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  alert(`Downloaded ${fname} (${weeksOut.length} week(s)).`+note);
+}
 function fallbackCopy(text,cb){
   const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
   try{document.execCommand("copy");}catch(e){}
@@ -397,7 +463,7 @@ function statsBar(){
   const tot   = story+edu+off;
   const seg=(v,cls)=>`<div class="${cls}" style="flex:${tot?(v||0.0001):1}"></div>`;
   const bar = `<div class="intentbar">${seg(story,'sga')}${seg(edu,'sgb')}${seg(off,'sgc')}</div>`
-            + `<div class="barcap">storytelling &middot; educational &middot; office</div>`;
+            + `<div class="barcap">storytelling &middot; educational &middot; __SECONDARY_LABEL__</div>`;
   const cards=[
     {l:"To film", n:tofilm, extra:bar},
     {l:"Filmed", n:filmed, sub:"ready to post"},
@@ -449,6 +515,14 @@ function readScript(x){
   return `<div class="block readbox"><div class="label">Read this out loud while recording</div><div class="val">${html}</div></div>`;
 }
 
+// day-in-life-vo scripts carry beats[] (role / VO line / b-roll / duration):
+// render them as a film-this table so Mode B is usable straight off the card.
+function beatsTable(x){
+  if(!x.beats||!x.beats.length) return "";
+  const rows=x.beats.map(b=>`<tr><td class="brole">${esc(b.role)}</td><td>${esc(b.text)}</td><td class="bmut">${esc(b.b_roll)}</td><td class="bmut">${b.target_dur?esc(String(b.target_dur))+"s":""}</td></tr>`).join("");
+  return `<div class="block"><div class="label">Beats - film these (VO to picture, editor Mode B)</div><div class="val beatswrap"><table class="beats"><thead><tr><th>Role</th><th>VO line</th><th>B-roll</th><th>Dur</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
 function srcs(list){
   if(!list||!list.length) return "";
   const items=list.map(s=> s.url?`<a class="link" href="${esc(s.url)}" target="_blank">${esc(s.label)}</a>`:esc(s.label)).join(" &nbsp;&middot;&nbsp; ");
@@ -467,6 +541,7 @@ function scriptCard(x, isSecondLane){
   // spoken read (hook line + script) is one block, collapsed.
   const hooks = `<div class="hookgrid">${block("Text hook - write on the video", x.text_hook, "hookblk")}${block("Visual hook - show this", x.visual_hook, "hookblk")}</div>`;
   let collapsed = readScript(x)
+    + beatsTable(x)
     + block("Directions - DO this, do not read it", x.directions, "dirbox")
     + block("Value - what the viewer takes away", x.value, "valblk");
   // legacy fallback (pre-QA b-batch still on the old shape)
@@ -500,9 +575,10 @@ function liCard(x, srcTitle){
 }
 
 function inspCard(x){
+  const conf = x.metric_confidence?` <span class="pill">${esc(x.metric_confidence)}</span>`:"";
   return `<div class="card">
     <p class="ttl">${esc(x.creator)} <span class="pill">${esc(x.platform)}</span></p>
-    <p class="meta"><b>${esc(x.metric)}</b> &nbsp;·&nbsp; mechanic: ${esc(x.mechanic)}</p>
+    <p class="meta"><b>${esc(x.metric)}</b>${conf} &nbsp;·&nbsp; mechanic: ${esc(x.mechanic)}</p>
     <a class="link" href="${esc(x.link)}" target="_blank">Open source &rarr;</a>
   </div>`;
 }
@@ -524,7 +600,7 @@ function render(){
   else if(TAB==="filmed"){ const items=[].concat(w.distribution||[], office).filter(x=>["filmed","posted"].includes(t(x.id).status)); html=items.map(x=>scriptCard(x, office.includes(x))).join(""); empty="Nothing filmed yet. Mark a script Filmed and it lands here for metric tracking."; }
   else if(TAB==="linkedin"){
     const hdr = s => `<h3 style="margin:24px 0 10px;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600">${s}</h3>`;
-    const gtm = (w.gtm_linkedin||[]).filter(x=>t(x.id).status!=="ignored").map(x=>liCard(x, ""));
+    const gtm = (w.linkedin||w.gtm_linkedin||[]).filter(x=>t(x.id).status!=="ignored").map(x=>liCard(x, ""));
     const twins = (w.distribution||[]).filter(x=>x.linkedin && t(x.id).status!=="ignored").map(x=>liCard(x.linkedin, x.title));
     html = (gtm.length?hdr("__LEADERS_HDR__")+gtm.join(""):"")
          + (twins.length?hdr("Twins of this week's videos")+twins.join(""):"");
@@ -539,7 +615,7 @@ function render(){
   if(!savedTheme) savedTheme=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark";
   applyTheme(savedTheme);
   const sel=document.getElementById("weekSel");
-  sel.innerHTML = WEEKS.map(w=>`<option value="${w.week}">Week of ${w.week}</option>`).join("");
+  sel.innerHTML = WEEKS.map(w=>`<option value="${w.week}">${String(w.week).toLowerCase()==="example"?"Example week (sample data)":"Week of "+w.week}</option>`).join("");
   render();
 })();
 </script>
@@ -550,6 +626,8 @@ out = (HTML.replace("/*WEEKS_DATA*/", DATA)
            .replace("__PRIMARY_LABEL__", PRIMARY_LABEL)
            .replace("__SECONDARY_LABEL__", SECONDARY_LABEL)
            .replace("__LEADERS_HDR__", LEADERS_HDR)
+           .replace("__BYLINE__", BYLINE)
            .replace("__PARTNER__", PARTNER_HTML))
-open(os.path.join(HERE, "dashboard.html"), "w").write(out)
-print(f"wrote dashboard.html from {len(weeks)} week(s)")
+dest = os.path.join(WS, "dashboard.html")
+open(dest, "w").write(out)
+print(f"wrote {dest} from {len(weeks)} week(s)")

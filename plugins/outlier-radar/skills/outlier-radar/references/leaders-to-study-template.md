@@ -1,6 +1,6 @@
 # Leaders to study (roster template)
 
-**Optional section.** This whole LinkedIn/creator-scan is gated by `linkedin_twins` in `radar-config.json` (and by whether you actually publish on the channels these leaders use). If you do not run a LinkedIn or written-post lane, skip this file entirely. If you do, this is a roster of the leaders and creators in YOUR niche whose content is currently working, that the weekly run studies for hook + structure + why-it-worked, then turns the sharpest mechanics into your own scripts.
+**Optional section.** This whole LinkedIn/creator-scan runs only when `leaders-to-study.md` exists and is filled in your workspace (and it only makes sense if you actually publish on the channels these leaders use). If you do not run a LinkedIn or written-post lane, skip this file entirely. If you do, this is a roster of the leaders and creators in YOUR niche whose content is currently working, that the weekly run studies for hook + structure + why-it-worked, then turns the sharpest mechanics into your own scripts.
 
 North star: study the best operators in your space, not the loudest posters. Pick people whose work you would want to be mistaken for.
 
