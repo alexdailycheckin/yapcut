@@ -138,7 +138,11 @@ Both at once is the sweet spot. One clean yes ships.
    funny") does not. Grow the workspace copy of `mechanic-library.md`, tagging each entry
    with its principles.
 4. **Marry mechanic + premise.** Each script = one proven mechanic applied to one current
-   premise/data point from the niche, in the creator's voice.
+   premise/data point from the niche, in the creator's voice. **Then run every hook through
+   `references/hook-psychology.md` (the six psychological hook styles: Crystal Ball, Insider,
+   Lab Rat, Expert, Mirror, Sledgehammer).** Every `text_hook`/`spoken_hook` must fire at
+   least one of the six; stack two where natural; spread the styles across the batch so one
+   doesn't dominate. Tag each item with a `hook_styles` array.
 5. **Write ~10 primary-lane scripts and ~10 secondary-lane scripts** in the labelled anatomy.
    Read `references/script-anatomy.md` and follow it exactly. Secondary-lane scripts must
    borrow the hook + structure from a REAL viral video (put the URL in `sources`).

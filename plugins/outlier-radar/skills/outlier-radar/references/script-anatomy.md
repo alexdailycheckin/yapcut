@@ -10,7 +10,7 @@ on-screen hook for mute viewers, no consultant-speak, no em/en dashes).
 
 ## The seven parts (these are the JSON fields)
 
-1. **text_hook** - the ~6-word overlay burned on the video for mute scrollers. A hook family from `hook-library.md` (in this references folder), in your voice.
+1. **text_hook** - the ~6-word overlay burned on the video for mute scrollers. A hook family from `hook-library.md` (in this references folder), in your voice, and it must fire at least one of the six psychological hook styles in `hook-psychology.md` (Crystal Ball, Insider, Lab Rat, Expert, Mirror, Sledgehammer).
 2. **visual_hook** - what you physically show or do in the first 1-2 seconds (a prop, a screen, an action, a pattern interrupt). If it is pure talking head, say so ("straight to camera, high energy").
 3. **spoken_hook** - the opening 1-2 lines said out loud (it is usually two short lines, and reading it in two breaths is fine). It is NOT a separate thing to record: on the dashboard the whole read is laid out like a movie script in three labelled sections, **HOOK** (this field, rendered BOLD) then **SCRIPT** then **CTA (optional)**, each one sentence per line. Write the hook to flow straight into the script and never repeat it at the top of `script`. It is for the ear; the `text_hook` (for the eye) can and often should differ.
 4. **script** - the VERBATIM words to read out loud: the body that follows the hook section. Must follow tension -> value beats -> payoff. Written to be SPOKEN (contractions, short sentences, rhythm), not read like an essay. Do NOT restate the spoken_hook here; start from the next beat. The dashboard renders it as the **SCRIPT** section, one sentence per line, teleprompter style.
@@ -133,6 +133,7 @@ A premise is not a video. After the hook, the body has to:
 ## QA checklist (gate BEFORE it goes to the dashboard)
 A script is `qa: "passed"` only if every box is true. Otherwise it is `qa: "pre-qa"` and shows as a draft.
 - [ ] Hook works in under 2 seconds and opens a curiosity loop
+- [ ] Hook fires at least one of the six psychological styles in `hook-psychology.md` (fires none = it's a topic, rewrite)
 - [ ] text_hook is <= ~6 words and readable on mute
 - [ ] spoken_hook is a real human reaction, not manufactured consultant-speak
 - [ ] Body delivers a clear PAYOFF of some type (educational, insight, relatable, entertainment, or shock) - the `value` line is fillable, NOT necessarily educational

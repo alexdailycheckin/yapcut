@@ -138,6 +138,7 @@ HTML = r"""<!DOCTYPE html>
   .badge{font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:999px;text-transform:uppercase}
   .badge.ready{background:#dcfce7;color:#166534}
   .badge.draft{background:#f1f5f9;color:#64748b}
+  .badge.hstyle{background:#e0f2fe;color:#075985;text-transform:none;letter-spacing:0}
   .block{margin:9px 0}
   .label{font-size:10.5px;font-weight:700;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
   .val{font-size:14.5px}
@@ -536,6 +537,7 @@ function scriptCard(x, isSecondLane){
     ? `<p class="meta"><b>Borrows:</b> ${esc(x.borrows)}<br><b>Carries:</b> ${esc(x.carries)}</p>`
     : (x.mechanic?`<p class="meta"><b>Mechanic:</b> ${esc(x.mechanic)}</p>`:"");
   const badge = ready?'<span class="badge ready">QA passed</span>':'<span class="badge draft">Pre-QA draft</span>';
+  const styles = Array.isArray(x.hook_styles)&&x.hook_styles.length?x.hook_styles.map(s=>`<span class="badge hstyle">${esc(s)}</span>`).join(""):"";
   const title = x.title || x.mechanic || x.text_hook || "Untitled";
   // on-screen hooks always visible (these are SHOWN, not said); the full
   // spoken read (hook line + script) is one block, collapsed.
@@ -551,7 +553,7 @@ function scriptCard(x, isSecondLane){
   }
   const hasCollapse = collapsed.trim().length>0;
   return `<div class="card ${done?'done':''}">
-    <div class="cardhead"><p class="ttl" style="margin:0">${esc(title)}</p>${badge}${done?'<span class="pill">posted</span>':''}<span style="margin-left:auto;display:flex;gap:6px"><button class="btn ${r.carousel?'on':''}" onclick="toggleCarousel('${x.id}')" title="Flag this script for a LinkedIn carousel PDF, then use 'Export carousel queue'">${r.carousel?'Carousel ✓':'Carousel'}</button><button class="btn" onclick="setT('${x.id}',{status:'${r.status==='ignored'?'idea':'ignored'}'})">${r.status==='ignored'?'Restore':'Ignore'}</button></span></div>
+    <div class="cardhead"><p class="ttl" style="margin:0">${esc(title)}</p>${badge}${styles}${done?'<span class="pill">posted</span>':''}<span style="margin-left:auto;display:flex;gap:6px"><button class="btn ${r.carousel?'on':''}" onclick="toggleCarousel('${x.id}')" title="Flag this script for a LinkedIn carousel PDF, then use 'Export carousel queue'">${r.carousel?'Carousel ✓':'Carousel'}</button><button class="btn" onclick="setT('${x.id}',{status:'${r.status==='ignored'?'idea':'ignored'}'})">${r.status==='ignored'?'Restore':'Ignore'}</button></span></div>
     ${meta}
     ${srcs(x.sources)}
     ${hooks}
