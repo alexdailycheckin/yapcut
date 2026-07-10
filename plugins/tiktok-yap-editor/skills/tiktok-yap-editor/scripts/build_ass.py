@@ -201,6 +201,10 @@ def main():
     ap.add_argument("--hook-secs", type=float, default=2.5)
     ap.add_argument("--hook-anim", choices=["none", "typewriter"], default="none",
                     help="typewriter = reveal the hook character-by-character with a cursor")
+    ap.add_argument("--hook-style", choices=["outline", "minimal"], default="outline",
+                    help="outline = heavy stroked hook (legacy default). minimal = no "
+                         "outline, soft shadow, second line at ~55%% size (the "
+                         "hook_styles.py 'minimal' look, but inline so typewriter works)")
     ap.add_argument("--hook-spark", default="",
                     help="word in the hook to colour in the accent on the held frame")
     ap.add_argument("--overlays", default="",
@@ -300,7 +304,13 @@ def main():
                 print(f"  hook auto-fit: {p['hook_size']}px -> {fit_size}px, "
                       f"{len(disp_lines)} line(s) (safe width {int(safe_w)}px)")
             p["hook_size"] = fit_size
-            full = "\\N".join(disp_lines)
+            if a.hook_style == "minimal" and len(disp_lines) > 1:
+                # minimal look: big statement line + smaller context line(s)
+                sub = max(a.hook_min_size // 2, int(fit_size * 0.55))
+                full = disp_lines[0] + "".join(
+                    f"\\N{{\\fs{sub}}}{ln}" for ln in disp_lines[1:])
+            else:
+                full = "\\N".join(disp_lines)
             hk_col = accent_ass if p["hook_accent"] else base_ass
             pos = f"\\an5\\pos({W // 2},{p['hook_y']})"
 
@@ -312,13 +322,20 @@ def main():
                 return text.replace(wd, f"{{\\1c{spark_ass}}}{wd}{{\\1c{hk_col}}}", 1)
 
             if a.hook_anim == "typewriter":
-                # reveal unit-by-unit (a "\\N" line break counts as one unit)
-                units, i = [], 0
+                # reveal unit-by-unit (a "\\N" line break counts as one unit).
+                # {\...} override blocks are zero-width: glue them to the next
+                # unit so a partial "{\fs6" never gets typed as literal text.
+                units, i, pend = [], 0, ""
                 while i < len(full):
-                    if full[i:i + 2] == "\\N":
-                        units.append("\\N"); i += 2
+                    if full[i] == "{":
+                        j = full.find("}", i)
+                        if j < 0: break
+                        pend += full[i:j + 1]; i = j + 1
+                    elif full[i:i + 2] == "\\N":
+                        units.append(pend + "\\N"); pend = ""; i += 2
                     else:
-                        units.append(full[i]); i += 1
+                        units.append(pend + full[i]); pend = ""; i += 1
+                if pend: units.append(pend)
                 type_dur = min(1.1, a.hook_secs * 0.55)
                 step = type_dur / max(1, len(units))
                 for k in range(1, len(units) + 1):
@@ -375,9 +392,15 @@ def main():
     cap_style = (f"Style: Cap,{p['font']},{p['cap_size']},{base_ass},{base_ass},"
                  f"{out_ass},&H64000000,{bold},0,0,0,100,100,{p['spacing']},0,1,"
                  f"{p['outline_px']},{p['shadow_px']},5,90,90,0,0")
-    hook_style = (f"Style: Hook,{p['font']},{p['hook_size']},{base_ass},{base_ass},"
-                  f"{out_ass},&H64000000,{bold},0,0,0,100,100,{p['spacing']},0,1,"
-                  f"{p['outline_px'] + 1},{p['shadow_px']},5,80,80,0,0")
+    if a.hook_style == "minimal":
+        # no outline, soft shadow only (the hook_styles.py minimal look, inline)
+        hook_style = (f"Style: Hook,{p['font']},{p['hook_size']},{base_ass},{base_ass},"
+                      f"{out_ass},&H5A000000,{bold},0,0,0,100,100,{p['spacing']},0,1,"
+                      f"0,3,5,80,80,0,0")
+    else:
+        hook_style = (f"Style: Hook,{p['font']},{p['hook_size']},{base_ass},{base_ass},"
+                      f"{out_ass},&H64000000,{bold},0,0,0,100,100,{p['spacing']},0,1,"
+                      f"{p['outline_px'] + 1},{p['shadow_px']},5,80,80,0,0")
 
     lines = []
     lines.append("[Script Info]")

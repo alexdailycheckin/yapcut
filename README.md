@@ -37,6 +37,31 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
 
+## What's new in 2.3
+
+- **Perfect cuts.** The cutter stopped machine-gunning: a cut must earn its visual
+  jump. Only pauses >= 0.55s become cuts (0.3-0.5s pauses are speech cadence), no
+  segment shorter than 0.45s ever ships (short bursts bridge into a neighbour), a
+  cut must remove at least 0.25s to exist, and pads are decay-aware (0.12/0.10) so
+  word edges never get shaved. On a real 13-video batch the old defaults made 57%
+  of joins micro-gap cuts and left 4-frame flash segments; v2.3 removes only real
+  dead air.
+- **Click-proof pause detection.** Pauses are found on a median-smoothed RMS
+  envelope instead of an instantaneous level gate: a single mouth click used to
+  split a 1.5s pause into undetectable chunks, shipping a 2-second on-screen gap.
+- **No more splice blips.** Segment audio is PCM with 4ms edge fades and gets one
+  continuous AAC encode; per-segment AAC + concat stream-copy inserted a ~20-40ms
+  audible hole at every join. New `seam_qa.py` probes every join in the finished
+  video and fails the build if a splice hole survives.
+- **Cut-point transparency.** `yapcut.py` writes `keeps_<out>.json` (the exact
+  final cut points) so QA can audit seams instead of eyeballing.
+- **Boundary ground-truthing rule.** Story-cut boundaries are placed from a ±5s
+  window re-transcription, never from full-file word timings (whisper DTW drifts
+  up to ~2s mid-file and can swallow words at a splice).
+- **Minimal typewriter hook.** `build_ass.py --hook-style minimal` renders the
+  no-outline, soft-shadow hook with a size hierarchy inline, so the typewriter
+  reveal works with it; set `"hook_style": "minimal"` in brand-config.
+
 ## What's new in 2.2
 
 - **Retention gates in the editor.** New `retention_check.py` runs on every finished cut and

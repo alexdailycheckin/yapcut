@@ -34,6 +34,7 @@ print("HANDLE=%s"%shlex.quote(g("handle","")))
 print("HFONT=%s"%shlex.quote(g("label_font", g("caption_font","Montserrat Black"))))
 print("CONTACT=%s"%shlex.quote("\n".join(g("contact_lines",[]))))
 print("HANIM=%s"%shlex.quote(g("hook_anim","none")))
+print("HSTYLE=%s"%shlex.quote(g("hook_style","outline")))
 PY
 )"
 # optional per-clip extra overlays (source tags, number count-ups): <out>_overlays.json
@@ -42,7 +43,7 @@ OVRFILE="$WD/${OUTBASE}_overlays.json"; [ -f "$OVRFILE" ] || OVRFILE=""
 
 # 1. single-pass cut (clean CFR, dead-air, tight tails, anti-stutter crop-alt)
 python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$WD/full_${OUTBASE}.mp4" \
-  --silence-db -42 --padr 0.04 --padl 0.07 --min-gap 0.28 --d 0.10
+  --silence-db -42 --padr 0.12 --padl 0.10 --min-gap 0.55 --min-seg 0.45 --d 0.10
 echo "--- blackdetect (cut) ---"
 ffmpeg -nostdin -i "$WD/full_${OUTBASE}.mp4" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  NO black frames"
@@ -53,7 +54,7 @@ echo "--- dur: $DUR ---"
 bash "$SCRIPTS/transcribe.sh" "$WD/full_${OUTBASE}.mp4" "$WD/w_${OUTBASE}" --words >/dev/null 2>&1
 python3 "$SCRIPTS/build_ass.py" --words "$WD/w_${OUTBASE}.json" --out "$WD/cap_${OUTBASE}.ass" \
   --preset minimal --font "$CFONT" --caps "$CCASE" --accent none --active-scale 112 \
-  --hook-y 430 --hook "$HOOK" --hook-anim "$HANIM" --hook-spark "$HOOKWORD" \
+  --hook-y 430 --hook "$HOOK" --hook-anim "$HANIM" --hook-style "$HSTYLE" --hook-spark "$HOOKWORD" \
   --accent-hex "$ACCENT" --overlays "$OVRFILE" --corrections "$CORR" >/dev/null
 
 # 3. brand touches: accent spark on the hook word + contact block at the CTA tail

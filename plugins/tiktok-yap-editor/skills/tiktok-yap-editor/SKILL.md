@@ -166,18 +166,39 @@ yes.
   joins so they cut tight (tail-protection there causes a big pre/post-CTA pause).
 - Append the shared `cta_clip` as the final clause for a spoken-outro CTA.
 
+**Boundary placement rule (hard lesson):** NEVER take clause in/out times from
+a full-file word transcript: whisper DTW times drift up to ~2s mid-file, and a
+boundary placed on drifted times can swallow kept words while keeping the
+flubbed take it was meant to remove. Before writing any story-cut boundary
+(restart removal, take selection, CTA trim), re-transcribe a ±5s window around
+the intended cut (`transcribe.sh` on a trimmed wav is seconds of work): window
+timings are accurate. Put the boundary in the pause between the anchor words,
+then read the joined sentence back after cutting (the line audit) to confirm
+nothing was swallowed or doubled.
+
 ### 5. Cut (single pass)
 ```bash
 python3 scripts/yapcut.py --clauses clauses.json --workdir .yap_build --out .yap_build/full.mp4
 ```
 One clean CFR 30fps encode: clause selection + dead-air removal + tight tails +
-alternating static crop (anti-stutter). Flags: `--silence-db -42` (quiet indoor;
-raise toward -19 for noisy/outdoor), `--padr 0.04` (tight trailing = removes the
-look-down-at-script frame), `--min-gap 0.28`, `--d 0.10`.
+alternating static crop (anti-stutter). Pause detection is a median-smoothed
+RMS envelope, immune to the mouth clicks that split a real 1.5s pause into
+sub-threshold chunks an instantaneous level gate cannot see. Flags: `--silence-db -42` (quiet indoor;
+raise toward -19 for noisy/outdoor), `--padr 0.12` / `--padl 0.10` (decay-aware:
+silencedetect fires while word tails are still audible, tighter pads shave word
+edges), `--min-gap 0.55` (only pauses this long become cuts; 0.3-0.5s pauses
+are cadence, cutting them machine-guns the edit), `--min-seg 0.45` (no
+flash-frame segments; shorter runs get bridged, never across >0.75s of pause),
+`--min-cut 0.25` (a cut must remove at least this much to earn its visual
+jump), `--d 0.10`. It writes `keeps_<out>.json` (the final cut points) for
+the QA seam audit. Do NOT snap cuts to whisper word timings: DTW tokens tile
+the whole timeline (spans absorb pauses), so word-snapping degenerates into
+padding every cut with dead air.
 
 ### 6. QA gate (automate it, don't eyeball randomly)
 ```bash
 ffmpeg -i full.mp4 -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null -   # zero black flashes
+python3 scripts/seam_qa.py --keeps .yap_build/keeps_full.json --video full.mp4  # no splice holes/blips at joins
 bash scripts/transcribe.sh full.mp4 .yap_build/w --words                # re-read line sequence (5b audit)
 python3 scripts/stutter_check.py --words .yap_build/w.json               # re-run on the CUT: must come back clean
 python3 scripts/retention_check.py --video full.mp4                     # retention gates (see Retention pass)
@@ -223,6 +244,20 @@ clean CFR pass. It also fixes the two things creators always flag:
 - **Jump-cut "stutter"** (a cut landing on a near-identical pose reads as "I said
   it twice", even with clean audio): alternating static crop (1.00/1.06, hard cut,
   NO animation) changes framing at every cut so the pose-match is masked.
+
+**Perfect-cuts rules (v2, learned from a real 13-video batch):** the old
+defaults over-cut. Cutting a 0.3-0.5s breath saves ~0.2-0.4s but costs a
+pose-jump + zoom toggle; a batch audit showed 57% of joins were such micro-gap
+cuts, plus 4-frame flash segments. v2 therefore: cuts only at pauses >= 0.55s,
+no segment < 0.45s (bridged into a neighbour instead), cuts must remove
+>= 0.25s to exist, decay-aware pads (0.12/0.10, energy-verified to clip
+nothing audible at -42dB boundaries), and envelope-based pause detection (an
+instantaneous gate lets a single mouth click hide a 2-second gap; the median
+envelope does not). Audio is spliced from PCM segments with 4ms edge fades and
+encoded to AAC once at the end: per-segment AAC + concat stream-copy inserted
+a ~20-40ms audible hole at every join. Zero dead space still means
+zero DEAD space: real pauses (>= 0.55s), restarts and stutters are cut hard;
+speech cadence is not.
 
 
 ## Mode B: VO-to-picture storytelling / day-in-the-life

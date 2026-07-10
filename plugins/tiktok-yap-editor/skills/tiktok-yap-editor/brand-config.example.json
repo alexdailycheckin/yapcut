@@ -14,7 +14,9 @@
     "handle": "on-screen handle at the CTA, e.g. 'YOURNAME.COM'",
     "contact_lines": "extra lines under the handle, e.g. email + site",
     "cta_clip": "OPTIONAL absolute path to a reusable spoken-outro clip; if set, add it as the final clause in each clauses.json",
-    "hook_display_font": "OPTIONAL setup face for the 'branded' hook style (hook_styles.py). Default 'Anton' (free, condensed). Thicker options if you have them: 'Gotham Black', 'Montserrat Black', 'Impact'"
+    "hook_display_font": "OPTIONAL setup face for the 'branded' hook style (hook_styles.py). Default 'Anton' (free, condensed). Thicker options if you have them: 'Gotham Black', 'Montserrat Black', 'Impact'",
+    "hook_anim": "'typewriter' reveals the hook character-by-character with a cursor; 'none' = static",
+    "hook_style": "'outline' = heavy stroked hook; 'minimal' = no outline, soft shadow, smaller second line"
   },
   "creator": "Your Name",
   "niche": "one line: what your channel is about",
@@ -38,5 +40,6 @@
     "yoursite.com"
   ],
   "cta_clip": "",
-  "hook_anim": "typewriter"
+  "hook_anim": "typewriter",
+  "hook_style": "outline"
 }
