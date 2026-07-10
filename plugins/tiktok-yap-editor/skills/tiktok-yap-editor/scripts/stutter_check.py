@@ -62,18 +62,11 @@ def load_words(path):
     return out  # index here == build_ass.py word index
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--words", required=True)
-    ap.add_argument("--emit-corrections", default="")
-    ap.add_argument("--max-phrase", type=int, default=6)
-    ap.add_argument("--gap", type=int, default=3,
-                    help="allow up to N filler words between a restart's two halves")
-    ap.add_argument("--strict", action="store_true",
-                    help="also drop MEDIUM-confidence (one-off content-word) repeats")
-    a = ap.parse_args()
-
-    w = load_words(a.words)
+def find_flags(w, max_phrase=6, gap=3):
+    """Detection core. w = [(t0,t1,text,norm), ...]. Returns flag tuples
+    (start_i, end_i_exclusive_to_drop, kind, conf, text, t0, t1)."""
+    class A: pass
+    a = A(); a.max_phrase = max_phrase; a.gap = gap
     n = len(w)
     tok = [x[3] for x in w]
     flags = []           # (start_i, end_i_exclusive_to_drop, kind, conf, text, t0, t1)
@@ -86,7 +79,7 @@ def main():
         while j < n and tok[j] and same(tok[j], tok[i]):
             j += 1
         run = j - i
-        if run >= 2 and tok[i]:
+        if run >= 2 and tok[i] and w[j - 1][1] - w[i][0] >= 0.15:
             conf = "HIGH" if (run >= 3 or tok[i] in FUNCTION) else "MEDIUM"
             # "used it, it had": a function-word dup across a clause boundary
             # (trailing punctuation on the first) is normal English -> review.
@@ -169,6 +162,22 @@ def main():
             seen[key] = i
 
     flags.sort(key=lambda f: f[0])
+    return flags
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--words", required=True)
+    ap.add_argument("--emit-corrections", default="")
+    ap.add_argument("--max-phrase", type=int, default=6)
+    ap.add_argument("--gap", type=int, default=3,
+                    help="allow up to N filler words between a restart's two halves")
+    ap.add_argument("--strict", action="store_true",
+                    help="also drop MEDIUM-confidence (one-off content-word) repeats")
+    a = ap.parse_args()
+
+    w = load_words(a.words)
+    flags = find_flags(w, a.max_phrase, a.gap)
     keep = [f for f in flags if a.strict or f[3] == "HIGH"]
 
     if not flags:

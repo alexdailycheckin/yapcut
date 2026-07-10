@@ -37,6 +37,18 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
 
+## What's new in 2.3.2
+
+- **The repetition gate now listens to the audio, not just the transcript.**
+  Whisper transcribing a whole video sometimes collapses a repeated line into
+  one ("then read the post history... then read the post history" came back as
+  a single sentence), which made the defect invisible to any transcript-based
+  check. New `scripts/restart_scan.py` re-transcribes the cut in overlapping
+  30s windows (short-context whisper stays literal) and flags repeats on the
+  video timeline. `yapfull.sh` runs BOTH detectors; either HIGH fails the build.
+- **Artifact guard.** A "repeat" whose whole span is under 150ms is whisper
+  token-splitting, not speech, and no longer flags.
+
 ## What's new in 2.3.1
 
 - **The build gates itself.** `yapfull.sh` now refuses to finish a video with a

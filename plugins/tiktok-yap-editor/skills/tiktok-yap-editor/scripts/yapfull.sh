@@ -57,13 +57,16 @@ echo "--- dur: $DUR ---"
 # 2. word-timed captions in the brand style
 bash "$SCRIPTS/transcribe.sh" "$WD/full_${OUTBASE}.mp4" "$WD/w_${OUTBASE}" --words >/dev/null 2>&1
 
-# 2b. STUTTER GATE: a doubled take / restart must never ship. The check runs on
-# the CUT's own transcript, so it sees exactly what a viewer would hear.
+# 2b. STUTTER GATE: a doubled take / restart must never ship. Two detectors:
+# the full transcript (free, indices feed caption drops) AND a windowed audio
+# scan: whisper transcribing a whole file sometimes COLLAPSES a repeated line
+# into one, hiding it from any transcript check; short windows stay literal.
 # Override for a deliberate rhetorical repeat: YAP_ALLOW_STUTTER=1.
 set +e
 python3 "$SCRIPTS/stutter_check.py" --words "$WD/w_${OUTBASE}.json"; STUT_RC=$?
+python3 "$SCRIPTS/restart_scan.py" --video "$WD/full_${OUTBASE}.mp4"; SCAN_RC=$?
 set -e
-if [ "$STUT_RC" -eq 2 ] && [ "${YAP_ALLOW_STUTTER:-0}" != "1" ]; then
+if { [ "$STUT_RC" -eq 2 ] || [ "$SCAN_RC" -eq 2 ]; } && [ "${YAP_ALLOW_STUTTER:-0}" != "1" ]; then
   echo "STUTTER GATE FAILED: cut the flagged range out via the clause plan and rerun."
   exit 2
 fi

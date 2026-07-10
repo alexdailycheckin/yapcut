@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "YapCut by alexmuresan.com: a two-part short-form content engine. Outlier Radar researches your niche, finds videos that went viral, and writes weekly ready-to-film scripts to a tracked dashboard. The TikTok Yap Editor turns your raw phone clips into finished vertical videos, talking-head or day-in-the-life. Both are creator-agnostic via a one-time discovery interview.",
-    "version": "2.3.1"
+    "version": "2.3.2"
   },
   "plugins": [
     {

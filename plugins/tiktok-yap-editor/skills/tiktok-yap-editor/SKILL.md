@@ -100,14 +100,17 @@ promotes the final and clears the working dir.
 **The sequence is locked.** One video walks all of it before it is "done";
 a file in the deliverable folder means every gate below passed. Never build a
 batch ahead of the gates: builds that sprint ahead of QA are how defects reach
-the creator.
+the creator (learned 2026-07-10, three times in one day).
 
 1. survey + word-transcribe the raw
 2. restart map on the raw (2c): flagged spans become planned cuts
 3. premise -> storyline -> clause plan (4)
 4. ground-truth every boundary with a window re-transcription (4, boundary rule)
 5. cut (5) -> GATE: black frames (yapfull)
-6. transcribe the cut -> GATE: stutter_check on the cut (yapfull, build-fatal)
+6. transcribe the cut -> GATE: repetition, two detectors (yapfull, build-fatal):
+   stutter_check on the transcript AND restart_scan windowed audio scan (whisper
+   transcribing a whole file sometimes collapses a repeated line into one,
+   hiding it from any transcript check; short windows stay literal)
 7. line audit (read the cut as a story; adjudicate MEDIUM stutter flags)
 8. captions + hook + corrections -> compose -> GATE: seam_qa (yapfull, build-fatal)
 9. retention check + cover
@@ -161,6 +164,28 @@ stutters found, so it gates the build. Pass `--emit-corrections
 file step 7 reads. This is the automated half of the step-2 line audit; you
 still eyeball it, but nothing ships with an uncaught repeat.
 
+### 2d. Persist to the footage library (never skip)
+Every clip this run touches gets a permanent tagged record, so the survey +
+transcript work is never thrown away and future content ideas can shop the shelf.
+```bash
+python3 ~/Desktop/Claude/outlier-radar/footage-library/library.py prep "/path/to/footage"
+```
+`prep` skips clips already in the library and writes a montage + transcript +
+stub per new clip to `.prep/`. Read each montage and transcript, then write the
+records (fill `kind`, `tags` {topics, actions, setting, background, people,
+objects, wardrobe, time_of_day, mood, shot_type}, `hooks` = quotable lines,
+`moments` = timecoded in/out per distinct action for b-roll, `reads_as` = what a
+COLD VIEWER sees in one second with zero backstory (b-roll only; this is the ONLY
+field cutaway matching may use, see "Cutaway legibility rule"), `notes` =
+restarts, stats quoted, pairing ideas) and:
+```bash
+python3 ~/Desktop/Claude/outlier-radar/footage-library/library.py upsert records.json
+```
+After finalize (step 9), stamp what shipped:
+```bash
+python3 ~/Desktop/Claude/outlier-radar/footage-library/library.py mark-used IMG_XXXX --edit clean-name
+```
+
 ### 3. Build the storyline (premise first)
 Get the takeaway (one sentence) from the creator. Inventory usable fragments with
 source+timestamp, tag each a role (HOOK / STAKES / ESCALATION / TURN / EVIDENCE /
@@ -186,15 +211,16 @@ yes.
   joins so they cut tight (tail-protection there causes a big pre/post-CTA pause).
 - Append the shared `cta_clip` as the final clause for a spoken-outro CTA.
 
-**Boundary placement rule (hard lesson):** NEVER take clause in/out times from
-a full-file word transcript: whisper DTW times drift up to ~2s mid-file, and a
-boundary placed on drifted times can swallow kept words while keeping the
-flubbed take it was meant to remove. Before writing any story-cut boundary
-(restart removal, take selection, CTA trim), re-transcribe a ±5s window around
-the intended cut (`transcribe.sh` on a trimmed wav is seconds of work): window
-timings are accurate. Put the boundary in the pause between the anchor words,
-then read the joined sentence back after cutting (the line audit) to confirm
-nothing was swallowed or doubled.
+**Boundary placement rule (hard lesson from the Jun 29/Jul 5 batch):** NEVER
+take clause in/out times from a full-file word transcript: whisper DTW times
+drift up to ~2s mid-file, and a boundary placed on drifted times swallowed the
+words "Don't write" in a shipped video while keeping the flubbed take it was
+meant to remove. Before writing any story-cut boundary (restart removal, take
+selection, CTA trim), re-transcribe a ±5s window around the intended cut
+(`transcribe.sh` on a trimmed wav is seconds of work): window timings are
+accurate. Put the boundary in the pause between the anchor words, then read
+the joined sentence back after cutting (the line audit) to confirm nothing
+was swallowed or doubled.
 
 ### 5. Cut (single pass)
 ```bash
@@ -214,6 +240,23 @@ jump), `--d 0.10`. It writes `keeps_<out>.json` (the final cut points) for
 the QA seam audit. Do NOT snap cuts to whisper word timings: DTW tokens tile
 the whole timeline (spans absorb pauses), so word-snapping degenerates into
 padding every cut with dead air.
+
+### 5b. Cutaway legibility rule (Mode A b-roll inserts)
+When laying library b-roll over a talking-head line, match the LINE to the
+clip's `reads_as` field, never to a metaphor that needs outside knowledge.
+Three legal matches, in order of strength:
+1. **Literal**: the clip shows the thing the line says.
+2. **Speaker-action**: the creator visibly doing what the line describes.
+3. **Neutral-motion filler**: on a purely conceptual line, a register-matched
+   motion shot (walking, hands working) ONLY when the retention gate demands an
+   event there and no literal shot exists.
+The test: would a stranger connect clip to line in under one second? If the
+connection needs explaining ("this city has the oldest university"), it FAILS,
+even if it is clever. Cleverness the viewer can't see is noise. When no clip
+passes, stay on the face and use a punch-in, text pop, or evidence insert
+instead. Register also gates: holiday footage under a work argument reads as a
+vlog unless the take itself was filmed in that context and the line is about
+lifestyle, reward, or people.
 
 ### 6. QA gate (automate it, don't eyeball randomly)
 ```bash
@@ -265,17 +308,16 @@ clean CFR pass. It also fixes the two things creators always flag:
   it twice", even with clean audio): alternating static crop (1.00/1.06, hard cut,
   NO animation) changes framing at every cut so the pose-match is masked.
 
-**Perfect-cuts rules (v2, learned from a real 13-video batch):** the old
+**Perfect-cuts rules (v2, learned from the Jun 29/Jul 5 batch):** the old
 defaults over-cut. Cutting a 0.3-0.5s breath saves ~0.2-0.4s but costs a
 pose-jump + zoom toggle; a batch audit showed 57% of joins were such micro-gap
-cuts, plus 4-frame flash segments. v2 therefore: cuts only at pauses >= 0.55s,
-no segment < 0.45s (bridged into a neighbour instead), cuts must remove
->= 0.25s to exist, decay-aware pads (0.12/0.10, energy-verified to clip
-nothing audible at -42dB boundaries), and envelope-based pause detection (an
-instantaneous gate lets a single mouth click hide a 2-second gap; the median
-envelope does not). Audio is spliced from PCM segments with 4ms edge fades and
-encoded to AAC once at the end: per-segment AAC + concat stream-copy inserted
-a ~20-40ms audible hole at every join. Zero dead space still means
+cuts, plus 4-frame flash segments and shaved word tails ("Follow", sentence-end
+payoff words). v2 therefore: cuts only at pauses >= 0.55s, no segment < 0.45s
+(bridged into a neighbour instead), cuts must remove >= 0.25s to exist,
+decay-aware pads (0.12/0.10, energy-verified to clip nothing audible at -42dB
+boundaries), and envelope-based pause detection (an instantaneous gate lets a
+single mouth click hide a 2-second gap; the median envelope does not). Zero
+dead space still means
 zero DEAD space: real pauses (>= 0.55s), restarts and stutters are cut hard;
 speech cadence is not.
 
@@ -303,6 +345,10 @@ plating + stepping back + tasting, each a candidate beat. Assume the new action
 was filmed on purpose. Never judge a long clip by its first few seconds or
 grab only one shot from it, walk its entire duration and pull every distinct
 moment into the shot pool before matching beats.
+
+Persist the contact sheet to the footage library exactly as in step 2d (Mode A);
+for b-roll the `moments` array carries the timecoded per-action shots, which is
+the whole value.
 
 ### B2. Assign a clip to each beat + write beats.json
 Match each scripted beat to its best visual (the one whose action illustrates the
