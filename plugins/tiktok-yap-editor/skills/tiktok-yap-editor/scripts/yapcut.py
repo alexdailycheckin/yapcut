@@ -40,7 +40,7 @@ Writes <workdir>/keeps_<out>.json (final cut points) for the QA seam audit.
 clauses: [{"src":"/abs.MOV","start":6.5,"end":16.6,"label":"hook",
            "protect_tail":false}, ...]
 """
-import argparse, json, math, os, struct, subprocess, wave as wavmod
+import argparse, json, math, os, shutil, struct, subprocess, wave as wavmod
 
 def silences(wav, thr, d):
     # Pause detection on a median-smoothed RMS envelope, NOT an instantaneous
@@ -192,6 +192,7 @@ def main():
     subprocess.run(["ffmpeg","-nostdin","-y","-i",tmp,"-c:v","copy","-c:a","aac",
         "-b:a","192k",a.out,"-hide_banner","-loglevel","error"],check=True)
     os.remove(tmp)
+    shutil.rmtree(segdir,ignore_errors=True)   # segments are spent once concatenated
     dur=float(subprocess.run(["ffprobe","-v","error","-show_entries","format=duration",
         "-of","csv=p=0",a.out],capture_output=True,text=True).stdout)
     print(f"{len(keeps)} segments -> {a.out}  ({dur:.2f}s)")

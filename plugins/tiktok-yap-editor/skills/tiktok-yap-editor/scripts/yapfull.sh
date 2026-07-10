@@ -42,8 +42,12 @@ PY
 OVRFILE="$WD/${OUTBASE}_overlays.json"; [ -f "$OVRFILE" ] || OVRFILE=""
 
 # 1. single-pass cut (clean CFR, dead-air, tight tails, anti-stutter crop-alt)
+# YAP_FROM_CUT=1 skips this stage and reuses the existing $WD/full_<out>.mp4:
+# use it for caption-only fixes, or when the raw is gone and the cut survives.
+if [ "${YAP_FROM_CUT:-0}" != "1" ]; then
 python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$WD/full_${OUTBASE}.mp4" \
   --silence-db -42 --padr 0.12 --padl 0.10 --min-gap 0.55 --min-seg 0.45 --d 0.10
+fi
 echo "--- blackdetect (cut) ---"
 ffmpeg -nostdin -i "$WD/full_${OUTBASE}.mp4" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  NO black frames"
@@ -52,6 +56,18 @@ echo "--- dur: $DUR ---"
 
 # 2. word-timed captions in the brand style
 bash "$SCRIPTS/transcribe.sh" "$WD/full_${OUTBASE}.mp4" "$WD/w_${OUTBASE}" --words >/dev/null 2>&1
+
+# 2b. STUTTER GATE: a doubled take / restart must never ship. The check runs on
+# the CUT's own transcript, so it sees exactly what a viewer would hear.
+# Override for a deliberate rhetorical repeat: YAP_ALLOW_STUTTER=1.
+set +e
+python3 "$SCRIPTS/stutter_check.py" --words "$WD/w_${OUTBASE}.json"; STUT_RC=$?
+set -e
+if [ "$STUT_RC" -eq 2 ] && [ "${YAP_ALLOW_STUTTER:-0}" != "1" ]; then
+  echo "STUTTER GATE FAILED: cut the flagged range out via the clause plan and rerun."
+  exit 2
+fi
+
 python3 "$SCRIPTS/build_ass.py" --words "$WD/w_${OUTBASE}.json" --out "$WD/cap_${OUTBASE}.ass" \
   --preset minimal --font "$CFONT" --caps "$CCASE" --accent none --active-scale 112 \
   --hook-y 430 --hook "$HOOK" --hook-anim "$HANIM" --hook-style "$HSTYLE" --hook-spark "$HOOKWORD" \
@@ -84,4 +100,8 @@ PY
 bash "$SCRIPTS/compose_ass.sh" "$WD/full_${OUTBASE}.mp4" "$WD/cap_${OUTBASE}.ass" "$OUT" 2>&1 | grep -E "wrote|I:"
 ffmpeg -nostdin -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  FINAL: NO black frames"
+
+# 4b. SEAM GATE: no splice holes/blips at any join in the finished video.
+python3 "$SCRIPTS/seam_qa.py" --keeps "$WD/keeps_full_${OUTBASE}.json" --video "$OUT" \
+  || { echo "SEAM GATE FAILED: splice hole at a join"; exit 2; }
 echo "DONE -> $OUT"

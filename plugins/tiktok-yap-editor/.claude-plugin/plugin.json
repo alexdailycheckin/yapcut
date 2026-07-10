@@ -1,7 +1,7 @@
 {
   "name": "tiktok-yap-editor",
   "description": "Turn raw phone clips into finished vertical TikTok/Reels/Shorts. Mode A talking-head: transcript-first cut, zero dead air, brand captions, an auto-fitted on-screen hook that never clips, automatic stutter/restart catching. Mode B day-in-the-life: script the voiceover, lock picture to b-roll, record to a guide. Brand-agnostic via first-run discovery.",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "author": {
     "name": "Alex Muresan",
     "url": "https://alexmuresan.com"

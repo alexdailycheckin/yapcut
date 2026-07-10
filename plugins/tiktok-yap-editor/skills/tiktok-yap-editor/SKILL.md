@@ -97,6 +97,22 @@ promotes the final and clears the working dir.
 
 ## The pipeline
 
+**The sequence is locked.** One video walks all of it before it is "done";
+a file in the deliverable folder means every gate below passed. Never build a
+batch ahead of the gates: builds that sprint ahead of QA are how defects reach
+the creator.
+
+1. survey + word-transcribe the raw
+2. restart map on the raw (2c): flagged spans become planned cuts
+3. premise -> storyline -> clause plan (4)
+4. ground-truth every boundary with a window re-transcription (4, boundary rule)
+5. cut (5) -> GATE: black frames (yapfull)
+6. transcribe the cut -> GATE: stutter_check on the cut (yapfull, build-fatal)
+7. line audit (read the cut as a story; adjudicate MEDIUM stutter flags)
+8. captions + hook + corrections -> compose -> GATE: seam_qa (yapfull, build-fatal)
+9. retention check + cover
+10. creator watches -> finalize (promote + wipe workdir)
+
 ### 0. Preflight
 ```bash
 bash scripts/setup_fonts.sh        # one-time: libass ffmpeg + Montserrat/Anton + Bricolage/Space Mono

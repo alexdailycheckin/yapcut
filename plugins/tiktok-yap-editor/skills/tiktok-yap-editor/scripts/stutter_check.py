@@ -35,6 +35,21 @@ def norm(t):
     return re.sub(r"[^a-z0-9']", "", t.lower())
 
 
+def skel(t):
+    # consonant skeleton: 'belt' and 'built' both -> 'blt'. Whisper often hears
+    # a fumbled first take differently ("belt in" vs "built in"); exact-token
+    # matching misses the restart, the skeleton does not. Only meaningful for
+    # skeletons >= 3 chars ('in'/'an' would otherwise collide on 'n').
+    return re.sub(r"[aeiou]", "", norm(t))
+
+
+def same(a, b):
+    if a == b:
+        return True
+    sa, sb = skel(a), skel(b)
+    return len(sa) >= 3 and sa == sb
+
+
 def load_words(path):
     d = json.load(open(path))
     out = []
@@ -68,11 +83,15 @@ def main():
     i = 0
     while i < n:
         j = i + 1
-        while j < n and tok[j] and tok[j] == tok[i]:
+        while j < n and tok[j] and same(tok[j], tok[i]):
             j += 1
         run = j - i
         if run >= 2 and tok[i]:
             conf = "HIGH" if (run >= 3 or tok[i] in FUNCTION) else "MEDIUM"
+            # "used it, it had": a function-word dup across a clause boundary
+            # (trailing punctuation on the first) is normal English -> review.
+            if run == 2 and w[i][2].rstrip()[-1:] in ",.?!":
+                conf = "MEDIUM"
             # keep the LAST occurrence, drop i..j-2
             for k in range(i, j - 1):
                 covered[k] = True
@@ -98,12 +117,17 @@ def main():
                     break
                 if any(covered[s:s + L]):
                     continue
-                if tok[s:s + L] == first:
-                    # drop the FIRST block + any filler gap, keep the 2nd
+                if all(same(x, y) for x, y in zip(tok[s:s + L], first)):
+                    # Evidence from the Jun 29/Jul 5 batch: every true restart
+                    # was a >=3-word echo; every 2-word echo was rhetoric
+                    # ("it's not, it's not X", "match your grammar / match
+                    # your scar tissue"). 2-word echoes -> MEDIUM (the line
+                    # audit adjudicates); >=3 words -> HIGH (gates the build).
+                    conf = "MEDIUM" if L == 2 else "HIGH"
                     for k in range(i, s):
                         covered[k] = True
                     flags.append((i, s, f"restart {L}w" + (f" +{g} filler" if g else ""),
-                                  "HIGH", " ".join(w[k][2] for k in range(i, s + L)),
+                                  conf, " ".join(w[k][2] for k in range(i, s + L)),
                                   w[i][0], w[s - 1][1]))
                     matched = True
                     i = s + L
@@ -141,7 +165,7 @@ def main():
         json.dump(existing, open(a.emit_corrections, "w"), indent=2)
         print(f"\nwrote/merged {len(drop)} drops into {a.emit_corrections}")
 
-    sys.exit(2)
+    sys.exit(2 if any(f[3] == "HIGH" for f in flags) else 1)
 
 
 if __name__ == "__main__":

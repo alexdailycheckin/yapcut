@@ -37,6 +37,25 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
 
+## What's new in 2.3.1
+
+- **The build gates itself.** `yapfull.sh` now refuses to finish a video with a
+  known defect: a stutter/restart in the cut's own transcript fails the build
+  before captions (STUTTER GATE), and a splice hole at any join fails it after
+  compose (SEAM GATE). QA is in the build path, not a checklist after it.
+- **Smarter restart detection.** `stutter_check.py` matches fumbles whisper
+  hears differently on each side (consonant-skeleton fuzzy matching), and its
+  confidence is evidence-based: 3+ word echoes gate the build, 2-word echoes
+  are flagged for the human line audit (they are usually deliberate rhetoric).
+- **Caption-only rebuilds.** `YAP_FROM_CUT=1` skips the cut stage and reuses
+  the existing cut: fix a caption word without re-cutting, or rebuild when the
+  raw footage is gone.
+- **Splice-hole repair.** New `scripts/patch_hole.py` fills an audio dropout at
+  a join with adjacent room tone, video untouched: for when the source is gone
+  and the cut is all you have.
+- **The pipeline cleans up after itself.** Segment scratch is deleted after
+  every successful concat (a 13-video batch used to leave gigabytes behind).
+
 ## What's new in 2.3
 
 - **Perfect cuts.** The cutter stopped machine-gunning: a cut must earn its visual
