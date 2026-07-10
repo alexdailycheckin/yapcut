@@ -47,6 +47,9 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   hears differently on each side (consonant-skeleton fuzzy matching), and its
   confidence is evidence-based: 3+ word echoes gate the build, 2-word echoes
   are flagged for the human line audit (they are usually deliberate rhetoric).
+  It also catches **distant line re-reads** (miss a line, read it again later):
+  a 6+ word echo within 20s fails the build; short topic-phrase echoes and
+  older callbacks are flagged for review instead of blocking.
 - **Caption-only rebuilds.** `YAP_FROM_CUT=1` skips the cut stage and reuses
   the existing cut: fix a caption word without re-cutting, or rebuild when the
   raw footage is gone.

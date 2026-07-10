@@ -149,8 +149,12 @@ clip, and slipped through. Now run the detector on each clip's word JSON:
 ```bash
 python3 scripts/stutter_check.py --words .yap_build/transcripts/IMG_XXXX.json
 ```
-It prints every stutter/restart with timestamps, keeps the cleanest (usually
-last) delivery, and emits both **video cut-ranges** (subtract these from the
+It catches adjacent restarts AND distant line re-reads (you miss a line and
+read it again seconds later): a 6+ word echo within 20s gates the build; short
+topic-phrase echoes and older callbacks are flagged MEDIUM for the line audit
+(your subject noun phrase recurs legitimately, and a deliberate hook callback
+at the button should not die at a gate). It prints every hit with timestamps,
+keeps the cleanest (usually last) delivery, and emits both **video cut-ranges** (subtract these from the
 clause in/out you write in step 4) and a **caption drop-list**. Exit code 2 =
 stutters found, so it gates the build. Pass `--emit-corrections
 <out>_corrections.json` to write the caption `drop` indices straight into the

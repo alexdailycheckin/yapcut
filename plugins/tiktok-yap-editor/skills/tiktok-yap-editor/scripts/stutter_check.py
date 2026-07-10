@@ -135,6 +135,39 @@ def main():
             if not matched:
                 i += 1
 
+    # --- Pass D: distant line repetition (missed a line, re-read it) ---
+    # A >=4-word phrase spoken twice is almost never style: within
+    # 20s it is a re-read of a missed line (HIGH, gates the build); farther
+    # apart it may be a deliberate callback of the hook/button (MEDIUM).
+    # Both copies are reported; corrections default to dropping the FIRST,
+    # the line audit picks the cleaner take. Needs >=2 content words so
+    # naturally recurring filler ("and then you can") never flags.
+    for L in range(a.max_phrase, 3, -1):
+        seen = {}
+        for i in range(0, n - L + 1):
+            if any(covered[i:i + L]) or not all(tok[i:i + L]):
+                continue
+            key = tuple(skel(t) or t for t in tok[i:i + L])
+            if sum(1 for t in tok[i:i + L] if t not in FUNCTION) < 2:
+                continue
+            if key in seen:
+                p0 = seen[key]
+                if i - p0 > L + a.gap:            # beyond Pass B's reach
+                    dt = w[i][0] - w[p0][0]
+                    # topic noun phrases recur naturally ("a cease and desist
+                    # letter" twice in a video ABOUT one); a true missed-line
+                    # re-read echoes the whole line. 6+ word echoes within 20s
+                    # gate the build; shorter or older echoes go to review.
+                    conf = "HIGH" if (dt <= 20.0 and L >= 6) else "MEDIUM"
+                    for k in list(range(p0, p0 + L)) + list(range(i, i + L)):
+                        covered[k] = True
+                    flags.append((p0, p0 + L,
+                                  f"re-read {L}w (again @{w[i][0]:.1f}s)", conf,
+                                  " ".join(w[k][2] for k in range(p0, p0 + L)),
+                                  w[p0][0], w[p0 + L - 1][1]))
+                    continue
+            seen[key] = i
+
     flags.sort(key=lambda f: f[0])
     keep = [f for f in flags if a.strict or f[3] == "HIGH"]
 
