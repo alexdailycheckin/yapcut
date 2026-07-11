@@ -37,6 +37,13 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
 
+## What's new in 2.3.3
+
+- **Noisy-take protocol** (SKILL.md 6b): a loud room-tone bed (fan/AC) is
+  diagnosed by measuring real gap windows (astats' "noise floor" is misleading)
+  and fixed with a gentle `afftdn` pass on the cut intermediate + a
+  `YAP_FROM_CUT` rebuild, keeping the noisy copy for one-command re-tuning.
+
 ## What's new in 2.3.2
 
 - **The repetition gate now listens to the audio, not just the transcript.**

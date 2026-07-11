@@ -272,6 +272,26 @@ restart doublings (the stutter_check re-run on the cut must come back clean, or
 tighten the offending clause), clipped word tails (widen that clause boundary),
 dangling fragments.
 
+### 6b. Noisy takes (loud room tone)
+A take filmed near a fan/AC becomes a steady audible noise bed in the final:
+v2 cuts KEEP natural pauses (the old machine-gun cut used to chop the noise
+up), and single-pass loudnorm gives quiet stretches extra gain (~+10dB on the
+floor). Diagnose by measuring, not astats alone ("Noise floor dB" reads
+digital-silence padding; a file can report -97 while its real gaps sit at
+-25): extract audio and check the quietest 0.25s windows, remembering those
+may be quiet SPEECH, not noise. Fix on the cut intermediate, then rebuild
+captions from it:
+```bash
+cp "$WD/full_<out>.mp4" "$WD/full_<out>.noisy.mp4"   # keep for re-tuning
+ffmpeg -i "$WD/full_<out>.noisy.mp4" -c:v copy \
+  -af "afftdn=nr=15:nf=-45:tn=1" -c:a aac -b:a 192k "$WD/full_<out>.mp4"
+YAP_FROM_CUT=1 bash scripts/yapfull.sh ...           # recompose + gates
+```
+nr=15 removes a stationary bed (-26dB floor -> -80 on the arc take) without
+gating pauses to dead silence. The creator's ears sign off: denoise can sound
+underwater; if it does, lower nr and re-run (one command, the .noisy copy is
+the source).
+
 ### 7. Captions + hook + CTA, in the brand (one driver)
 ```bash
 bash scripts/yapfull.sh .yap_build clauses.json output/clip.mp4 "HOOK|LINE2" "sparkword"
