@@ -48,6 +48,12 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   video timeline. `yapfull.sh` runs BOTH detectors; either HIGH fails the build.
 - **Artifact guard.** A "repeat" whose whole span is under 150ms is whisper
   token-splitting, not speech, and no longer flags.
+- **HIGH flags are auto-verified before they can fail a build.** Two
+  independent paths: reproduce in a tight re-transcription, or show the
+  double-take envelope dip (attempt, pause, attempt) inside the span. True
+  restarts pass at least one (some never reproduce in ANY transcript and are
+  confirmed by envelope alone); token-splitting artifacts fail both and are
+  demoted to review.
 
 ## What's new in 2.3.1
 
