@@ -92,8 +92,10 @@ when retention can carry it. Tag each video to a pillar.
 ## Folder convention (non-negotiable)
 
 Working files go under `<footage>/.yap_build/` (dot-prefixed, wiped at the end).
-The deliverable folder holds ONLY the finished video (+ its cover). `finalize.sh`
-promotes the final and clears the working dir.
+The deliverable folder holds ONLY the finished video (+ its cover), and finals
+land in a per-run subfolder named after the source footage folder
+(`output/<footage-folder-name>/clip.mp4`), never flat in `output/`.
+`finalize.sh` promotes the final and clears the working dir.
 
 ## The pipeline
 
@@ -106,14 +108,25 @@ the creator (learned 2026-07-10, three times in one day).
 2. restart map on the raw (2c): flagged spans become planned cuts
 3. premise -> storyline -> clause plan (4)
 4. ground-truth every boundary with a window re-transcription (4, boundary rule)
-5. cut (5) -> GATE: black frames (yapfull)
+5. cut (5); the black-frame print is a canary (yapcut's design prevents them,
+   seam_qa is the fatal check)
 6. transcribe the cut -> GATE: repetition, two detectors (yapfull, build-fatal):
    stutter_check on the transcript AND restart_scan windowed audio scan (whisper
    transcribing a whole file sometimes collapses a repeated line into one,
    hiding it from any transcript check; short windows stay literal)
+   -> GATE: dead air (yapfull, build-fatal): gap_check transcribes the cut
+   punct-separate and fails any surviving inter-word gap >= 0.8s. Silence
+   detection cannot do this job: room tone sits above any -dB threshold, and
+   a 1.3s hole once shipped past both the cutter and a human pass
 7. line audit (read the cut as a story; adjudicate MEDIUM stutter flags)
-8. captions + hook + corrections -> compose -> GATE: seam_qa (yapfull, build-fatal)
-9. retention check + cover
+8. captions + hook + corrections -> GATE: caption garble (yapfull, build-fatal
+   on scripted runs): caption_qa diffs every burned word against the script;
+   whisper garbles ship otherwise (ARK, Radio, clod, chatgbt, Ferguson all did)
+   -> compose -> GATE: seam_qa (yapfull, build-fatal)
+9. GATE: receipts + retention (yapfull, on the finished file): pip_coverage
+   wants something on screen for every spoken brand/stat (fatal when
+   brand-config sets "pip_strict": true), retention_check enforces re-hook +
+   pattern-interrupt budget. Then cover.
 10. creator watches -> finalize (promote + wipe workdir)
 
 ### 0. Preflight
@@ -161,15 +174,18 @@ keeps the cleanest (usually last) delivery, and emits both **video cut-ranges** 
 clause in/out you write in step 4) and a **caption drop-list**. Exit code 2 =
 stutters found, so it gates the build. Pass `--emit-corrections
 <out>_corrections.json` to write the caption `drop` indices straight into the
-file step 7 reads. This is the automated half of the step-2 line audit; you
-still eyeball it, but nothing ships with an uncaught repeat.
+file step 7 reads. This is the automated half of the line audit
+(non-negotiable #2); you still eyeball it, but nothing ships with an
+uncaught repeat.
 
 ### 2d. Persist to the footage library (never skip)
 Every clip this run touches gets a permanent tagged record, so the survey +
 transcript work is never thrown away and future content ideas can shop the shelf.
 ```bash
-python3 ~/Desktop/Claude/outlier-radar/footage-library/library.py prep "/path/to/footage"
+python3 "${YAP_LIBRARY:-$HOME/outlier-radar/footage-library}/library.py" prep "/path/to/footage"
 ```
+(`YAP_LIBRARY` points at your footage-library folder; the default matches the
+standard `~/outlier-radar` workspace.)
 `prep` skips clips already in the library and writes a montage + transcript +
 stub per new clip to `.prep/`. Read each montage and transcript, then write the
 records (fill `kind`, `tags` {topics, actions, setting, background, people,
@@ -179,11 +195,11 @@ COLD VIEWER sees in one second with zero backstory (b-roll only; this is the ONL
 field cutaway matching may use, see "Cutaway legibility rule"), `notes` =
 restarts, stats quoted, pairing ideas) and:
 ```bash
-python3 ~/Desktop/Claude/outlier-radar/footage-library/library.py upsert records.json
+python3 "${YAP_LIBRARY:-$HOME/outlier-radar/footage-library}/library.py" upsert records.json
 ```
 After finalize (step 9), stamp what shipped:
 ```bash
-python3 ~/Desktop/Claude/outlier-radar/footage-library/library.py mark-used IMG_XXXX --edit clean-name
+python3 "${YAP_LIBRARY:-$HOME/outlier-radar/footage-library}/library.py" mark-used IMG_XXXX --edit clean-name
 ```
 
 ### 3. Build the storyline (premise first)
@@ -259,21 +275,32 @@ vlog unless the take itself was filmed in that context and the line is about
 lifestyle, reward, or people.
 
 ### 6. QA gate (automate it, don't eyeball randomly)
+`yapfull.sh` runs the fatal gates itself; this is what they are, and how to run
+any of them by hand when diagnosing:
 ```bash
-ffmpeg -i full.mp4 -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null -   # zero black flashes
-python3 scripts/seam_qa.py --keeps .yap_build/keeps_full.json --video full.mp4  # no splice holes/blips at joins
-bash scripts/transcribe.sh full.mp4 .yap_build/w --words                # re-read line sequence (5b audit)
-python3 scripts/stutter_check.py --words .yap_build/w.json               # re-run on the CUT: must come back clean
-python3 scripts/retention_check.py --video full.mp4                     # retention gates (see Retention pass)
+ffmpeg -i full.mp4 -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null -   # canary: zero black flashes
+python3 scripts/seam_qa.py --keeps .yap_build/keeps_full.json --video full.mp4  # FATAL: no splice holes at joins
+bash scripts/transcribe.sh full.mp4 .yap_build/w --words                # re-read line sequence (line audit)
+python3 scripts/stutter_check.py --words .yap_build/w.json               # FATAL: re-run on the CUT, must be clean
+python3 scripts/gap_check.py --video full.mp4                            # FATAL: no dead air survived the cut
 ```
+gap_check transcribes the cut itself (punct-separate tokens): the caption
+transcription (-sow) glues pause time into word tokens and silencedetect reads
+room tone as sound, so both lie about pauses; inter-word gaps do not. If it
+fails, the cutter never saw the pause: that is the noisy-take symptom (6b),
+measure the floor and raise `--silence-db`, never hand-wave it.
 Plus a seam contact-sheet (frames at each cut) to scan for any leftover look-down,
-and confirm loudness ~-14 after compose. The **line audit** lives here: fix
-restart doublings (the stutter_check re-run on the cut must come back clean, or
-tighten the offending clause), clipped word tails (widen that clause boundary),
-dangling fragments.
+and confirm loudness ~-14 after compose. The **line audit** (non-negotiable #2)
+lives here: fix restart doublings (the stutter_check re-run on the cut must come
+back clean, or tighten the offending clause), clipped word tails (widen that
+clause boundary), dangling fragments. The retention + receipts gates run on the
+FINISHED file, after compose (see Retention pass).
 
 ### 6b. Noisy takes (loud room tone)
-A take filmed near a fan/AC becomes a steady audible noise bed in the final:
+**The tell: gap_check fails on a cut that "should" be tight.** Room tone above
+`--silence-db` makes the cutter see one unbroken sound bed, so it cuts nothing
+and every real pause survives; a 1.3s hole once shipped exactly this way.
+A take filmed near a fan/AC also becomes a steady audible noise bed in the final:
 v2 cuts KEEP natural pauses (the old machine-gun cut used to chop the noise
 up), and single-pass loudnorm gives quiet stretches extra gain (~+10dB on the
 floor). Diagnose by measuring, not astats alone ("Noise floor dB" reads
@@ -301,6 +328,18 @@ the brand font/case (active word scales, no neon), an accent spark on the hook
 word, and the handle + contact block at the CTA tail. For caption fixes write a
 `<out>_corrections.json` (`{"fix":{"5":"Google"},"drop":[31]}`) keyed by the
 build word index (it skips empty tokens).
+
+**Scripted runs (the creator read a written script): save the FULL spoken
+script, cold open included, to `<workdir>/<out>_script.txt` BEFORE running
+yapfull.** The caption gate (`caption_qa.py`) then diffs every burned word
+against it and blocks the build on anything the script never contained. Each
+flagged word gets adjudicated, and the list is short (~15): a real garble
+(whisper heard "ARK" for Arc, "Ferguson" for "first and") goes in
+`<out>_corrections.json` as a fix; a harmless on-camera ad-lib ("of these"
+for "of the") goes in `<out>_capqa_ok.json` (a JSON list of accepted words).
+Re-run with `YAP_FROM_CUT=1` (seconds, no re-cut). Numbers match across
+notations ("fifteen dollars" == "$15"), and the handle/contact block is
+allowlisted from brand-config. No script file = gate skips (freestyle yaps).
 
 ### 8. Compose
 `compose_ass.sh` (called by yapfull) burns the `.ass`, normalizes to -14 LUFS, and
@@ -381,8 +420,10 @@ line), pick an in-point, and set the play length from the beat's target duration
 ]
 ```
 - `target_dur` (or `end`) = how long the clip plays = the pacing lever.
-- `push:true` = slow 12% push-in for life on a near-static shot (skip on clips
-  that already move).
+- `push:true` = slow 12% push-in for life on a near-static shot. Default OFF:
+  a clip with its own motion never needs it, and push renders on a 2x
+  supersampled frame (slower encode), so spend it only where the shot would
+  otherwise sit dead.
 - `text` = the exact VO line for that beat (drives the guide + sync).
 
 ### B3. Lock the picture + emit the timeline
@@ -414,6 +455,16 @@ bash scripts/storyfull.sh .yap_build .yap_build/picture.mp4 vo.m4a output/clip.m
 under it), transcribes the VO for word-by-word brand captions, adds the hook +
 handle/contact block, mixes the SFX/music layer, and composes to -14 LUFS. Then
 do the cover (8c) and finalize (9) exactly as Mode A.
+
+**Mode B finishing rules (every run):**
+- **Picture length == VO length.** No picture past the last VO word: trim the
+  tail beat instead of letting the video run silent.
+- **Chronology reads as day-flow.** Never a daytime clip after a night clip;
+  when sync and chronology fight, day-flow + strong visuals win over tight
+  per-line sync.
+- **Catch repeated words across beats** (scripting them one by one hides that
+  three lines all start "so I"), read the full VO script aloud once before
+  locking picture.
 
 ## SFX + music layer (optional, both modes)
 A generated, royalty-free pack (no downloads, no licensing) lives at
@@ -453,7 +504,10 @@ python3 scripts/sfxmix.py --in output/clip.mp4 --sfx sfx.json --out output/clip_
 
 The editor optimises the retention curve, not just a clean cut. Watch-through is
 the metric. Four gates, run on the FINISHED cut (after captions/overlays, before
-finalize), all enforced by `retention_check.py` plus two eyeball checks:
+finalize). yapfull runs retention_check + pip_coverage automatically
+post-compose, reading the real hook-end from the .ass (a default hook window
+would count a phantom event); `YAP_ALLOW_STATIC=1` overrides retention for a
+deliberate slow burn. By hand:
 
 ```bash
 python3 scripts/retention_check.py --video output/clip.mp4 \
@@ -483,7 +537,14 @@ Under-season: one event per beat, not per word. SFX hits should land ON these
 events (same timestamps), not between them.
 
 ### Evidence inserts (PiP: show the company / article / chart)
-When the script names a company, an article, a chart, or a number, SHOW it.
+**The receipts rule: every named brand/product and every stat gets something
+on screen while it is spoken.** A brand mention gets a PiP (screenshot of the
+actual product, homepage, headline, or post); a stat gets a counter or a PiP
+of the source. This is not decoration, it is the credibility layer, and it is
+enforced: `pip_coverage.py` scans the cut transcript for claim moments and
+checks each against the overlays JSON; yapfull runs it on the finished file
+(a report by default, build-fatal when brand-config sets `"pip_strict": true`,
+which scripted/branded channels should).
 Real screenshots only (no AI, per Hard rules): screenshot the actual headline,
 pricing page, chart, or post; save to `.yap_build/evidence/`. Burn as
 picture-in-picture for 2-4s, placed in the upper-middle third, clear of the
@@ -496,9 +557,11 @@ ffmpeg -i cut.mp4 -i .yap_build/evidence/shot.png -filter_complex \
 ```
 Rules: one insert per claim, on screen only while the claim is spoken, add a
 `whoosh` SFX hit on entry. Log each insert in the overlays JSON (`{"type":"pip",
-"start":12.4,"end":15.6}`) so retention_check counts it. An evidence insert does
-two jobs at once: pattern interrupt + receipts (credibility), so aim them first
-at the static stretches the tool flags, and always on the biggest claim.
+"start":12.4,"end":15.6}`) so pip_coverage and retention_check count it. An
+evidence insert does two jobs at once: pattern interrupt + receipts, so when
+the retention tool also flags static stretches, aim the inserts there first.
+A dead product with no live page: its Wikipedia header or an archived
+screenshot is a legitimate receipt.
 
 ## Motion layers (typewriter hook, source tags, number count-ups)
 Driven by `build_ass.py` + `brand-config.json`, applied by `yapfull.sh`:

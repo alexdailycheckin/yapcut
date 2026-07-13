@@ -37,6 +37,33 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
 
+## What's new in 2.4
+
+- **Three new ship gates, wired into `yapfull.sh` (a batch of 12 shipped with
+  defects a human pass missed; these make that class impossible):**
+  - **Dead-air gate** (`gap_check.py`, fatal): transcribes the finished cut
+    punct-separate and fails any surviving inter-word gap >= 0.8s. Silence
+    detection reads room tone as sound and the caption transcript glues pause
+    time into word tokens; both said "clean" while a 1.3s hole shipped.
+  - **Caption-garble gate** (`caption_qa.py`, fatal on scripted runs): diffs
+    every burned caption word against the verbatim script (numbers fold across
+    notations, "fifteen dollars" == "$15"). Whisper had shipped "ARK" for Arc,
+    "Radio" for Rdio, "clod" for Claude, "chatgbt", and "Ferguson" for
+    "first and". Garbles go in `_corrections.json`, ad-libs in `_capqa_ok.json`.
+  - **Receipts gate** (`pip_coverage.py`): every spoken brand/stat wants a PiP
+    evidence insert or counter on screen while it is said; report by default,
+    fatal with brand-config `"pip_strict": true`. retention_check now also runs
+    automatically post-compose, with the real hook-end read from the .ass.
+- **96kHz export bug fixed**: loudnorm resamples internally; compose now pins
+  the export back to 48kHz.
+- **Mode B push-in no longer shakes**: zoompan renders on a 2x supersampled
+  frame, so the 12% push steps sub-pixel. Push defaults to off; spend it only
+  on shots that would otherwise sit dead.
+- Docs: receipts rule ("every named brand/stat gets its receipt on screen"),
+  scripted-run contract (`<out>_script.txt`), per-run output subfolders,
+  Mode B finishing rules (picture == VO length, day-flow chronology),
+  footage-library path via `YAP_LIBRARY`.
+
 ## What's new in 2.3.3
 
 - **Noisy-take protocol** (SKILL.md 6b): a loud room-tone bed (fan/AC) is

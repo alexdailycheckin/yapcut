@@ -71,6 +71,23 @@ if { [ "$STUT_RC" -eq 2 ] || [ "$SCAN_RC" -eq 2 ]; } && [ "${YAP_ALLOW_STUTTER:-
   exit 2
 fi
 
+# 2c. DEAD-AIR GATE: pauses that survived the cut. silencedetect cannot see
+# them under room tone, and the caption transcript (-sow) glues pause time
+# into word tokens, so the gate transcribes the cut itself (punct-separate).
+# A fail means the cut stage never saw the pause (noisy take): measure the
+# floor, raise --silence-db, re-cut (SKILL.md 6b). Deliberate beats:
+# YAP_ALLOW_GAPS="6.9,41.2" permits those timestamps; YAP_ALLOW_GAPS=1 skips.
+if [ "${YAP_ALLOW_GAPS:-0}" != "1" ]; then
+  set +e
+  python3 "$SCRIPTS/gap_check.py" --video "$WD/full_${OUTBASE}.mp4" \
+    --allow "${YAP_ALLOW_GAPS:-}"; GAP_RC=$?
+  set -e
+  if [ "$GAP_RC" -eq 2 ]; then
+    echo "DEAD-AIR GATE FAILED: the cut is not tight."
+    exit 2
+  fi
+fi
+
 python3 "$SCRIPTS/build_ass.py" --words "$WD/w_${OUTBASE}.json" --out "$WD/cap_${OUTBASE}.ass" \
   --preset minimal --font "$CFONT" --caps "$CCASE" --accent none --active-scale 112 \
   --hook-y 430 --hook "$HOOK" --hook-anim "$HANIM" --hook-style "$HSTYLE" --hook-spark "$HOOKWORD" \
@@ -99,6 +116,20 @@ if handle:
 open(p,"w").write(s)
 PY
 
+# 3b. CAPTION GATE: for scripted runs, no burned word the script never said
+# (whisper garbles brand names: ARK/Radio/clod/chatgbt all shipped once).
+# Contract: save the verbatim script to $WD/<out>_script.txt (or $YAP_SCRIPT).
+# No script file = gate skipped (unscripted yaps). Override: YAP_ALLOW_CAPTIONS=1.
+SCRIPTFILE="${YAP_SCRIPT:-$WD/${OUTBASE}_script.txt}"
+if [ -f "$SCRIPTFILE" ] && [ "${YAP_ALLOW_CAPTIONS:-0}" != "1" ]; then
+  python3 "$SCRIPTS/caption_qa.py" --ass "$WD/cap_${OUTBASE}.ass" \
+    --script "$SCRIPTFILE" --brand "$CFG" \
+    --accept-file "$WD/${OUTBASE}_capqa_ok.json" \
+    || { echo "CAPTION GATE FAILED: garbles -> ${OUTBASE}_corrections.json + YAP_FROM_CUT=1; ad-libs -> ${OUTBASE}_capqa_ok.json."; exit 2; }
+elif [ ! -f "$SCRIPTFILE" ]; then
+  echo "caption gate SKIPPED (no script at $SCRIPTFILE)"
+fi
+
 # 4. compose: burn captions, loudnorm -14, clean CFR re-encode
 bash "$SCRIPTS/compose_ass.sh" "$WD/full_${OUTBASE}.mp4" "$WD/cap_${OUTBASE}.ass" "$OUT" 2>&1 | grep -E "wrote|I:"
 ffmpeg -nostdin -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
@@ -107,4 +138,40 @@ ffmpeg -nostdin -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&
 # 4b. SEAM GATE: no splice holes/blips at any join in the finished video.
 python3 "$SCRIPTS/seam_qa.py" --keeps "$WD/keeps_full_${OUTBASE}.json" --video "$OUT" \
   || { echo "SEAM GATE FAILED: splice hole at a join"; exit 2; }
+
+# 4c. RECEIPTS + RETENTION (on the finished file, overlays counted).
+# pip_coverage: every spoken brand/stat wants a receipt on screen. Strict
+# (build-fatal) when brand-config sets "pip_strict": true or YAP_PIP_STRICT=1;
+# otherwise a report. retention_check: re-hook + pattern-interrupt budget,
+# hook-end read from the .ass so the phantom default never masks a gap.
+# Override retention: YAP_ALLOW_STATIC=1.
+PIPSTRICT=$(python3 -c "import json,sys;print(1 if json.load(open(sys.argv[1])).get('pip_strict') else 0)" "$CFG" 2>/dev/null || echo 0)
+[ "${YAP_PIP_STRICT:-0}" = "1" ] && PIPSTRICT=1
+set +e
+if [ "$PIPSTRICT" = "1" ]; then
+  python3 "$SCRIPTS/pip_coverage.py" --words "$WD/w_${OUTBASE}.json" \
+    --overlays "$OVRFILE" --strict; PIP_RC=$?
+else
+  python3 "$SCRIPTS/pip_coverage.py" --words "$WD/w_${OUTBASE}.json" \
+    --overlays "$OVRFILE"; PIP_RC=$?
+fi
+set -e
+[ "$PIP_RC" -eq 2 ] && { echo "RECEIPTS GATE FAILED: add evidence PiPs/counters at the MISS timestamps."; exit 2; }
+
+HOOKEND=$(python3 -c "
+import re,sys
+last=0.0
+for l in open(sys.argv[1],encoding='utf-8',errors='ignore'):
+    if l.startswith('Dialogue:') and ',Hook,' in l:
+        h,m,s=l.split(',')[2].split(':'); last=max(last,int(h)*3600+int(m)*60+float(s))
+print(f'{last:.2f}' if last else '2.5')" "$WD/cap_${OUTBASE}.ass" 2>/dev/null || echo 2.5)
+if [ "${YAP_ALLOW_STATIC:-0}" != "1" ]; then
+  if [ -n "$OVRFILE" ]; then
+    python3 "$SCRIPTS/retention_check.py" --video "$OUT" --overlays "$OVRFILE" --hook-end "$HOOKEND" \
+      || { echo "RETENTION GATE FAILED: fill the static stretches (PiP/counter/punch-in)."; exit 2; }
+  else
+    python3 "$SCRIPTS/retention_check.py" --video "$OUT" --hook-end "$HOOKEND" \
+      || { echo "RETENTION GATE FAILED: fill the static stretches (PiP/counter/punch-in)."; exit 2; }
+  fi
+fi
 echo "DONE -> $OUT"

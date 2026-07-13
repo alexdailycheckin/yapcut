@@ -11,7 +11,8 @@
 #         by fontconfig from the family name in the .ass (Montserrat/Anton/etc),
 #         so the font must be installed (the font casks, or system fonts).
 # - loudnorm to -14 LUFS: TikTok normalizes toward ~-14; raw phone audio (~-22)
-#         sounds thin against the feed.
+#         sounds thin against the feed. loudnorm resamples internally (its
+#         output hits 96/192kHz), so -ar 48000 pins the export back to normal.
 # - re-encode CFR 30fps: a concat of copied streams (from cut.py) can play black
 #         in QuickTime due to irregular timestamps; this clean pass fixes it.
 set -euo pipefail
@@ -22,7 +23,7 @@ ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:
 
 ffmpeg -nostdin -y -i "$CUT" \
   -vf "ass='${ASS_ESC}',fps=30,setsar=1,format=yuv420p" \
-  -af "loudnorm=I=-14:TP=-1.5:LRA=11" \
+  -af "loudnorm=I=-14:TP=-1.5:LRA=11" -ar 48000 \
   -c:v libx264 -preset medium -crf 18 -r 30 \
   -video_track_timescale 30000 -c:a aac -b:a 192k -movflags +faststart \
   "$OUT" -hide_banner -loglevel error

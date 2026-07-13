@@ -60,12 +60,19 @@ def main():
         gain = float(b.get("gain_db", a.natural_gain))
         o = f"{segdir}/bc_{i:03d}.mp4"
 
-        # fill the vertical frame, then (optional) slow push-in for life
-        vf = ("scale=1080:1920:force_original_aspect_ratio=increase,"
-              "crop=1080:1920,setsar=1,fps=%d" % a.fps)
+        # fill the vertical frame, then (optional) slow push-in for life.
+        # push runs zoompan on a 2x supersampled frame: at output resolution
+        # zoompan quantizes x/y to whole pixels and the push visibly shakes;
+        # sampling from 2160x3840 makes the steps sub-pixel and smooth.
         if b.get("push"):
-            vf += (",zoompan=z='min(1.0+0.0009*on,1.12)':d=1:"
-                   "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=%d" % a.fps)
+            vf = ("scale=2160:3840:force_original_aspect_ratio=increase,"
+                  "crop=2160:3840,setsar=1,fps=%d,"
+                  "zoompan=z='min(1.0+0.0009*on,1.12)':d=1:"
+                  "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=%d"
+                  % (a.fps, a.fps))
+        else:
+            vf = ("scale=1080:1920:force_original_aspect_ratio=increase,"
+                  "crop=1080:1920,setsar=1,fps=%d" % a.fps)
 
         cmd = ["ffmpeg", "-nostdin", "-y", "-ss", f"{s:.3f}", "-to", f"{e:.3f}",
                "-i", src]
