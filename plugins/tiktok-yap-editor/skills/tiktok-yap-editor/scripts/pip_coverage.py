@@ -10,7 +10,13 @@ scale words) and checks each against the overlays JSON windows.
 
 Usage:
   python3 pip_coverage.py --words .yap_build/w_<out>.json \
-      [--overlays .yap_build/<out>_overlays.json] [--slack 2.0] [--strict]
+      [--overlays .yap_build/<out>_overlays.json] [--slack 2.0] [--strict] \
+      [--corrections .yap_build/<out>_corrections.json]
+
+--corrections: the caption fixes are applied to the transcript BEFORE claim
+detection, so a garble fixed to a brand ("cloud" -> Claude) correctly demands
+its receipt and a fixed-away false noun ("Ferguson" -> "first and") stops
+demanding one.
 
 Default is a report (exit 0/1) so unscripted quick cuts stay cheap; --strict
 (or wiring via brand-config "pip_strict": true) makes uncovered claims fatal.
@@ -24,12 +30,13 @@ import sys
 
 STOP = {"i", "im", "ive", "id", "ill", "ai", "ok", "okay", "pov", "diy",
         "asap", "tv", "b2b", "b2c", "qa", "faq", "us", "uk", "eu", "ceo",
-        "cfo", "cmo", "vp", "gtm", "icp", "roi", "seo", "aeo", "ugc", "cta"}
+        "cfo", "cmo", "vp", "gtm", "icp", "roi", "seo", "aeo", "ugc", "cta",
+        "ceos", "cmos", "cfos", "vps"}
 SCALE = {"million", "billion", "thousand", "hundred", "percent", "%", "$", "€", "£"}
 SENT_END = re.compile(r"[.!?]\s*$")
 
 
-def tokens(words_json: str) -> list:
+def tokens(words_json: str, corrections: str = "") -> list:
     d = json.load(open(words_json))
     out = []
     for s in d.get("transcription", []):
@@ -38,6 +45,15 @@ def tokens(words_json: str) -> list:
             continue
         o = s["offsets"]
         out.append([o["from"] / 1000.0, o["to"] / 1000.0, t])
+    if corrections:
+        try:
+            c = json.load(open(corrections))
+        except Exception:
+            return out
+        drop = set(c.get("drop", []))
+        fix = {int(k): v for k, v in c.get("fix", {}).items()}
+        out = [[a, b, fix.get(i, t)] for i, (a, b, t) in enumerate(out)
+               if i not in drop]
     return out
 
 
@@ -52,7 +68,7 @@ def claim_moments(toks: list) -> list:
                 sentence_start = True
             continue
         low = word.lower()
-        is_stat = bool(re.search(r"\d", word)) or low in SCALE
+        is_stat = (bool(re.search(r"\d", word)) or low in SCALE) and low not in STOP
         is_brand = (word[0].isupper() and not sentence_start
                     and low not in STOP and len(word) > 1)
         if is_stat or is_brand:
@@ -84,9 +100,11 @@ def main() -> int:
     ap.add_argument("--slack", type=float, default=2.0,
                     help="an overlay within this many seconds covers the claim")
     ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--corrections", default="",
+                    help="caption corrections json, applied before detection")
     a = ap.parse_args()
 
-    claims = claim_moments(tokens(a.words))
+    claims = claim_moments(tokens(a.words, a.corrections))
     if not claims:
         print("pip_coverage: no brand/stat claims detected")
         return 0

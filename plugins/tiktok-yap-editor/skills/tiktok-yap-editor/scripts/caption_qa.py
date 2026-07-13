@@ -81,12 +81,20 @@ def canon(text: str) -> list:
 
 
 def caption_words(ass_path: str) -> list:
-    """Unique display words from Cap-style dialogue, tags stripped."""
+    """Unique display words from Cap-style dialogue, tags stripped.
+
+    Overlay-rendered events (counter tick frames, source lower-thirds) reuse
+    the Cap style but sit in the upper 2/3 of frame; spoken-word captions and
+    the CTA block sit low. Position is the discriminator: skip \\pos y < 1150
+    so a counter ticking 0 -> $9M never trips the script diff."""
     words, seen = [], set()
     for line in open(ass_path, encoding="utf-8", errors="ignore"):
         if not line.startswith("Dialogue:") or ",Cap," not in line:
             continue
         text = line.split(",,", 1)[-1]
+        m = re.search(r"\\pos\(\s*[\d.]+\s*,\s*([\d.]+)\s*\)", text)
+        if m and float(m.group(1)) < 1150:
+            continue
         text = re.sub(r"\{[^}]*\}", "", text).replace("\\N", " ").strip()
         for w in re.findall(r"[A-Za-z0-9'$%€£&+]+", text):
             if w.lower() not in seen:
@@ -103,6 +111,9 @@ def main() -> int:
                     "contact lines are allowlisted (the CTA block is Cap-styled)")
     ap.add_argument("--accept-file", default="",
                     help="JSON list of reviewed-ok ad-lib words")
+    ap.add_argument("--overlays", default="",
+                    help="overlays json: counter values/labels and source-tag "
+                    "text are burned as caption-styled events, allowlist them")
     a = ap.parse_args()
 
     vocab = set(canon(open(a.script, encoding="utf-8").read())) | GLUE
@@ -119,11 +130,32 @@ def main() -> int:
                 vocab |= set(canon(str(w)))
         except FileNotFoundError:
             pass
+    if a.overlays:
+        try:
+            for o in json.load(open(a.overlays)):
+                for k in ("text", "label", "value"):
+                    if o.get(k):
+                        vocab |= set(canon(str(o[k])))
+        except FileNotFoundError:
+            pass
 
+    caps = caption_words(a.ass)
     bad = []
-    for w in caption_words(a.ass):
+    for i, w in enumerate(caps):
         folded = canon(w)
-        if folded and not all(f in vocab for f in folded):
+        if not folded:
+            continue
+        ok = all(f in vocab for f in folded) or "".join(folded) in vocab
+        if not ok:
+            # a hyphenated script word renders as two caption events
+            # ("bi" + "directional" for "bidirectional"): join with a neighbour
+            for j in (i - 1, i + 1):
+                if 0 <= j < len(caps):
+                    pair = canon(caps[j]) + folded if j < i else folded + canon(caps[j])
+                    if "".join(pair) in vocab:
+                        ok = True
+                        break
+        if not ok:
             bad.append((w, folded))
 
     if not bad:

@@ -123,7 +123,7 @@ PY
 SCRIPTFILE="${YAP_SCRIPT:-$WD/${OUTBASE}_script.txt}"
 if [ -f "$SCRIPTFILE" ] && [ "${YAP_ALLOW_CAPTIONS:-0}" != "1" ]; then
   python3 "$SCRIPTS/caption_qa.py" --ass "$WD/cap_${OUTBASE}.ass" \
-    --script "$SCRIPTFILE" --brand "$CFG" \
+    --script "$SCRIPTFILE" --brand "$CFG" --overlays "$OVRFILE" \
     --accept-file "$WD/${OUTBASE}_capqa_ok.json" \
     || { echo "CAPTION GATE FAILED: garbles -> ${OUTBASE}_corrections.json + YAP_FROM_CUT=1; ad-libs -> ${OUTBASE}_capqa_ok.json."; exit 2; }
 elif [ ! -f "$SCRIPTFILE" ]; then
@@ -150,10 +150,10 @@ PIPSTRICT=$(python3 -c "import json,sys;print(1 if json.load(open(sys.argv[1])).
 set +e
 if [ "$PIPSTRICT" = "1" ]; then
   python3 "$SCRIPTS/pip_coverage.py" --words "$WD/w_${OUTBASE}.json" \
-    --overlays "$OVRFILE" --strict; PIP_RC=$?
+    --overlays "$OVRFILE" --corrections "$CORR" --strict; PIP_RC=$?
 else
   python3 "$SCRIPTS/pip_coverage.py" --words "$WD/w_${OUTBASE}.json" \
-    --overlays "$OVRFILE"; PIP_RC=$?
+    --overlays "$OVRFILE" --corrections "$CORR"; PIP_RC=$?
 fi
 set -e
 [ "$PIP_RC" -eq 2 ] && { echo "RECEIPTS GATE FAILED: add evidence PiPs/counters at the MISS timestamps."; exit 2; }

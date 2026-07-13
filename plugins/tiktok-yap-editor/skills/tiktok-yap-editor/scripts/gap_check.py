@@ -16,6 +16,11 @@ are hunting; measured on that JSON the roam 1.3s hole reads as zero gap.
 Punct-separate tokens park pause time inside '.' tiles, which we skip, so the
 hole shows up between speech tokens.
 
+Full-file whisper timings drift near splices (up to ~2s, the same drift the
+boundary rule exists for) and can FABRICATE a gap, so every candidate fail is
+corroborated by re-transcribing a tight window around it (window timings are
+accurate); only window-confirmed gaps fail the build.
+
 Usage:
   python3 gap_check.py --video cut.mp4 [--words no_sow_words.json] \
       [--fail 0.8] [--warn 0.6] [--lead 0.8] [--allow "6.9,41.2"]
@@ -32,20 +37,45 @@ import sys
 import tempfile
 
 
-def transcribe_punct_separate(video: str) -> str:
-    """16k mono extract + whisper -ml 1 (NO -sow): punct tokens stay separate."""
+def transcribe_punct_separate(video: str, t0: float = None, t1: float = None) -> str:
+    """16k mono extract + whisper -ml 1 (NO -sow): punct tokens stay separate.
+    Pass t0/t1 to transcribe just a window (window timings do not drift)."""
     model = os.environ.get("WHISPER_MODEL",
                            os.path.expanduser("~/.whisper-models/ggml-small.en.bin"))
     td = tempfile.mkdtemp(prefix="gapchk_")
     wav = os.path.join(td, "a.wav")
     out = os.path.join(td, "w")
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-i", video, "-ar", "16000",
-                    "-ac", "1", "-c:a", "pcm_s16le", wav,
-                    "-hide_banner", "-loglevel", "error"], check=True)
+    cmd = ["ffmpeg", "-nostdin", "-y"]
+    if t0 is not None:
+        cmd += ["-ss", f"{max(0.0, t0):.3f}", "-to", f"{t1:.3f}"]
+    cmd += ["-i", video, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
+            wav, "-hide_banner", "-loglevel", "error"]
+    subprocess.run(cmd, check=True)
     subprocess.run(["whisper-cli", "-m", model, "-f", wav, "-ml", "1",
                     "-oj", "-of", out], check=True,
                    capture_output=True, text=True)
     return out + ".json"
+
+
+def window_max_gap(video: str, e1: float, s2: float) -> float:
+    """Corroborate a candidate gap by re-transcribing a tight window at three
+    start offsets and taking the largest inter-speech-token gap near the
+    candidate. Why tokens, not energy: pre-loudnorm intermediates carry
+    near-floor quiet speech that an envelope calls silence, while whisper
+    hears it regardless of level. Why three offsets: window tiling sometimes
+    glues the pause into the preceding word, hiding it; the tiling is
+    offset-sensitive, so if ANY offset separates the pause, we see the truth.
+    Calibrated against waveform ground truth on the Jun 29/Jul 5 batch:
+    confirms the real 1.3s hole, refutes drift phantoms and 0.3-0.45s cadence
+    beats the full-file pass exaggerates past the bar."""
+    best = 0.0
+    for off in (0.0, 0.37, 0.83):
+        t0 = max(0.0, e1 - 1.5 - off)
+        toks = speech_tokens(transcribe_punct_separate(video, t0, s2 + 1.5 + off))
+        for a, b in zip(toks, toks[1:]):
+            if t0 + b[0] > e1 - 0.6 and t0 + a[1] < s2 + 0.6:
+                best = max(best, b[0] - a[1])
+    return best
 
 
 def speech_tokens(words_json: str) -> list:
@@ -116,8 +146,18 @@ def main() -> int:
 
     for e1, s2, t1, t2 in warns:
         print(f"  warn: {s2 - e1:.2f}s gap @ {e1:.2f}s  (...{t1} | {t2}...)")
+
+    confirmed = []
     for e1, s2, t1, t2 in fails:
-        print(f"  DEAD AIR: {s2 - e1:.2f}s @ {e1:.2f}s  (...{t1} | {t2}...)")
+        g = window_max_gap(a.video, e1, s2)
+        if g >= a.fail * 0.9:
+            confirmed.append((e1, s2, t1, t2))
+            print(f"  DEAD AIR: {s2 - e1:.2f}s @ {e1:.2f}s (window-confirmed "
+                  f"{g:.2f}s)  (...{t1} | {t2}...)")
+        else:
+            print(f"  drift artifact @ {e1:.2f}s: full-file said "
+                  f"{s2 - e1:.2f}s, window measured {g:.2f}s, not gating")
+    fails = confirmed
 
     if fails:
         print(f"gap_check: {len(fails)} dead-air gap(s) survived the cut. "
