@@ -73,9 +73,11 @@ def main() -> int:
     ap.add_argument("--box", default="215x150", help="WxH box to fit into; "
                     "150 tall keeps a square symbol above the platform bottom chrome")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--chip", action="store_true",
-                    help="white rounded chip behind the logo: uniform geometry "
-                    "and guaranteed contrast on any footage")
+    ap.add_argument("--chip", dest="chip", action="store_true", default=True,
+                    help="white rounded chip behind the logo (DEFAULT): uniform "
+                    "geometry and guaranteed contrast on any footage")
+    ap.add_argument("--bare", dest="chip", action="store_false",
+                    help="raw transparent logo, no chip")
     a = ap.parse_args()
     if not (a.page or a.file):
         sys.exit("need --page or --file")

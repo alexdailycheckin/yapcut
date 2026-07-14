@@ -545,16 +545,19 @@ the finished file (a report by default, build-fatal when brand-config sets
 `"pip_strict": true`, which scripted/branded channels should).
 
 **The receipt hierarchy (locked 2026-07-13, creator-approved):**
-1. **Brand/product mention -> the official LOGO, transparent, no card.**
-   Fetch + box in one command (Wikipedia/Wikimedia official SVGs, rasterized
-   with real alpha):
+1. **Brand/product mention -> the official LOGO on a white rounded CHIP
+   (the locked look, 2026-07-13).** The chip gives uniform geometry across
+   mismatched logo shapes, guaranteed contrast on any footage, and its edge
+   reads as the object so a flat-bottomed mark never looks cut. Fetch + chip
+   in one command (Wikipedia/Wikimedia official SVGs, rasterized with real
+   alpha inside a contain box so no aspect ratio can clip):
    ```bash
-   python3 scripts/logo_fetch.py --page "Perplexity AI" --box 215x150 \
-     --out .yap_build/evidence/box_perplexity.png
+   python3 scripts/logo_fetch.py --page "Perplexity AI" --box 213x150 \
+     --out .yap_build/evidence/chip_perplexity.png     # chip is the default
    ```
-   Several brands named in one breath = a ROW of logo boxes, each popping in
+   Several brands named in one breath = a ROW of chips, each popping in
    on its spoken word (staggered `enable=between(t,...)`), all holding to the
-   end of the list beat.
+   end of the list beat. `--bare` exists for special cases only.
 2. **Story/event -> the real article HEADLINE card.** The script's `sources`
    carry the URL; headless-screenshot it, crop headline + byline + date (the
    outlet name must stay visible), white card pad. Real screenshots only (no
