@@ -8,8 +8,8 @@ Chrome with a transparent background (SVG-faithful, no extra deps), then PIL
 trims to content and centers into the requested box.
 
 Usage:
-  python3 logo_fetch.py --page "Perplexity AI" --box 215x200 --out box_perplexity.png
-  python3 logo_fetch.py --file "File:Google 2026 logo.svg" --box 215x200 --out box_google.png
+  python3 logo_fetch.py --page "Perplexity AI" --box 215x150 --out box_perplexity.png
+  python3 logo_fetch.py --file "File:Google 2026 logo.svg" --box 215x150 --out box_google.png
 
 --page lists the article's images and picks the best logo-ish file (prefers
 SVG, then 'logo'/'wordmark'/'symbol' in the name); --file skips the guess.
@@ -70,7 +70,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--page", help="Wikipedia article, e.g. 'Perplexity AI'")
     ap.add_argument("--file", help="exact 'File:...' title, skips the guess")
-    ap.add_argument("--box", default="215x200", help="WxH box to fit into")
+    ap.add_argument("--box", default="215x150", help="WxH box to fit into; "
+                    "150 tall keeps a square symbol above the platform bottom chrome")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     if not (a.page or a.file):

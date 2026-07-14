@@ -549,7 +549,7 @@ the finished file (a report by default, build-fatal when brand-config sets
    Fetch + box in one command (Wikipedia/Wikimedia official SVGs, rasterized
    with real alpha):
    ```bash
-   python3 scripts/logo_fetch.py --page "Perplexity AI" --box 215x200 \
+   python3 scripts/logo_fetch.py --page "Perplexity AI" --box 215x150 \
      --out .yap_build/evidence/box_perplexity.png
    ```
    Several brands named in one breath = a ROW of logo boxes, each popping in
@@ -563,11 +563,16 @@ the finished file (a report by default, build-fatal when brand-config sets
 3. **Stat -> counter** (accent count-up) or the headline that contains it.
 
 **Placement (locked): logos and screenshot cards go BELOW the caption line,
-centered, y ~1450-1780 at 1080x1920. Never over the face or eyes. The top
-band is platform-UI territory (TikTok/Reels chrome sits there) and receipts
-get covered; counters may stay upper-third (`y: 420`) since they are glanceable.
-Keep receipts <= ~972px wide and clear of the burned CTA block window
-(last ~9.7s) and of source lower-thirds (pos 48,1500): sequence, don't stack.**
+centered, in the y 1440-1650 band at 1080x1920, and ALL receipt ink must end
+above y=1650: the platform's bottom chrome (description, sound line) starts
+there and eats anything lower, which is how two square logos once shipped
+with their bottoms cut. Logo boxes are 215x150 (a square symbol fills the
+150, a wide wordmark centers); headline cards keep their TEXT above the line
+even if padding grazes it. Never over the face or eyes. The top band is just
+as bad (TikTok/Reels top chrome); counters may stay upper-third (`y: 420`)
+since they are glanceable. Keep receipts <= ~972px wide and clear of the
+burned CTA block window (last ~9.7s) and of source lower-thirds
+(pos 48,1500): sequence, don't stack.**
 ```bash
 ffmpeg -i cut.mp4 -i .yap_build/evidence/card_headline.png -filter_complex \
   "[0][1]overlay=(W-w)/2:1470:enable='between(t,9.8,13.4)'" -c:a copy out.mp4
