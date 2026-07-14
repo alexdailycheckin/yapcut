@@ -536,32 +536,47 @@ a number count-up > a source lower-third > a caption emphasis pop > a punch-in.
 Under-season: one event per beat, not per word. SFX hits should land ON these
 events (same timestamps), not between them.
 
-### Evidence inserts (PiP: show the company / article / chart)
+### Evidence inserts (receipts: logos, headlines, counters)
 **The receipts rule: every named brand/product and every stat gets something
-on screen while it is spoken.** A brand mention gets a PiP (screenshot of the
-actual product, homepage, headline, or post); a stat gets a counter or a PiP
-of the source. This is not decoration, it is the credibility layer, and it is
-enforced: `pip_coverage.py` scans the cut transcript for claim moments and
-checks each against the overlays JSON; yapfull runs it on the finished file
-(a report by default, build-fatal when brand-config sets `"pip_strict": true`,
-which scripted/branded channels should).
-Real screenshots only (no AI, per Hard rules): screenshot the actual headline,
-pricing page, chart, or post; save to `.yap_build/evidence/`. Burn as
-picture-in-picture for 2-4s, placed in the upper-middle third, clear of the
-hook window and the caption line:
+on screen while it is spoken.** This is not decoration, it is the credibility
+layer, and it is enforced: `pip_coverage.py` scans the cut transcript for
+claim moments and checks each against the overlays JSON; yapfull runs it on
+the finished file (a report by default, build-fatal when brand-config sets
+`"pip_strict": true`, which scripted/branded channels should).
+
+**The receipt hierarchy (locked 2026-07-13, creator-approved):**
+1. **Brand/product mention -> the official LOGO, transparent, no card.**
+   Fetch + box in one command (Wikipedia/Wikimedia official SVGs, rasterized
+   with real alpha):
+   ```bash
+   python3 scripts/logo_fetch.py --page "Perplexity AI" --box 215x200 \
+     --out .yap_build/evidence/box_perplexity.png
+   ```
+   Several brands named in one breath = a ROW of logo boxes, each popping in
+   on its spoken word (staggered `enable=between(t,...)`), all holding to the
+   end of the list beat.
+2. **Story/event -> the real article HEADLINE card.** The script's `sources`
+   carry the URL; headless-screenshot it, crop headline + byline + date (the
+   outlet name must stay visible), white card pad. Real screenshots only (no
+   AI, per Hard rules). A dead product or bot-walled site: its Wikipedia page
+   is a legitimate receipt.
+3. **Stat -> counter** (accent count-up) or the headline that contains it.
+
+**Placement (locked): logos and screenshot cards go BELOW the caption line,
+centered, y ~1450-1780 at 1080x1920. Never over the face or eyes. The top
+band is platform-UI territory (TikTok/Reels chrome sits there) and receipts
+get covered; counters may stay upper-third (`y: 420`) since they are glanceable.
+Keep receipts <= ~972px wide and clear of the burned CTA block window
+(last ~9.7s) and of source lower-thirds (pos 48,1500): sequence, don't stack.**
 ```bash
-ffmpeg -i cut.mp4 -i .yap_build/evidence/shot.png -filter_complex \
-  "[1]scale=880:-1,pad=iw+16:ih+16:8:8:color=white[e];\
-   [0][e]overlay=(W-w)/2:260:enable='between(t,12.4,15.6)'" \
-  -c:a copy out.mp4
+ffmpeg -i cut.mp4 -i .yap_build/evidence/card_headline.png -filter_complex \
+  "[0][1]overlay=(W-w)/2:1470:enable='between(t,9.8,13.4)'" -c:a copy out.mp4
 ```
 Rules: one insert per claim, on screen only while the claim is spoken, add a
 `whoosh` SFX hit on entry. Log each insert in the overlays JSON (`{"type":"pip",
 "start":12.4,"end":15.6}`) so pip_coverage and retention_check count it. An
 evidence insert does two jobs at once: pattern interrupt + receipts, so when
 the retention tool also flags static stretches, aim the inserts there first.
-A dead product with no live page: its Wikipedia header or an archived
-screenshot is a legitimate receipt.
 
 ## Motion layers (typewriter hook, source tags, number count-ups)
 Driven by `build_ass.py` + `brand-config.json`, applied by `yapfull.sh`:
