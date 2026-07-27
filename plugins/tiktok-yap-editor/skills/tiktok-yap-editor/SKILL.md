@@ -283,7 +283,14 @@ python3 scripts/seam_qa.py --keeps .yap_build/keeps_full.json --video full.mp4  
 bash scripts/transcribe.sh full.mp4 .yap_build/w --words                # re-read line sequence (line audit)
 python3 scripts/stutter_check.py --words .yap_build/w.json               # FATAL: re-run on the CUT, must be clean
 python3 scripts/gap_check.py --video full.mp4                            # FATAL: no dead air survived the cut
+ffprobe -v error -show_entries stream=codec_type,duration -of csv=p=0 final.mp4  # FATAL: drift gate, |video - audio| within 2 frames
 ```
+**DRIFT GATE (fatal, automated in yapcut.py + yapfull.sh 4d)**: the video and
+audio stream durations of the SHIPPED file must match within ~2 frames. Excess
+picture means the cut gained frames at joins and lips slide progressively off
+the voice, worse at every cut (both root causes + the fix live in
+`references/gotchas.md` under "Voice/picture drift"). Never work around a
+drift failure by retiming the final; fix the cut.
 gap_check transcribes the cut itself (punct-separate tokens): the caption
 transcription (-sow) glues pause time into word tokens and silencedetect reads
 room tone as sound, so both lie about pauses; inter-word gaps do not. If it
@@ -596,7 +603,12 @@ Driven by `build_ass.py` + `brand-config.json`, applied by `yapfull.sh`:
   `[{"type":"source","text":"Source: Forrester, 2026","start":8.0,"end":12.0},
     {"type":"counter","value":"23X","label":"vs everyone else","start":11.6,"end":14.2,"y":420}]`
   Counter ticks 0->value in the accent then holds the exact `value` string (handles 23X,
-  $1B, 89%). Use for the data/educational videos. The accent colour comes from
+  $1B, 89%). **Text collision rule (hard): nothing may sit on the hook while
+  the hook is up.** `build_ass.py` measures the fitted hook block, writes it to
+  `cap_<out>.ass.meta.json` (with the caption band) for any raster PiP burner
+  to respect, and auto-pushes a counter clear of the hook band when their
+  windows overlap; the `y` you write is a suggestion, text always wins.
+  Use for the data/educational videos. The accent colour comes from
   `accent_hex` even when captions are scale-only.
 All real/typeset, no AI-generated assets.
 

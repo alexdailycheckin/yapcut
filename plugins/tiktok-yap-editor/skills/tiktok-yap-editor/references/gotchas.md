@@ -25,6 +25,45 @@ are failures that actually happened and cost real time; each fix is proven.
   the copied streams have slightly irregular timestamps and a non-integer avg
   fps. The fix is the final re-encode in `compose.sh` (`-r 30`,
   `-video_track_timescale 30000`). The cut from `cut.py` is intermediate only.
+- **Voice/picture drift that GROWS with every cut (the worst one).** TWO
+  independent causes; fixing only the first one shipped desynced batches twice
+  (measured +0.30s to +0.77s of lag by the end of a clip):
+  1. *Timestamp gaps*: the concat demuxer + `-c copy` leaves a small PTS gap at
+     every segment join; the VIDEO accumulates them while yapcut's single
+     continuous PCM->AAC audio has none. Fixed by RENUMBERING every frame onto a
+     gapless grid by index: `-vf "setpts=N/(30*TB)"` before the ass burn (in
+     `compose_ass.sh`) and in `yapcut.py`'s final mux (never `-c:v copy` there).
+  2. *Per-segment frame-count excess*: the per-segment `fps=30` encode emits
+     `floor(dur*30)+1` frames = **+0.5 frame per cut on average**, while the
+     PCM audio is cut sample-exact. These are REAL extra frames, so no amount
+     of PTS renumbering removes them; renumbering actually produces a perfectly
+     clean PTS grid on a still-drifting file. Fixed in `yapcut.py` by pacing
+     every segment's frame count against the CUMULATIVE audio clock
+     (`nfr = round(t_audio*30) - f_video`, `tpad` clone headroom +
+     `-frames:v nfr`), which bounds total drift at half a frame forever.
+  Two supporting rules baked into `yapcut.py`: video and audio are cut to
+  SEPARATE per-segment files and concatenated separately (in a muxed concat
+  the demuxer offsets each next segment by one stream's duration, CLIPPING
+  audio whenever the paced video ran shorter than its audio), and segment
+  windows use `-ss/-to`, never input `-t` (input `-t` measures from the packet
+  where reading starts and shaves ~5-10ms of audio per segment).
+  Diagnose with STREAM DURATIONS, not the PTS profile: `ffprobe ... stream=
+  codec_type,duration`; video minus audio beyond ~2 frames means drift, and
+  the per-segment excess shows as (video - audio) ≈ 0.5 frames x segment count.
+  Both `yapcut.py` and `yapfull.sh` carry a fatal DRIFT GATE so a regression
+  can never reach a post.
+- **Rescuing an already-shipped drifting file** (raw/plan gone): the excess
+  accumulates roughly linearly across joins, so a uniform video retime onto
+  the audio length corrects it to within a frame everywhere:
+  `-vf "setpts=PTS*(AUDIO_DUR/VIDEO_DUR)" -r 30 -vsync cfr -t AUDIO_DUR
+  -c:a copy`. Burned captions drift WITH the picture, so the retime re-locks
+  them to the voice too. This is a rescue, not the pipeline: when the clause
+  plan survives, re-cut.
+- **Never re-cut an already-cut file ("double cut").** Feeding a re-assembled
+  cut (content re-muxed via concat-copy, hence VFR) back into `yapcut` for a
+  second dead-air pass stacks a second set of join gaps on top. If a shipped
+  edit needs tightening, edit the clause plan and re-cut ONCE from the
+  original raw. Re-cutting a cut only compounds drift.
 
 ## Whisper
 

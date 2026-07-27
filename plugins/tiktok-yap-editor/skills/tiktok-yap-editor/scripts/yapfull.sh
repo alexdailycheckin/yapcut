@@ -174,4 +174,26 @@ if [ "${YAP_ALLOW_STATIC:-0}" != "1" ]; then
       || { echo "RETENTION GATE FAILED: fill the static stretches (PiP/counter/punch-in)."; exit 2; }
   fi
 fi
+
+# 4d. DRIFT GATE (fatal): the picture and the voice must be the same length.
+# The old per-segment fps=30 encode gained ~0.5 frame per cut, so lips slid
+# progressively off the voice (up to +0.77s by the end on measured batches).
+# yapcut now paces frames against the cumulative audio clock; this re-checks
+# the SHIPPED file end to end so a regression can never reach a post.
+python3 - "$OUT" <<'PY'
+import subprocess, sys
+sd = {}
+for ln in subprocess.run(["ffprobe","-v","error","-show_entries",
+        "stream=codec_type,duration","-of","csv=p=0",sys.argv[1]],
+        capture_output=True,text=True).stdout.strip().splitlines():
+    t, d = ln.split(",")[:2]
+    sd[t] = float(d)
+drift = sd.get("video",0) - sd.get("audio",0)
+print(f"--- QA: video-audio drift {drift:+.3f}s ---")
+# limit = 2 frames + ~45ms AAC priming/padding (the aac encode inflates the
+# audio STREAM duration with silence; content sync is gated strictly in yapcut)
+if abs(drift) > 0.112:
+    print(f"DRIFT GATE FAILED: picture is {drift:+.3f}s vs voice (limit 0.112s). DO NOT SHIP.")
+    sys.exit(2)
+PY
 echo "DONE -> $OUT"

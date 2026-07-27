@@ -21,10 +21,17 @@ CUT="$1"; ASS="$2"; OUT="$3"
 # ass filter wants the path escaped (colons/commas break the filter parser).
 ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:/g')
 
+# setpts=N/(30*TB) RENUMBERS every frame onto a gapless 30fps grid BEFORE the
+# ass burn. yapcut's segment video is concat-demuxed with -c copy, which leaves
+# a small timestamp gap at every join; the video accumulates those gaps while
+# the single continuous PCM->AAC audio has none, so the PICTURE drifts later
+# than the voice, worst at the end. A plain fps=30 here HONORS those gappy PTS
+# and preserves the drift; renumbering by frame index discards them and
+# re-locks video to the gapless audio+captions.
 ffmpeg -nostdin -y -i "$CUT" \
-  -vf "ass='${ASS_ESC}',fps=30,setsar=1,format=yuv420p" \
+  -vf "setpts=N/(30*TB),ass='${ASS_ESC}',setsar=1,format=yuv420p" \
   -af "loudnorm=I=-14:TP=-1.5:LRA=11" -ar 48000 \
-  -c:v libx264 -preset medium -crf 18 -r 30 \
+  -c:v libx264 -preset medium -crf 18 -r 30 -vsync cfr \
   -video_track_timescale 30000 -c:a aac -b:a 192k -movflags +faststart \
   "$OUT" -hide_banner -loglevel error
 

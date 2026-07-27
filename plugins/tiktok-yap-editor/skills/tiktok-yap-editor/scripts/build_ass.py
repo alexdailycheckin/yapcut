@@ -290,6 +290,10 @@ def main():
             events.append((st, en, "Cap", line_text(toks, k)))
 
     # --- hook line (upper-middle) ---
+    # hook_band = the pixel rows the fitted hook block actually occupies while
+    # it is on screen. Written to <out>.meta.json so any downstream
+    # PiP burner can keep raster receipts OFF the hook text.
+    hook_band = None
     if a.hook:
         hlines = [s for s in a.hook.split("|") if s]
         if hlines:
@@ -309,8 +313,14 @@ def main():
                 sub = max(a.hook_min_size // 2, int(fit_size * 0.55))
                 full = disp_lines[0] + "".join(
                     f"\\N{{\\fs{sub}}}{ln}" for ln in disp_lines[1:])
+                block_h = 1.25 * (fit_size + sub * (len(disp_lines) - 1))
             else:
                 full = "\\N".join(disp_lines)
+                block_h = 1.25 * fit_size * len(disp_lines)
+            # \an5 centers the whole multi-line block on hook_y
+            hook_band = {"top": int(p["hook_y"] - block_h / 2 - 12),
+                         "bottom": int(p["hook_y"] + block_h / 2 + 12),
+                         "secs": a.hook_secs}
             hk_col = accent_ass if p["hook_accent"] else base_ass
             pos = f"\\an5\\pos({W // 2},{p['hook_y']})"
 
@@ -362,7 +372,21 @@ def main():
                                f"{{\\an1\\pos(48,1500)\\fn Space Mono\\fs34\\bord5\\shad2"
                                f"\\1c{base_ass}\\3c{out_ass}\\fad(150,150)}}{txt}"))
             elif ot == "counter":
-                y = o.get("y", 540)
+                # rolling number stats sit RIGHT ABOVE the caption line (1320):
+                # number at y, label at y+92, so the block bottom (~y+108) hugs
+                # the caption top. Hard-coded standard; override with "y" only if
+                # a clip needs it.
+                y = o.get("y", 1150)
+                # TEXT COLLISION RULE: nothing may sit on the hook while the
+                # hook is up. A counter block spans ~[y-75, y+130] (fs118 value
+                # + label at y+92); if its window overlaps the hook window and
+                # its block crosses the hook band, push it up out of the way.
+                if (hook_band and o["start"] < hook_band["secs"]
+                        and y + 130 > hook_band["top"] and y - 75 < hook_band["bottom"]):
+                    ny = max(115, hook_band["top"] - 150)
+                    print(f"  counter '{o['value']}' overlaps the hook band "
+                          f"({hook_band['top']}-{hook_band['bottom']}): y {y} -> {ny}")
+                    y = ny
                 target = int(re.sub(r"[^0-9]", "", str(o["value"])) or 0)
                 steps = 12
                 cdur = min(0.9, (o["end"] - o["start"]) * 0.5)
@@ -421,6 +445,12 @@ def main():
         lines.append(f"Dialogue: 0,{cs(st)},{cs(en)},{style},,0,0,0,,{txt}")
 
     open(a.out, "w").write("\n".join(lines) + "\n")
+    # geometry sidecar: downstream PiP burners read this to keep raster
+    # receipts off the hook text and the caption line (they cannot parse .ass).
+    meta = {"hook": hook_band,
+            "caption_band": {"top": p["cap_y"] - 100, "bottom": p["cap_y"] + 100},
+            "width": W, "height": H}
+    json.dump(meta, open(a.out + ".meta.json", "w"), indent=1)
     print(f"wrote {a.out}  (preset={a.preset}, font={p['font']}, "
           f"accent={p['accent'] or 'scale-only'}, {len(groups)} phrase-groups, "
           f"{len(events)} events)")
