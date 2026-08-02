@@ -18,7 +18,7 @@ episode advertises the series.
 ```json
 "show": {
   "enabled": true,
-  "name": "How [Company] Actually Sells",
+  "name": "How Whatever Sells",
   "turn_line": "So how does [company] actually sell?",
   "steal_line": "Here's the steal.",
   "lens": "one line: the angle every verdict lands on (e.g. 'distribution beats product')",
@@ -138,6 +138,9 @@ human filming pack may show the full read top to bottom.
    whole week from one industry. No repeat company inside 8 weeks.
 3. Verify every fact that will be spoken and collect the receipt URLs in the same pass.
 4. Write on the skeleton, in the creator's configured voice. Each episode carries its
-   shot list and (if `linkedin_twins`) a written twin.
+   shot list and (if `linkedin_twins`) a written twin, plus a `visual` block on the
+   twin: image | gif | slideshow picked by fit + an image-model prompt carrying the
+   creator's brand block from the config (palette, single accent, editorial-minimal,
+   no logos, no AI-slop tropes).
 5. Gate, persist to `weeks/<date>.json` (`script_class: "research"`,
    `post_type: "receipt-react"`), rebuild the dashboard, run `receipts_build.py`.

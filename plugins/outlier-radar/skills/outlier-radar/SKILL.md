@@ -1,6 +1,6 @@
 ---
 name: outlier-radar
-description: "Weekly viral-outlier research and ideation engine for any creator or brand. First use interviews you about your niche and saves a config to a local workspace. Each week it detects RISING formats early (14-day freshness gate, no peaked-roundup mechanics), extracts the transferable hook/format mechanic, scores every idea through a virality-psychology lens, and writes ready-to-film scripts in your voice to a tracked dashboard. Includes SHOW MODE: a recurring company-teardown franchise ('How [Company] Actually Sells' through YOUR lens) built from this week's viral company news, with hard on-screen receipts and a screenshot pipeline (references/the-show-template.md). Every script must pass the two-question gate (niche-insider entertaining OR teaches something usable). Use when the user says 'run outlier radar', 'run the show', 'find viral videos to copy', 'what should I post this week', 'weekly content ideas', 'what trends are rising', 'hot drop', or wants short-form video ideas for their niche."
+description: "Weekly viral-outlier research and ideation engine for any creator or brand. First use interviews you about your niche and saves a config to a local workspace. Each week it detects RISING formats early (14-day freshness gate, no peaked-roundup mechanics), extracts the transferable hook/format mechanic, scores every idea through a virality-psychology lens, and writes ready-to-film scripts in your voice to a tracked dashboard. Includes SHOW MODE: a recurring company-teardown franchise ('How Whatever Sells' through YOUR lens) built from this week's viral company news, with hard on-screen receipts and a screenshot pipeline (references/the-show-template.md). Every script must pass the two-question gate (niche-insider entertaining OR teaches something usable). Use when the user says 'run outlier radar', 'run the show', 'find viral videos to copy', 'what should I post this week', 'weekly content ideas', 'what trends are rising', 'hot drop', or wants short-form video ideas for their niche."
 ---
 
 # Outlier Radar
@@ -56,7 +56,7 @@ config there (schema in `radar-config.example.json`). Ask:
    compounding output this skill produces. Ask the interview in
    `references/the-show-template.md` (their LENS generates the show name and the two
    franchise lines; plus beats, cadence, wildcard taste). Fills the `show` block.
-   The proven original: "How [Company] Actually Sells" on a distribution lens; theirs
+   The proven original: "How Whatever Sells" on a distribution lens; theirs
    might be "How [Restaurant] Actually Fills Tables" or "How [Studio] Actually Ships".
 
 Then copy `references/mechanic-library.md` into the workspace (that copy is the one that
