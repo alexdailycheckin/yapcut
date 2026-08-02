@@ -1,77 +1,38 @@
 #!/usr/bin/env python3
-"""hook_lint.py: machine gate for on-screen text hooks (the two-channels law).
+"""hook_lint.py: mechanical checks for burned text hooks. v3 (2026-08-02).
 
-The text hook is a SECOND channel, not a caption of the first. At second zero the
-viewer already gets the news from the headline receipt and the story from the voice;
-the burned text must carry what neither does: the stake or the twist. This lint
-catches the failure modes that keep shipping:
+The RULING gate is human and not in this file: the VACUUM TEST. A cold scroller with
+zero context, sound off, one fixation, must instantly get what the video is about.
+Plain concrete claim; duplicating the spoken hook's claim is fine and often right
+(dual-track for sound-off viewers); clever riddles are dead. Law:
+references/the-show.md, "The text-hook layer".
 
-  FAIL duplicate-channel   text_hook shares >=2 content words (or is a substring)
-                           of the first ~10 spoken words
-  FAIL too-long            more than 7 words (one-fixation ceiling)
-  FAIL banned              banned words / em or en dashes
-  WARN topic-label         no digit, no tension lexicon hit, no question mark:
-                           likely a label, not a gap
-  WARN no-alts             text_hook_alts missing or < 2 (burn-and-test workflow
-                           wants variants ready)
-  WARN batch-rhyme         two hooks in the batch open with the same word
+This lint only checks what a machine can judge:
+  FAIL too-long   more than 9 words
+  FAIL banned     banned words / em or en dashes
+  WARN no-alts    fewer than 2 text_hook_alts (burn-and-test wants variants)
+  WARN batch-rhyme  two hooks in the batch open with the same word
 
 Usage: python3 scripts/hook_lint.py --week weeks/<date>.json  (exit 1 on any FAIL)
 """
 import argparse, json, re, sys
 
-STOP = set("""a an the this that these those is are was were be been being it its of in on at
-to for with by from as and or but so if then than not no do does did done have has had you
-your we our they their he she his her i my me who what when where how why will would can
-could just about into over under out up down off more most very really new week this
-sort of""".split())
-
 BANNED = {"leverage", "utilize", "delve", "seamless", "unlock", "empower",
           "game-changer", "revolutionize", "guys"}
-
-TENSION = {"free", "trap", "secret", "banned", "mistake", "wrong", "lie", "lied",
-           "nobody", "everyone", "never", "always", "hidden", "quietly", "pay",
-           "paying", "paid", "broke", "dead", "dying", "stole", "steal", "owns",
-           "own", "beat", "lost", "won", "back", "sale", "worth", "cost", "polite",
-           "checkbox", "imaginary", "waiting", "first", "last"}
-
-
-def content_words(text):
-    words = re.findall(r"[a-z0-9']+", text.lower())
-    return [w for w in words if w not in STOP and len(w) > 2]
 
 
 def lint_item(item, batch_first_words):
     hook = item.get("text_hook", "") or ""
-    spoken = item.get("spoken_hook", "") or ""
     fails, warns = [], []
 
     nwords = len(hook.split())
-    if nwords > 7:
-        fails.append(f"too-long: {nwords} words (max 7)")
+    if nwords > 9:
+        fails.append(f"too-long: {nwords} words (max 9)")
     if "—" in hook or "–" in hook:
         fails.append("banned: em/en dash")
     hits = BANNED & set(re.findall(r"[a-z-]+", hook.lower()))
     if hits:
         fails.append(f"banned: {', '.join(sorted(hits))}")
-
-    spoken_head = " ".join(spoken.split()[:10]).lower()
-    hcw = set(content_words(hook))
-    scw = set(content_words(spoken_head))
-    shared = hcw & scw
-    norm_hook = " ".join(re.findall(r"[a-z0-9']+", hook.lower()))
-    if norm_hook and norm_hook in " ".join(re.findall(r"[a-z0-9']+", spoken.lower())):
-        fails.append("duplicate-channel: text hook is contained in the spoken hook")
-    elif len(shared) >= 2:
-        fails.append(f"duplicate-channel: shares {sorted(shared)} with the spoken opener")
-
-    NUMWORDS = {"zero", "one", "two", "three", "four", "five", "six", "seven",
-                "eight", "nine", "ten", "hundred", "thousand", "million", "billion",
-                "trillion", "half", "double", "triple"}
-    has_number = bool(re.search(r"\d", hook)) or bool(
-        set(re.findall(r"[a-z]+", hook.lower())) & NUMWORDS)
-    if not has_number and not (hcw & TENSION) and "?" not in hook:
-        warns.append("topic-label: no digit, no tension word, no question; likely a label not a gap")
 
     alts = item.get("text_hook_alts") or []
     if len(alts) < 2:
@@ -89,7 +50,7 @@ def main():
     ap.add_argument("--week", required=True)
     args = ap.parse_args()
     week = json.load(open(args.week))
-    items = week.get("distribution", [])
+    items = week.get("distribution", []) + week.get("office", [])
     firsts = [(it.get("text_hook", "").split() or [""])[0].lower().strip(".,!?")
               for it in items]
 
@@ -103,6 +64,7 @@ def main():
             print(f"        FAIL {f}")
         for w in warns:
             print(f"        warn {w}")
+    print("\nREMINDER: the ruling gate is the human VACUUM TEST (the-show.md).")
     sys.exit(1 if any_fail else 0)
 
 

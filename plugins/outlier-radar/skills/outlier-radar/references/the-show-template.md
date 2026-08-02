@@ -81,32 +81,30 @@ outlet's logo, clean browser, zoom until the money number reads at phone size.
 `tiktok-yap-editor` burns the cards in its locked placement band and its
 `pip_coverage.py` enforces that every claim got its receipt.
 
-## The text-hook layer (the two-channels law)
+## The text-hook layer (the vacuum test)
 
-At second zero a show episode already runs two channels: the headline receipt carries
-THE NEWS and the voice carries THE STORY. The burned text hook is the third channel
-and must carry what neither of the others does: **the stake or the twist, aimed at
-the viewer.** A text hook that repeats the spoken line wastes a channel; one that
-labels the topic is a caption, not a hook.
+**The one hard gate: a cold scroller with zero context, sound off, one fixation, must
+instantly get WHAT this is about and want to stay.** Concrete claim, plain words.
+"Apple stopped selling iPhones" passes. "The trap is polite." fails: it needs the
+video to explain it. Plain beats clever, on screen exactly as everywhere else. This
+was learned the hard way: a "make the text a different channel from the voice" rule
+produced clever riddles that meant nothing in a vacuum, and the creator killed them
+on sight.
 
-The generation run, per episode, after the script is written:
-1. Extract the episode's verdict and its steal; the text hook usually foreshadows one
-   without resolving it.
-2. Write 6-10 candidates across at least 3 distinct shapes: the twist stated flat,
-   the stake, the contradiction, the question the episode answers, the number
-   contrast with units, the identity call.
-3. Kill by gate: duplicate-channel (no content overlap with the first ~10 spoken
-   words, never restating what the headline card says), one fixation (max 7 words; a
-   number needs its unit or subject in frame), gap not label, the creator's banned
-   words.
-4. Ship the winner as `text_hook` plus two survivors in `text_hook_alts` (ready for
-   burn-and-test: several hook variants on the same locked cut).
-5. Batch check: hooks in a column; no two share a first word or a syntax shape.
+**Duplicating the spoken hook is fine and often right.** Dual-track: the text overlay
+carries the hook for sound-off viewers while the voice carries it for sound-on. Same
+claim, compressed to ~6-8 words. Never force a difference; never write a riddle to
+avoid an overlap.
 
-Machine gate: `python3 hook_lint.py --week <workspace>/weeks/<date>.json` (fails on
-duplicate-channel, over-length, banned words; warns on topic-labels, missing alts,
-batch rhymes). The lint is lexical, a floor not a judge: it cannot see spelled-out
-duplications or a foreshadow that spends a punchline early; the human pass rules there.
+**Ship 2 `text_hook_alts` per episode**: variants of the SAME claim at different
+angles (a number-forward cut, a question cut), each passing the vacuum test on its
+own. They feed hook testing (several burned variants on one locked cut). Batch check:
+no two episodes share a first word.
+
+Machine gate: `python3 hook_lint.py --week <workspace>/weeks/<date>.json` checks only
+what a machine can (length, banned words, batch rhymes, alts present). The vacuum
+test is human: read each hook to someone who hasn't seen the episode; if they ask
+"what does that mean?", rewrite.
 
 ## Gates (in order)
 
