@@ -1,6 +1,6 @@
 ---
 name: outlier-radar
-description: "Weekly viral-outlier research and ideation engine for any creator or brand. First use interviews you about your niche and saves a config to a local workspace. Each week it detects RISING formats early (14-day freshness gate, no peaked-roundup mechanics), extracts the transferable hook/format mechanic, scores every idea through a virality-psychology lens, and writes ready-to-film scripts in your voice to a tracked dashboard. Includes SHOW MODE: a recurring company-teardown franchise ('How Whatever Sells' through YOUR lens) built from this week's viral company news, with hard on-screen receipts and a screenshot pipeline (references/the-show-template.md). Every script must pass the two-question gate (niche-insider entertaining OR teaches something usable). Use when the user says 'run outlier radar', 'run the show', 'find viral videos to copy', 'what should I post this week', 'weekly content ideas', 'what trends are rising', 'hot drop', or wants short-form video ideas for their niche."
+description: "Weekly viral-outlier research and ideation engine for any creator or brand. First use interviews you about your niche and saves a config to a local workspace. Each week it detects RISING formats early (14-day freshness gate, no peaked-roundup mechanics), extracts the transferable hook/format mechanic, scores every idea through a virality-psychology lens, and writes ready-to-film scripts in your voice to a tracked dashboard. Includes SHOW MODE (optional): a recurring weekly teardown franchise, named BY the creator through a guided journey (their subject type, their lens, their name), built from each week's viral news in THEIR industry, with hard on-screen receipts and a screenshot pipeline (references/the-show-template.md). Every script must pass the two-question gate (niche-insider entertaining OR teaches something usable). Use when the user says 'run outlier radar', 'run the show', 'find viral videos to copy', 'what should I post this week', 'weekly content ideas', 'what trends are rising', 'hot drop', or wants short-form video ideas for their niche."
 ---
 
 # Outlier Radar
@@ -52,12 +52,17 @@ config there (schema in `radar-config.example.json`). Ask:
    "Viral videos") or rename to fit their world.
 8. **Brand basics** (optional, used by the carousel builder): display name, an accent
    colour, fonts. Fills the `brand` block in the config; skip to use neutral defaults.
-9. **Show mode** (recommended): a recurring company-teardown franchise, the highest-
-   compounding output this skill produces. Ask the interview in
-   `references/the-show-template.md` (their LENS generates the show name and the two
-   franchise lines; plus beats, cadence, wildcard taste). Fills the `show` block.
-   The proven original: "How Whatever Sells" on a distribution lens; theirs
-   might be "How [Restaurant] Actually Fills Tables" or "How [Studio] Actually Ships".
+9. **Show mode** (optional, offer it): a recurring weekly teardown franchise, the
+   highest-compounding output this skill produces. Run THE JOURNEY in
+   `references/the-show-template.md`: what type of show they want (the subject can be
+   companies, people, dishes, films, athletes, places: whatever their niche tears
+   down), then their lens, then a NAME OF THEIR OWN generated from their world (never
+   a prefilled default), their turn line, and their takeaway phrasings. A "not now"
+   skips it cleanly.
+10. **Finish onboarding with the dashboard open.** Run `python3 build_dashboard.py
+   --dir <workspace>` and OPEN `<workspace>/dashboard.html` for them (the bundled
+   example week renders until a real week exists), so every onboarded user ends their
+   first run looking at the product.
 
 Then copy `references/mechanic-library.md` into the workspace (that copy is the one that
 grows), and help them fill three working files **in the workspace** from the templates:
@@ -81,9 +86,10 @@ creator can run weekly with fresh substance.
 
 ## Show mode (when `show.enabled` is true in the config)
 
-The primary lane's weekly output becomes THE SHOW: `episodes_per_week` company
-teardowns from this week's news (`news_picks` companies with genuinely viral stories
-in the configured beats + `wildcards` picked purely for viral ceiling), each on the
+The primary lane's weekly output becomes THE SHOW, under the creator's own name and
+lens: `episodes_per_week` subject teardowns from this week's news in THEIR industry
+(`news_picks` subjects with genuinely viral stories in the configured beats +
+`wildcards` picked purely for viral ceiling), each on the
 fixed skeleton in `references/the-show-template.md` (news open with the headline
 receipt in frame one, the turn line, the assumption cracked, the receipts walk, the
 steal line, the verdict close through the creator's lens). Hard rules that ride along:
@@ -204,7 +210,9 @@ Additional per-item fields the dashboard uses (set them all):
 ## Persist to the dashboard (every run)
 Write `<workspace>/weeks/<YYYY-MM-DD>.json` then run `python3 build_dashboard.py`
 (from the skill folder; it finds the workspace, or pass `--dir <workspace>`). It writes
-`<workspace>/dashboard.html`; open it directly. Week schema:
+`<workspace>/dashboard.html`. **Open it for the user at the end of EVERY run, and say
+where it lives**: the dashboard is the product surface, and a user who forgets they
+have one is using half the tool. Week schema:
 `{ week, positioning, distribution[], office[], linkedin[], inspiration[] }`. The two script
 arrays keep the historical keys `distribution` (your PRIMARY / "Industry" lane) and `office`
 (your SECONDARY / "Viral videos" lane); the tab LABELS come from `radar-config.json`

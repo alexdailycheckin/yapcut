@@ -1,61 +1,84 @@
-# Show mode: the company-teardown franchise (template)
+# Show mode: the weekly teardown franchise (template)
 
-_A recurring weekly SHOW where the creator breaks down how a company in this week's
-news actually operates, through the creator's own lens. The format that proved this:
-"How [Company] Actually Sells" (a GTM/distribution lens). Yours takes YOUR lens: how
-does [company] actually hire, price, ship, cook, train, design. One company per
-episode, receipts on screen for every claim, one copyable move per episode._
+_A recurring weekly SHOW where the creator breaks down how a SUBJECT from this week's
+news in THEIR industry actually does the thing their niche cares about, through their
+own lens. The subject does not have to be a company: a person, a team, a restaurant, a
+film, a game, an athlete, a dish, a place. A fitness creator's show might be "How
+[Athlete] Actually Trains"; a food creator's "How [Dish] Actually Gets Made"; a film
+creator's "How [Movie] Actually Got Made". One subject per episode, receipts on screen
+for every claim, one copyable takeaway per episode. **Show mode is optional**, and the
+show's name is THE CREATOR'S OWN, discovered in the journey below: never a prefilled
+default, never borrowed from another creator's show._
 
 ## Why a show
 
 A recognisable franchise compounds where one-off scripts don't: same skeleton, same
-two spoken devices, fresh company every episode. Viewers learn the shape, search
-engines and answer engines learn the phrase ("how does [company] X"), and every
+spoken devices, fresh subject every episode. Viewers learn the shape, search engines
+and answer engines learn the phrase ("how does [subject] [their verb]"), and every
 episode advertises the series.
 
 ## The config block (written by the first-run interview)
 
 ```json
 "show": {
-  "enabled": true,
-  "name": "How Whatever Sells",
-  "turn_line": "So how does [company] actually sell?",
-  "steal_line": "Here's what you can learn.",
-  "lens": "one line: the angle every verdict lands on (e.g. 'distribution beats product')",
+  "enabled": false,
+  "name": "",
+  "turn_line": "",
+  "takeaway_lines": [],
+  "subject_type": "",
+  "lens": "",
   "episodes_per_week": 5,
   "news_picks": 3,
   "wildcards": 2,
-  "beats": ["industries/story types to sweep, e.g. tech, AI, consumer brands, sports business"],
-  "wildcard_taste": "what makes a wildcard for this creator: jaw-drop numbers, David vs Goliath, absurd mechanics",
+  "beats": [],
+  "wildcard_taste": "",
   "receipts_strict": true
 }
 ```
 
-## The interview (run once, inside first-run discovery)
+Every empty field above is written by the journey. Never prefill a name, a turn line,
+or takeaway lines: the creator picks their own exact wording and it locks.
 
-1. **The lens.** "When you look at a company, what's the question you can't help
-   asking?" That one line becomes the verdict engine and generates the show name and
-   the turn line (offer 2-3 options derived from their answer; they pick, exact
-   wording locks forever).
-2. **The beats.** Which industries and story types should the weekly news sweep cover?
-   Tech only? Anything with a viral story? Their own industry always included?
-3. **Cadence.** Episodes per week, and the news/wildcard split (default 3 + 2).
-4. **Wildcard taste.** What jaw-drop stories do they personally love? This steers the
-   2 wildcards, which exist purely for viral ceiling.
-5. **The takeaway beat.** Confirm the teach line (default "Here's what you can learn.")
-   or define a small rotating family of 2-3 phrasings (e.g. "Here's how you can do the
-   same." / "Here's what you can apply from this lesson."). Approved wordings only,
-   never improvised on camera.
+## The journey (run once, inside first-run discovery; use AskUserQuestion at each step)
+
+Show mode is an OPTION. Offer it; a "not now" skips it entirely and the config keeps
+`"enabled": false` (it can be run again later with "set up my show").
+
+1. **Do you want a show?** Explain in two sentences why a recurring franchise
+   compounds where one-off scripts don't. If no, stop here.
+2. **What TYPE of show?** Derived from their niche, offer subject types with concrete
+   examples IN THEIR WORLD: companies, people, products, places, events, works
+   (films/games/books), teams. "In your niche, whose story would you tear down every
+   week?" This sets `subject_type`.
+3. **The lens.** "When you look at a [their subject type] in your world, what's the
+   question you can't help asking?" Their answer, in their words, is the verdict
+   engine. Sharpen it WITH them until it is one line.
+4. **The name, theirs.** Generate 3-5 show-name candidates FROM their lens and niche
+   vocabulary (never from another creator's show), plus matching turn-line candidates
+   (the question spoken at the same beat every episode). They pick or rewrite; the
+   exact wording locks. If nothing lands, keep exploring: the name is the franchise,
+   do not settle it for them.
+5. **The takeaway beat.** Propose 2-3 takeaway phrasings in their voice (the line that
+   opens the copyable-lesson beat). They approve the exact wordings; rotation if more
+   than one; never improvised on camera.
+6. **The beats.** Which corners of THEIR industry should the weekly news sweep cover?
+   Default to their niche's trade press and communities, not tech or marketing news.
+7. **Cadence + wildcard taste.** Episodes per week, news/wildcard split (default 3+2),
+   and what jaw-drop stories they personally love (steers the wildcards).
+
+Close the journey by writing the config, then BUILD AND OPEN THE DASHBOARD so they
+see where everything will land (the bundled example week renders until their first
+real week exists).
 
 ## The fixed skeleton (the recognisable shape)
 
 | Beat | Time | Job |
 |---|---|---|
 | 1. The news open | 0-4s | Headline screenshot ON SCREEN in frame one. One varied jab about what happened. Never the same syntax two episodes running. |
-| 2. The turn | 4-8s | The franchise line from config, exact wording every time. Title card lands on the same beat. |
+| 2. The turn | 4-8s | The creator's own turn line from config, exact wording every time. Title card lands on the same beat. |
 | 3. The assumption | 8-15s | What everyone thinks the answer is, stated as if true. Then crack it. |
 | 4. The receipts walk | 15-45s | 2-3 moves maximum, but/therefore chained, escalating. Every number, brand and claim gets its artifact on screen within a second of being spoken. |
-| 5. The takeaway | 45-55s | One mechanism the viewer can copy, in plain words. Opens with the takeaway line(s) from config; if a rotating family, never the same one twice in a row. |
+| 5. The takeaway | 45-55s | One mechanism the viewer can copy, in plain words. Opens with the creator's approved takeaway line(s) from config; if a rotating family, never the same one twice in a row. |
 | 6. The verdict close | 55-65s | The creator's POV through their lens, one line, then end on a punchline or a callback. Hard stop on the payoff. No CTA by default. |
 
 ## The receipts law (hard)
@@ -116,7 +139,7 @@ test is human: read each hook to someone who hasn't seen the episode; if they as
 2. **Two-question gate** (the skill's master filter) on every episode.
 3. **Ownership on the verdict.** The closing POV must be a line only this creator
    would say, through their configured lens. If anyone could say it, re-cut or kill.
-4. **Punch up or sideways.** Giants and funded companies take the jab; small
+4. **Punch up or sideways.** Giants and well-funded subjects take the jab; small
    independents get admiration, never mockery.
 5. **Clarity outranks compression.** A zero-prior-knowledge viewer follows every line;
    max one named source per script, glossed in plain words.
@@ -137,7 +160,7 @@ human filming pack may show the full read top to bottom.
    tech press, niche trade press, aggregator front pages, wildcard hunting in any
    industry). Coverage breadth with real URLs is the virality proof.
 2. Pick `news_picks` news episodes + `wildcards` wildcards. Diversity check: never a
-   whole week from one industry. No repeat company inside 8 weeks.
+   whole week from one corner of the niche. No repeat subject inside 8 weeks.
 3. Verify every fact that will be spoken and collect the receipt URLs in the same pass.
 4. Write on the skeleton, in the creator's configured voice. Each episode carries its
    shot list and (if `linkedin_twins`) a written twin, plus a `visual` block on the

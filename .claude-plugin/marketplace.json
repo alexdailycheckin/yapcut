@@ -6,13 +6,13 @@
   },
   "metadata": {
     "description": "YapCut by alexmuresan.com: a two-part short-form content engine. Outlier Radar researches your niche, finds videos that went viral, and writes weekly ready-to-film scripts to a tracked dashboard. The TikTok Yap Editor turns your raw phone clips into finished vertical videos, talking-head or day-in-the-life. Both are creator-agnostic via a one-time discovery interview.",
-    "version": "2.4.0"
+    "version": "2.4.1"
   },
   "plugins": [
     {
       "name": "outlier-radar",
       "source": "./plugins/outlier-radar",
-      "description": "Weekly viral-outlier research + ideation engine with SHOW MODE: a recurring company-teardown franchise ('How Whatever Sells' through YOUR lens) built from each week's viral company news, with verified facts, on-screen receipt cards (receipts_build.py), text-hook linting, and LinkedIn twins with image prompts. Also: rising-format detection, two lanes, and a self-contained tracked dashboard. Learns your niche once via a first-run interview."
+      "description": "Weekly viral-outlier research + ideation engine with optional SHOW MODE: a recurring weekly teardown franchise you name yourself through a guided journey (your subject type, your lens, your wording), built from each week's viral news in your industry, with verified facts, on-screen receipt cards, text-hook linting, and LinkedIn twins with image prompts. Learns your niche once; everything lands on a self-contained tracked dashboard that opens at onboarding."
     },
     {
       "name": "tiktok-yap-editor",

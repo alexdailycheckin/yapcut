@@ -1,7 +1,7 @@
 {
   "name": "outlier-radar",
-  "description": "Weekly viral-outlier research + ideation engine with SHOW MODE (a recurring company-teardown franchise from each week's news, receipts on screen, verified facts). Learns your niche once; writes weekly ready-to-film scripts + LinkedIn twins with image prompts to a self-contained tracked dashboard. Data lives in a local workspace (default ~/outlier-radar) that plugin updates never touch.",
-  "version": "2.2.0",
+  "description": "Weekly viral-outlier research + ideation engine with optional SHOW MODE: a recurring weekly teardown franchise you name yourself through a guided journey, built from your industry's news, receipts on screen, verified facts. Weekly scripts + LinkedIn twins with image prompts land on a self-contained tracked dashboard that opens at onboarding. Data lives in a local workspace plugin updates never touch.",
+  "version": "2.2.1",
   "author": {
     "name": "Alex Muresan",
     "url": "https://alexmuresan.com"
