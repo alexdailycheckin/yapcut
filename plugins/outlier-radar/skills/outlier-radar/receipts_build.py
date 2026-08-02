@@ -38,6 +38,10 @@ CARD_W = 972          # locked receipt max width in the 1080x1920 frame
 PAD = 26              # white card padding
 RADIUS = 28
 CAP_W, CAP_H = 1300, 1700   # capture viewport
+# Placement: TOP THIRD (locked 2026-07-26). Alex frames himself low and films
+# with headroom for it. The old bottom band (y1440-1650) is dead, never use it.
+TOP_THIRD_Y = 150
+Y_BAND = "140-190 top third (locked; burn_pips collision guard may re-place)"
 
 
 def capture(url: str, dest: pathlib.Path, timeout=60) -> bool:
@@ -88,12 +92,22 @@ def rounded_card(shot_png: pathlib.Path, out_png: pathlib.Path, domain: str,
     return {"w": card_w, "h": card_h, "blank": looks_blank(src)}
 
 
-def beat_seconds(directions: str, shot_id: str):
+def beat_seconds(directions: str, shot_id: str, beat: str = ""):
+    """Start second for a shot. The slate writes windows as '0-4s' / '22-38s',
+    first on the shot's own beat label, then in the episode directions."""
+    for text in (beat, ""):
+        m = re.search(r"(\d+)\s*-\s*(\d+)\s*s", text)
+        if m:
+            return float(m.group(1))
     for line in directions.splitlines():
-        if re.search(rf"\b{shot_id}\b", line):
+        if beat and line.strip().startswith(beat.split(".")[0].strip()):
+            m = re.search(r"(\d+)\s*-\s*(\d+)\s*s", line)
+            if m:
+                return float(m.group(1))
+        if re.search(rf"\b{re.escape(str(shot_id))}\b", line):
             m = re.search(r"(\d+):(\d\d)", line)
             if m:
-                return int(m.group(1)) * 60 + int(m.group(2))
+                return float(int(m.group(1)) * 60 + int(m.group(2)))
     return None
 
 
@@ -119,8 +133,28 @@ def main():
         if args.episode and it["id"] != args.episode:
             continue
         for shot in it.get("shot_list", []):
-            sid, url = shot["shot"], shot["url"]
+            # slate schema drifted: early weeks wrote shot/what, the show
+            # skeleton writes n/shoot. Accept both rather than crash.
+            sid = shot.get("shot", shot.get("n", shot.get("id")))
+            url = (shot.get("url") or "").strip()
+            what = shot.get("what") or shot.get("shoot") or ""
+            beat = shot.get("beat", "")
             base = f"{it['id']}_{sid}"
+            if not url:
+                # face-only beat, nothing to capture
+                print(f"{base}: no_artifact (face only)")
+                continue
+            if not url.startswith("http"):
+                # e.g. "device screenshot": Alex shoots it, cannot be headless
+                print(f"{base}: needs_manual ({url})")
+                manifest.append({
+                    "type": "pip", "episode": it["id"], "shot": sid, "url": url,
+                    "what": what, "file": str(out / f"{base}.png"),
+                    "status": "needs_manual",
+                    "start": beat_seconds(it.get("directions", ""), sid, beat),
+                    "end": None, "y_band": Y_BAND,
+                })
+                continue
             raw = out / "raw" / f"{base}.png"
             card = out / f"{base}.png"
             manual = out / "manual" / f"{base}.png"
@@ -135,13 +169,13 @@ def main():
                                     args.crop_h)
                 if meta["blank"]:
                     status = "needs_manual"
-            t0 = beat_seconds(it.get("directions", ""), sid)
+            t0 = beat_seconds(it.get("directions", ""), sid, beat)
             manifest.append({
                 "type": "pip", "episode": it["id"], "shot": sid, "url": url,
-                "what": shot.get("what", ""), "file": str(card),
+                "what": what, "file": str(card),
                 "status": status,
                 "start": t0, "end": (t0 + args.hold) if t0 is not None else None,
-                "y_band": "1440-1650 (locked; editor may re-place via collision guard)",
+                "y": TOP_THIRD_Y, "y_band": Y_BAND,
             })
             print(f"{base}: {status}" + (f" @ {t0}s" if t0 is not None else ""))
 
