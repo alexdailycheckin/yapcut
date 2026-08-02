@@ -526,7 +526,8 @@ function beatsTable(x){
 
 function srcs(list){
   if(!list||!list.length) return "";
-  const items=list.map(s=> s.url?`<a class="link" href="${esc(s.url)}" target="_blank">${esc(s.label)}</a>`:esc(s.label)).join(" &nbsp;&middot;&nbsp; ");
+  const norm=list.map(s=> (typeof s==="string") ? {url:s, label:s.replace(/^https?:\/\/(www\.)?/,"").split("/")[0]} : s);
+  const items=norm.map(s=> s.url?`<a class="link" href="${esc(s.url)}" target="_blank">${esc(s.label||s.url)}</a>`:esc(s.label)).join(" &nbsp;&middot;&nbsp; ");
   return `<div class="block srcblk"><div class="label">Sources - check before posting</div><div class="val" style="font-size:13px">${items}</div></div>`;
 }
 
@@ -558,7 +559,7 @@ function scriptCard(x, isSecondLane){
     ${srcs(x.sources)}
     ${hooks}
     ${hasCollapse?`<button class="toggle" onclick="const c=this.nextElementSibling;c.classList.toggle('show');this.textContent=c.classList.contains('show')?'Hide full script':'Show full script + value + CTA'">Show full script + value + CTA</button><div class="collapse">${collapsed}</div>`:""}
-    ${(!isSecondLane && x.linkedin)?`<div class="block litwinwrap"><button class="toggle" onclick="const b=this.parentElement.querySelector('.litwin');b.classList.toggle('show');this.textContent=b.classList.contains('show')?'Hide LinkedIn twin':'Show LinkedIn twin'">Show LinkedIn twin</button> <button class="btn" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('.litwin').innerText);this.textContent='Copied'">Copy twin</button><div class="litwin collapse readbox" style="margin-top:8px"><div class="val" style="white-space:pre-wrap">${esc(x.linkedin.body)}</div></div></div>`:""}
+    ${(!isSecondLane && x.linkedin)?`<div class="block litwinwrap"><button class="toggle" onclick="const b=this.parentElement.querySelector('.litwin');b.classList.toggle('show');this.textContent=b.classList.contains('show')?'Hide LinkedIn twin':'Show LinkedIn twin'">Show LinkedIn twin</button> <button class="btn" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('.libody').innerText);this.textContent='Copied'">Copy twin</button><div class="litwin collapse readbox" style="margin-top:8px"><div class="libody val" style="white-space:pre-wrap">${esc(x.linkedin.body)}</div>${x.linkedin.visual?`<div class="label" style="margin-top:12px">Visual: ${esc(x.linkedin.visual.format)} &middot; ${esc(x.linkedin.visual.model||"")} &middot; ${esc(x.linkedin.visual.aspect||"")}</div><p class="meta" style="margin:4px 0">${esc(x.linkedin.visual.why||"")}</p><button class="btn" onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText);this.textContent='Prompt copied'">Copy image prompt</button><div class="val" style="white-space:pre-wrap;font-size:13px;margin-top:6px">${esc(x.linkedin.visual.prompt)}</div>`:""}</div></div>`:""}
     ${tracker(x.id, true)}
   </div>`;
 }
