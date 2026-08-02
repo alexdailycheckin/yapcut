@@ -1,6 +1,6 @@
 ---
 name: outlier-radar
-description: "Weekly viral-outlier research and ideation engine for any creator or brand. First use interviews you about your niche and saves a config to a local workspace. Each week it detects RISING formats early (14-day freshness gate, no peaked-roundup mechanics), extracts the transferable hook/format mechanic, scores every idea through a virality-psychology lens, and writes ~10 ready-to-film scripts per lane in your voice to a tracked dashboard. Every script must pass the two-question gate (niche-insider entertaining OR teaches something usable). Also runs a trend-CREATION lane: named recurring formats plus a coined-terms pipeline. Use when the user says 'run outlier radar', 'find viral videos to copy', 'what should I post this week', 'weekly content ideas', 'what trends are rising', 'hot drop', or wants short-form video ideas for their niche."
+description: "Weekly viral-outlier research and ideation engine for any creator or brand. First use interviews you about your niche and saves a config to a local workspace. Each week it detects RISING formats early (14-day freshness gate, no peaked-roundup mechanics), extracts the transferable hook/format mechanic, scores every idea through a virality-psychology lens, and writes ready-to-film scripts in your voice to a tracked dashboard. Includes SHOW MODE: a recurring company-teardown franchise ('How [Company] Actually Sells' through YOUR lens) built from this week's viral company news, with hard on-screen receipts and a screenshot pipeline (references/the-show-template.md). Every script must pass the two-question gate (niche-insider entertaining OR teaches something usable). Use when the user says 'run outlier radar', 'run the show', 'find viral videos to copy', 'what should I post this week', 'weekly content ideas', 'what trends are rising', 'hot drop', or wants short-form video ideas for their niche."
 ---
 
 # Outlier Radar
@@ -52,6 +52,12 @@ config there (schema in `radar-config.example.json`). Ask:
    "Viral videos") or rename to fit their world.
 8. **Brand basics** (optional, used by the carousel builder): display name, an accent
    colour, fonts. Fills the `brand` block in the config; skip to use neutral defaults.
+9. **Show mode** (recommended): a recurring company-teardown franchise, the highest-
+   compounding output this skill produces. Ask the interview in
+   `references/the-show-template.md` (their LENS generates the show name and the two
+   franchise lines; plus beats, cadence, wildcard taste). Fills the `show` block.
+   The proven original: "How [Company] Actually Sells" on a distribution lens; theirs
+   might be "How [Restaurant] Actually Fills Tables" or "How [Studio] Actually Ships".
 
 Then copy `references/mechanic-library.md` into the workspace (that copy is the one that
 grows), and help them fill three working files **in the workspace** from the templates:
@@ -72,6 +78,20 @@ grows), and help them fill three working files **in the workspace** from the tem
 
 Lean into **repeatable formats as recurring series** (they compound): pick 1-2 series the
 creator can run weekly with fresh substance.
+
+## Show mode (when `show.enabled` is true in the config)
+
+The primary lane's weekly output becomes THE SHOW: `episodes_per_week` company
+teardowns from this week's news (`news_picks` companies with genuinely viral stories
+in the configured beats + `wildcards` picked purely for viral ceiling), each on the
+fixed skeleton in `references/the-show-template.md` (news open with the headline
+receipt in frame one, the turn line, the assumption cracked, the receipts walk, the
+steal line, the verdict close through the creator's lens). Hard rules that ride along:
+every spoken fact VERIFIED with a source URL or cut; every claim carries a screenshot
+receipt in the episode's `shot_list`; build the cards with `receipts_build.py`; the
+two-question gate and the field contract apply unchanged. Episodes are
+`script_class: "research"`, `post_type: "receipt-react"`, ids in the primary lane.
+The secondary lane and the trend sweep continue as garnish, not quota.
 
 **The secondary lane must still be INSIDER to the creator's world.** The gate below applies
 to both lanes: a joke that anyone with a pulse finds equally funny builds audience but not
@@ -161,7 +181,8 @@ Both at once is the sweet spot. One clean yes ships.
 Each script is written in labelled parts: `title`, `borrows`, `carries`, `text_hook`
 (~6-word on-screen overlay, NOT spoken; pick a family from `references/hook-library.md`),
 `visual_hook` (what to show), `spoken_hook` (the opening 1-2 lines said, the dashboard
-renders this BOLD as the HOOK section), `script` (verbatim spoken body), `directions`
+renders this BOLD as the HOOK section), `script` (verbatim spoken body, starting AFTER
+the spoken hook: never repeat the hook inside `script`, it renders twice), `directions`
 (NOT spoken), `value` (the payoff + its type), `cta` (OPTIONAL ending). Never mash spoken
 words and stage directions together. The dashboard renders the read as **HOOK (bold) /
 SCRIPT / CTA (optional)**, one sentence per line.

@@ -37,5 +37,22 @@
       "mono": "Space Mono",
       "google_import": "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap"
     }
+  },
+  "show": {
+    "enabled": false,
+    "name": "How [Company] Actually Sells (rename via the interview: your lens generates it)",
+    "turn_line": "So how does [company] actually sell?",
+    "steal_line": "Here's the steal.",
+    "lens": "one line: the question you can't help asking about any company (drives every verdict)",
+    "episodes_per_week": 5,
+    "news_picks": 3,
+    "wildcards": 2,
+    "beats": [
+      "tech",
+      "AI",
+      "consumer brands"
+    ],
+    "wildcard_taste": "jaw-drop numbers, David vs Goliath, absurd mechanics",
+    "receipts_strict": true
   }
 }
