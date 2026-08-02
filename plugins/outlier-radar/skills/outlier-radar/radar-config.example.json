@@ -42,7 +42,7 @@
     "enabled": false,
     "name": "How [Company] Actually Sells (rename via the interview: your lens generates it)",
     "turn_line": "So how does [company] actually sell?",
-    "steal_line": "Here's the steal.",
+    "steal_line": "Here's what you can learn. (or define a rotating family of 2-3 approved takeaway lines)",
     "lens": "one line: the question you can't help asking about any company (drives every verdict)",
     "episodes_per_week": 5,
     "news_picks": 3,

@@ -20,7 +20,7 @@ episode advertises the series.
   "enabled": true,
   "name": "How Whatever Sells",
   "turn_line": "So how does [company] actually sell?",
-  "steal_line": "Here's the steal.",
+  "steal_line": "Here's what you can learn.",
   "lens": "one line: the angle every verdict lands on (e.g. 'distribution beats product')",
   "episodes_per_week": 5,
   "news_picks": 3,
@@ -42,8 +42,10 @@ episode advertises the series.
 3. **Cadence.** Episodes per week, and the news/wildcard split (default 3 + 2).
 4. **Wildcard taste.** What jaw-drop stories do they personally love? This steers the
    2 wildcards, which exist purely for viral ceiling.
-5. **The steal beat.** Confirm the teach line (default "Here's the steal.") or rename
-   it to fit their voice. Exact wording, every episode.
+5. **The takeaway beat.** Confirm the teach line (default "Here's what you can learn.")
+   or define a small rotating family of 2-3 phrasings (e.g. "Here's how you can do the
+   same." / "Here's what you can apply from this lesson."). Approved wordings only,
+   never improvised on camera.
 
 ## The fixed skeleton (the recognisable shape)
 
@@ -53,7 +55,7 @@ episode advertises the series.
 | 2. The turn | 4-8s | The franchise line from config, exact wording every time. Title card lands on the same beat. |
 | 3. The assumption | 8-15s | What everyone thinks the answer is, stated as if true. Then crack it. |
 | 4. The receipts walk | 15-45s | 2-3 moves maximum, but/therefore chained, escalating. Every number, brand and claim gets its artifact on screen within a second of being spoken. |
-| 5. The steal | 45-55s | One mechanism the viewer can copy, in plain words. The steal line from config, exact wording. |
+| 5. The takeaway | 45-55s | One mechanism the viewer can copy, in plain words. Opens with the takeaway line(s) from config; if a rotating family, never the same one twice in a row. |
 | 6. The verdict close | 55-65s | The creator's POV through their lens, one line, then end on a punchline or a callback. Hard stop on the payoff. No CTA by default. |
 
 ## The receipts law (hard)
