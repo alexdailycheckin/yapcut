@@ -40,19 +40,17 @@
   },
   "show": {
     "enabled": false,
-    "name": "How [Company] Actually Sells (rename via the interview: your lens generates it)",
-    "turn_line": "So how does [company] actually sell?",
-    "steal_line": "Here's what you can learn. (or define a rotating family of 2-3 approved takeaway lines)",
-    "lens": "one line: the question you can't help asking about any company (drives every verdict)",
+    "name": "",
+    "turn_line": "",
+    "takeaway_lines": [],
+    "subject_type": "",
+    "lens": "",
     "episodes_per_week": 5,
     "news_picks": 3,
     "wildcards": 2,
-    "beats": [
-      "tech",
-      "AI",
-      "consumer brands"
-    ],
-    "wildcard_taste": "jaw-drop numbers, David vs Goliath, absurd mechanics",
-    "receipts_strict": true
+    "beats": [],
+    "wildcard_taste": "",
+    "receipts_strict": true,
+    "_comment": "All empty fields are written by the show-mode JOURNEY in references/the-show-template.md. Never prefill a name, turn line, or takeaway lines: the creator's own wording locks only when they pick it."
   }
 }
