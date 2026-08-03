@@ -2,7 +2,7 @@
 """receipts_build.py: turn an episode's shot list into styled on-screen receipt cards.
 
 The bridge between the show's week JSON (shot_list per episode: URL + what to frame)
-and the yap editor's evidence-insert layer (white-card receipts, y 1440-1650 band,
+and the yap editor's evidence-insert layer (white-card receipts in the top third,
 pip_coverage). For each shot:
 
   1. CAPTURE: headless Chrome screenshot of the URL (top of page, 1300px wide).
@@ -38,8 +38,8 @@ CARD_W = 972          # locked receipt max width in the 1080x1920 frame
 PAD = 26              # white card padding
 RADIUS = 28
 CAP_W, CAP_H = 1300, 1700   # capture viewport
-# Placement: TOP THIRD (locked 2026-07-26). Alex frames himself low and films
-# with headroom for it. The old bottom band (y1440-1650) is dead, never use it.
+# Placement: TOP THIRD. Frame the talking head low and shoot with headroom for
+# the card. A bottom band (y1440-1650) collides with the caption line, never use it.
 TOP_THIRD_Y = 150
 Y_BAND = "140-190 top third (locked; burn_pips collision guard may re-place)"
 
@@ -145,7 +145,7 @@ def main():
                 print(f"{base}: no_artifact (face only)")
                 continue
             if not url.startswith("http"):
-                # e.g. "device screenshot": Alex shoots it, cannot be headless
+                # e.g. "device screenshot": the creator shoots it, cannot be headless
                 print(f"{base}: needs_manual ({url})")
                 manifest.append({
                     "type": "pip", "episode": it["id"], "shot": sid, "url": url,

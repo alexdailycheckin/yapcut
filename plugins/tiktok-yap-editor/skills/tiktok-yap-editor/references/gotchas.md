@@ -103,6 +103,84 @@ are failures that actually happened and cost real time; each fix is proven.
   ```
   Speech is typically ~-24 dB, pauses ~-35 dB, quiet words land in between.
 
+## Gated mics make the seam gate cry wolf
+
+`seam_qa.py` calls anything under -65dB beside a join a splice dropout, reasoning
+that room tone never reaches digital silence. With a noise gate, a shotgun mic or
+a very quiet room, that assumption is false: the gap between two words genuinely
+is silence, so a clean edit fails most of its joins. Measured on one such batch:
+every flagged join carried 0-100ms of sub-65dB and a largest sample step of a few
+hundred, against a file-wide 99.9th percentile of 6400-7700. No clicks, nothing
+audible.
+
+Do not tune the cut to satisfy it, and do not switch it off blind. Tighter pads
+make it worse (fewer frames of speech either side of the gap, same gap), and
+re-cutting to avoid it costs word endings. Instead:
+
+```bash
+python3 scripts/seam_evidence.py output/clip.mp4 .yap_build/keeps_full_clip.json
+```
+
+That reports the longest sub-threshold run and the worst step against the file's
+own dynamics, and exits non-zero if any join looks like a genuine defect. Only
+when it passes, re-run with `YAP_ALLOW_SEAM=1`. A run over ~150ms or a step well
+above the file's 99.9th percentile is a real hole: fix the cut, do not override.
+
+## Clause boundaries: take the segmenter's, do not "improve" them
+
+Learned the expensive way on a seven-episode batch. The seam gate was failing, so
+a helper was written to nudge every clause edge onto the nearest speech energy.
+It cleared the gate and quietly ate the end of a line in five of the seven
+videos: "a media company that sells a drink" became "...that sells", "they give
+you fifty free" became "fifty fr-", "credit card" became "credit", and one
+episode lost a dozen word endings ("the boring half" -> "the boring", "since
+roughly forever" -> "since roughly 4S"). Every one of them passed the gates,
+because no gate checks that the words are still there. They were caught only by
+reading the cut transcript out as prose.
+
+The recipe that works:
+
+1. Take boundaries from `segmenter.py` **verbatim**. They are silence-accurate;
+   that is the whole point of the tool.
+2. Set `protect_tail` on clauses whose last word is quiet or sentence-final,
+   which is most of them. It costs nothing and stops the tail trim biting.
+3. Move a boundary by hand ONLY to dodge a false start, and only after a window
+   re-transcription of that exact span shows where the good take begins.
+4. Never auto-fit boundaries in bulk. Silence detection cannot tell a quiet
+   final consonant from a pause, so a batch nudge trades a visible gate failure
+   for an invisible content failure.
+5. After any recut, re-read the whole cut as a line sequence. A clipped word is
+   almost always visible as a mangled transcript ("They lost the" -> "Last the",
+   "Neither of those" -> "Either of those").
+
+If the seam gate is what pushed you toward fitting in the first place, measure it
+with `seam_evidence.py` instead: on a gated mic those failures are usually the
+gate being wrong, not the cut.
+
+## Repeat detectors fire on deliberate parallelism
+
+`stutter_check.py` and `restart_scan.py` both flag a repeated phrase, and good
+writing repeats phrases on purpose. Real examples that failed the gate:
+
+- A hook built on a mirrored clause: "X said no more discs, Y said no more pizzas."
+- A concession that reuses the noun: "Neither of those is a business, and this is a business."
+- A callback that repeats the key term: "...were never the moat. The moat is the distribution."
+
+Verify against the audio with a window transcription, then pass
+`YAP_ALLOW_STUTTER=1`. Also note `restart_scan.py` re-transcribes short windows
+and sometimes hallucinates a doubled function word ("It it", "took took") that
+is not in the audio at all: check before cutting anything, because deleting a
+"duplicate" that does not exist removes a real word.
+
+## Caption corrections are position-keyed, so a recut invalidates them
+
+`<out>_corrections.json` maps a WORD INDEX to a replacement. Change anything
+about the cut and every index after the change shifts. Symptom: the corrected and
+original words both render, stacked in the same spot, e.g. a burned caption
+reading "and posted 109.4 190.4" after `protect_tail` lengthened one clause by a
+few frames. Re-derive the indices from the fresh `w_<slug>.json` on every rebuild,
+and leave a note in the corrections file saying so.
+
 ## Captions
 
 - **Stable phrase + moving highlight** is the smooth default. A line that

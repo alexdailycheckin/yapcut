@@ -136,8 +136,25 @@ ffmpeg -nostdin -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&
   | grep -i black_start || echo "  FINAL: NO black frames"
 
 # 4b. SEAM GATE: no splice holes/blips at any join in the finished video.
-python3 "$SCRIPTS/seam_qa.py" --keeps "$WD/keeps_full_${OUTBASE}.json" --video "$OUT" \
-  || { echo "SEAM GATE FAILED: splice hole at a join"; exit 2; }
+# seam_qa assumes room tone never reaches digital silence, so anything quieter
+# than -65dB beside a join must be a dropout. A gated mic (or a very quiet room)
+# breaks that assumption: the pause between two words really is silence, so a
+# clean edit fails every join. YAP_ALLOW_SEAM=1 overrides, but ONLY once
+# seam_evidence.py has shown the flagged joins are short (inter-word rhythm, not
+# dead air) AND free of step clicks. Run it, read it, then decide:
+#   python3 scripts/seam_evidence.py "$OUT" "$WD/keeps_full_${OUTBASE}.json"
+# Never set this just to turn a red gate green.
+if ! python3 "$SCRIPTS/seam_qa.py" --keeps "$WD/keeps_full_${OUTBASE}.json" --video "$OUT"; then
+  if [ "${YAP_ALLOW_SEAM:-0}" = "1" ]; then
+    echo "SEAM GATE: failures overridden by YAP_ALLOW_SEAM=1"
+    echo "  (justify with seam_evidence.py: short runs, no clicks)"
+  else
+    echo "SEAM GATE FAILED: splice hole at a join"
+    echo "  If this mic gates to silence, measure first:"
+    echo "    python3 $SCRIPTS/seam_evidence.py \"$OUT\" \"$WD/keeps_full_${OUTBASE}.json\""
+    exit 2
+  fi
+fi
 
 # 4c. RECEIPTS + RETENTION (on the finished file, overlays counted).
 # pip_coverage: every spoken brand/stat wants a receipt on screen. Strict

@@ -94,7 +94,11 @@ fixed skeleton in `references/the-show-template.md` (news open with the headline
 receipt in frame one, the turn line, the assumption cracked, the receipts walk, the
 steal line, the verdict close through the creator's lens). Hard rules that ride along:
 every spoken fact VERIFIED with a source URL or cut; every claim carries a screenshot
-receipt in the episode's `shot_list`; build the cards with `receipts_build.py`; the
+receipt in the episode's `shot_list`; build the cards with `receipts_build.py`, then
+`cards_from_raws.py` to crop them to the type (a full-width page band spends the card
+on margins and the headline lands unreadably small); pick sources that survive a
+headless capture in the first place, per `references/receipt-sources.md`, because a
+walled page yields a robot-detection notice that looks like a successful capture; the
 two-question gate and the field contract apply unchanged. Episodes are
 `script_class: "research"`, `post_type: "receipt-react"`, ids in the primary lane.
 The secondary lane and the trend sweep continue as garnish, not quota.

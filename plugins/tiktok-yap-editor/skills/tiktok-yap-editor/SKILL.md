@@ -158,6 +158,19 @@ python3 scripts/segmenter.py "IMG_XXXX.MOV"      # idx  start-end  text
 ```
 Use these exact run boundaries as `keep_whole` clauses.
 
+**Use them verbatim, and do not auto-fit them.** Nudging every boundary onto the
+nearest speech energy looks like a tidy-up and silently eats word endings (it cost
+five clipped lines across one batch, all of which passed every gate). Set
+`protect_tail` instead, and move a boundary by hand only to dodge a false start,
+only after a window re-transcription of that span. See "Clause boundaries" in
+`references/gotchas.md`. For long plans, write the rows compactly:
+```bash
+python3 scripts/mkclauses.py "/abs/IMG_XXXX.MOV" clauses.json <<'ROWS'
+1.20   9.76   hook       protect_tail
+12.24  14.78  the-turn   protect_tail
+ROWS
+```
+
 ### 2c. Catch stutters + restarts (automatic, never skip)
 Phone takes double phrases ("now use AI, now use AI, now use AI…"), repeat a
 word ("the the"), or restart a clause. These used to be caught by hand, clip by
@@ -280,6 +293,7 @@ any of them by hand when diagnosing:
 ```bash
 ffmpeg -i full.mp4 -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null -   # canary: zero black flashes
 python3 scripts/seam_qa.py --keeps .yap_build/keeps_full.json --video full.mp4  # FATAL: no splice holes at joins
+python3 scripts/seam_evidence.py final.mp4 .yap_build/keeps_full.json    # is a seam failure real, or a gated mic?
 bash scripts/transcribe.sh full.mp4 .yap_build/w --words                # re-read line sequence (line audit)
 python3 scripts/stutter_check.py --words .yap_build/w.json               # FATAL: re-run on the CUT, must be clean
 python3 scripts/gap_check.py --video full.mp4                            # FATAL: no dead air survived the cut
