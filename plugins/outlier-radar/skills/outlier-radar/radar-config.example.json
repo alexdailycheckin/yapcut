@@ -36,14 +36,18 @@
     "colors": {
       "bg": "#FFFFFF",
       "ink": "#17191C",
-      "accent": "#0F766E"
+      "accent": "#0F766E",
+      "accent_text": "",
+      "accent_text_dark": ""
     },
     "fonts": {
       "display": "Inter",
       "body": "Inter",
       "mono": "Space Mono",
       "google_import": "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap"
-    }
+    },
+    "partner_logo": "",
+    "_comment": "colors.accent_text / accent_text_dark are OPTIONAL exact overrides; left empty they are derived from accent (darkened for light mode, lightened for dark). partner_logo is OPTIONAL and pairs with the top-level 'partner' + 'partner_url': inline SVG markup, a data: URI, or a path to an .svg/.png. No logo ships with this repo."
   },
   "show": {
     "enabled": false,
@@ -59,5 +63,6 @@
     "wildcard_taste": "",
     "receipts_strict": true,
     "_comment": "All empty fields are written by the show-mode JOURNEY in references/the-show-template.md. Never prefill a name, turn line, or takeaway lines: the creator's own wording locks only when they pick it."
-  }
+  },
+  "partner_url": ""
 }

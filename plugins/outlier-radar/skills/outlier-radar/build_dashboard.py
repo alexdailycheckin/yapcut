@@ -120,16 +120,58 @@ if _luma(_hex_rgb(C_BG)) < 0.5:
 
 _ar = _hex_rgb(C_ACCENT)
 ACCENT_RGB = ",".join(str(c) for c in _ar)
+# Derived by default, overridable when a brand has exact spec values for these.
 # light mode: pull toward black so it reads as text, not as a button fill
-ACCENT_TEXT = _hex(_mix(_ar, (0, 0, 0), 0.18))
+ACCENT_TEXT = _bc.get("accent_text") or _hex(_mix(_ar, (0, 0, 0), 0.18))
 # dark mode: pull toward white so it clears a dark surface
-ACCENT_TEXT_DARK = _hex(_mix(_ar, (255, 255, 255), 0.35))
+ACCENT_TEXT_DARK = (_bc.get("accent_text_dark")
+                    or _hex(_mix(_ar, (255, 255, 255), 0.35)))
 
-# optional "in partnership with X" pill in the header (empty = hidden).
-# Text only by design: a partner logo would mean bundling someone else's mark
-# into this repo, so the config carries a name and nothing else.
+# Optional "in partnership with X" pill in the header (empty = hidden).
+# No mark ships in this repo: bundling someone else's logo is not ours to do.
+# Instead the config can supply one, so an installer reproduces their own header
+# exactly without the repo carrying anyone's brand:
+#   "partner": "Reach"
+#   "partner_url": "https://example.com"          optional, makes the pill a link
+#   "brand": {"partner_logo": "<svg .../>"}       inline SVG, a data: URI, or a
+#                                                 path to an .svg/.png file
 PARTNER = (CFG.get("partner") or "").strip()
-PARTNER_HTML = f'<span class="partner">with <b>{PARTNER}</b></span>' if PARTNER else ""
+PARTNER_URL = (CFG.get("partner_url") or BRAND.get("partner_url") or "").strip()
+_plogo = (BRAND.get("partner_logo") or CFG.get("partner_logo") or "").strip()
+
+
+def _partner_mark(src: str) -> str:
+    if not src:
+        return ""
+    if src.lstrip().startswith("<svg"):
+        s = src.lstrip()
+        # tag the element so the pill's own sizing rule applies to it
+        if "class=" not in s[:s.find(">") + 1]:
+            s = s.replace("<svg", '<svg class="pmark"', 1)
+        return s
+    if src.startswith("data:"):
+        return f'<img class="pmark" src="{src}" alt="" width="16" height="16">'
+    path = os.path.abspath(os.path.expanduser(src))
+    if os.path.exists(path):
+        if path.lower().endswith(".svg"):
+            return _partner_mark(open(path, encoding="utf-8").read())
+        import base64
+        mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
+        b64 = base64.b64encode(open(path, "rb").read()).decode()
+        return (f'<img class="pmark" src="data:{mime};base64,{b64}" alt="" '
+                f'width="16" height="16">')
+    print(f"brand.partner_logo not found, rendering the pill without a mark: {src}")
+    return ""
+
+
+_pmark = _partner_mark(_plogo)
+if PARTNER and PARTNER_URL:
+    PARTNER_HTML = (f'<a class="partner" href="{PARTNER_URL}" target="_blank" '
+                    f'rel="noopener">with {_pmark}<b>{PARTNER}</b></a>')
+elif PARTNER:
+    PARTNER_HTML = f'<span class="partner">with {_pmark}<b>{PARTNER}</b></span>'
+else:
+    PARTNER_HTML = ""
 
 week_files = sorted(glob.glob(os.path.join(WS, "weeks", "*.json")), reverse=True)
 if not week_files and WS != HERE:
@@ -195,6 +237,7 @@ HTML = r"""<!DOCTYPE html>
   .wordmark{font-family:var(--display);font-size:18px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
   .byline{font-size:12.5px;color:var(--muted);line-height:1.2}
   .partner{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:7px 13px;white-space:nowrap;text-decoration:none}
+  .partner .pmark{border-radius:5px;display:block;flex:none}
   a.partner:hover{border-color:var(--faint);background:var(--surface2)}
   .partner b{color:var(--ink)}
   select{font:600 14px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 12px;cursor:pointer}
