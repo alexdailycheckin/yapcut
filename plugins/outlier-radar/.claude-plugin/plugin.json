@@ -1,7 +1,7 @@
 {
   "name": "outlier-radar",
   "description": "Weekly viral-outlier research + ideation engine with optional SHOW MODE: a recurring weekly teardown franchise you name yourself through a guided journey, built from your industry's news, receipts on screen, verified facts. Weekly scripts + LinkedIn twins with image prompts land on a self-contained tracked dashboard that opens at onboarding. Data lives in a local workspace plugin updates never touch.",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "author": {
     "name": "Alex Muresan",
     "url": "https://alexmuresan.com"

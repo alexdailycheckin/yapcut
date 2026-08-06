@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""cards_from_raws.py: turn captured raw page screenshots into receipt cards.
+"""DEPRECATED (2026-08-05): superseded by capture_gate.py.
+
+This script REPAIRED broken captures (cropping above a cookie modal,
+undimming the wash, sliding an ink-density band) and so produced
+plausible-looking cards from pages that never rendered. One 7-video batch
+shipped 21 junk receipts that way. Kept only so existing installs keep
+running; do not point a new episode at it. Use capture_gate.py, which rejects
+instead of repairing and clips to the headline by DOM geometry.
+
+cards_from_raws.py: turn captured raw page screenshots into receipt cards.
 
 A fixed top-of-page crop misses on most news sites: the headline
 sits below the nav, and consent overlays grey-wash the page so looks_blank and

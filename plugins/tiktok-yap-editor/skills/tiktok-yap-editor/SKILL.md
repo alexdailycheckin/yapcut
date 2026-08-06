@@ -586,6 +586,32 @@ the finished file (a report by default, build-fatal when brand-config sets
    is a legitimate receipt.
 3. **Stat -> counter** (accent count-up) or the headline that contains it.
 
+**Building the cards: `scripts/evidence_card.py`.** Six types, one geometry, all
+brand-typeset transparent PNGs at the locked <=972px receipt width, so each drops
+straight into an `_overlays.json` pip entry:
+
+```bash
+# wrap a real screenshot (already cropped to the headline) in the white card
+python3 scripts/evidence_card.py capture --src raw/story.png \
+  --domain pcgamer.com --date "29 Jul 2026" --out .yap_build/evidence/kc_1.png
+# page refuses to be captured cleanly: typeset its own headline instead
+python3 scripts/evidence_card.py quote --headline "..." --dek "..." \
+  --domain forbes.com --date "21 Sep 2025" --out .yap_build/evidence/bn_S2.png
+# number and comparison beats: a built card beats a screenshot for phone legibility
+python3 scripts/evidence_card.py stat  --value '$5T' --label "market cap, a first" --domain cnbc.com --out c.png
+python3 scripts/evidence_card.py bars  --bar "2022|20|\$20B" --bar "2014|1|\$1B" --domain gulfnews.com --out c.png
+python3 scripts/evidence_card.py chips --chip "2.8T params" --chip "MXFP4" --domain huggingface.co --out c.png
+python3 scripts/evidence_card.py timeline --tick "Oct 2000|AdWords" --tick "2026|ChatGPT ads" --domain digiday.com --out c.png
+```
+
+Rules that ride along: **every figure on a built card must be VERBATIM from the
+source named in its pill** (reformatting a number is fine, sourcing one from the
+script is not); a `quote` card is still a real receipt because the words and the
+attribution are the page's own; and if a spoken stat has no reachable source it
+gets no card at all, flagged rather than invented. For a walled page, capture the
+verdict with `outlier-radar`'s `capture_gate.py` (reject, never repair) and feed
+the headline it returns into `quote`.
+
 **Placement (locked): logos and screenshot cards go BELOW the caption line,
 centered, in the y 1440-1650 band at 1080x1920, and ALL receipt ink must end
 above y=1650: the platform's bottom chrome (description, sound line) starts

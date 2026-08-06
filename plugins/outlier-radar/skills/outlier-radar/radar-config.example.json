@@ -22,6 +22,13 @@
   "watch_accounts_file": "watch-accounts.md",
   "linkedin_twins": false,
   "blog_pipeline": false,
+  "schedule": {
+    "enabled": false,
+    "day": "sunday",
+    "time": "18:00",
+    "tz": "",
+    "_comment": "Written at onboarding step 10 and used to create a real recurring run at step 12. enabled=true means a scheduled job should exist; if the environment has no scheduler this records the intended cadence."
+  },
   "byline": "",
   "partner": "",
   "brand": {

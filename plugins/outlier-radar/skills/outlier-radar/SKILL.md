@@ -59,10 +59,28 @@ config there (schema in `radar-config.example.json`). Ask:
    down), then their lens, then a NAME OF THEIR OWN generated from their world (never
    a prefilled default), their turn line, and their takeaway phrasings. A "not now"
    skips it cleanly.
-10. **Finish onboarding with the dashboard open.** Run `python3 build_dashboard.py
-   --dir <workspace>` and OPEN `<workspace>/dashboard.html` for them (the bundled
-   example week renders until a real week exists), so every onboarded user ends their
-   first run looking at the product.
+10. **Weekly cadence.** Ask which day and local time they want the weekly run to fire
+   (a good default is the evening before their posting week starts, so the batch is
+   waiting for them). Write it to the config `schedule` block:
+   `{"enabled": true, "day": "sunday", "time": "18:00", "tz": "<their tz>"}`.
+
+**Do not stop at the config.** The three steps below are part of the first run, not
+optional extras. An onboarding that ends on the config leaves the user with sample data
+and no cadence, which is the same as not being onboarded.
+
+11. **Run the first week NOW.** Go straight into the Weekly routine below and produce a
+   real batch to the quantity bar, written to `<workspace>/weeks/<YYYY-MM-DD>.json`.
+   Never end onboarding on the bundled example week: it says "sample data" and tells
+   them to run discovery, which they have just done, so it reads as a broken install.
+12. **Create the recurring run.** Using the cadence from step 10, create an actual
+   recurring job with the host's scheduler (in Claude Code: the `schedule` skill, or
+   `CronCreate`) whose prompt is "run outlier radar" against their workspace. Confirm
+   back the day, time and zone in words. If no scheduler is available in their
+   environment, say so plainly, leave `schedule.enabled` true as a record, and tell
+   them the one sentence they need to say each week.
+13. **Finish with the dashboard open on THEIR week.** Run `python3 build_dashboard.py
+   --dir <workspace>` and OPEN `<workspace>/dashboard.html`, so every onboarded user
+   ends their first run looking at their own scripts, and say where it lives.
 
 Then copy `references/mechanic-library.md` into the workspace (that copy is the one that
 grows), and help them fill three working files **in the workspace** from the templates:
@@ -94,12 +112,8 @@ fixed skeleton in `references/the-show-template.md` (news open with the headline
 receipt in frame one, the turn line, the assumption cracked, the receipts walk, the
 steal line, the verdict close through the creator's lens). Hard rules that ride along:
 every spoken fact VERIFIED with a source URL or cut; every claim carries a screenshot
-receipt in the episode's `shot_list`; build the cards with `receipts_build.py`, then
-`cards_from_raws.py` to crop them to the type (a full-width page band spends the card
-on margins and the headline lands unreadably small); pick sources that survive a
-headless capture in the first place, per `references/receipt-sources.md`, because a
-walled page yields a robot-detection notice that looks like a successful capture; the
-two-question gate and the field contract apply unchanged. Episodes are
+receipt in the episode's `shot_list`; capture them with **`capture_gate.py`** (see the
+receipts section below); the two-question gate and the field contract apply unchanged. Episodes are
 `script_class: "research"`, `post_type: "receipt-react"`, ids in the primary lane.
 The secondary lane and the trend sweep continue as garnish, not quota.
 
@@ -261,6 +275,51 @@ every weekly run:
 Open every weekly digest with a **"3 rising signals"** block: the sharpest early-detection
 calls from step 1, each as a one-line prediction with its transferred version. Being on
 record early is the credibility play even when a call misses.
+
+## Receipts: capturing them (REJECT, NEVER REPAIR)
+
+`capture_gate.py` turns a `shot_list` URL into a receipt or refuses and says why. Chrome
+over CDP (`cdp.py`, stdlib only, no playwright needed) removes consent and promo
+overlays, nulls the consent-vendor hosts at the resolver, reads the DOM, and clips the
+screenshot to the headline's own bounding box.
+
+```bash
+python3 capture_gate.py --week weeks/2026-08-02.json --out show/receipts/2026-08-02
+python3 capture_gate.py --url https://example.com/story --out /tmp/one   # one-off
+```
+
+**Never repair a bad capture.** The predecessors (`receipts_build.py`,
+`cards_from_raws.py`, both deprecated, kept only so old installs keep running) cropped
+above the cookie modal and undimmed the wash. That manufactured plausible-looking cards
+from pages that never rendered, and it shipped 21 junk receipts across one 7-video
+batch: 10 cookie walls, a 404 page, a bot challenge, a discount popup, and nav lists
+cropped in place of headlines. Nothing downstream could tell, because they looked fine.
+
+The verdict reads page TEXT, not pixels, because a consent wall is the most text-dense
+thing on a news page: any "find the texty region" rule walks straight into it. Named
+refusals: `consent_wall`, `bot_challenge`, `not_found`, `paywall`, `promo_modal`,
+`headline_mismatch` (slug versus headline, which catches soft 404s and homepage
+redirects that still return HTTP 200), `flat_capture`, `dark_capture`.
+
+A refusal is not a dead beat. Ladder, in order:
+1. The overlay remover usually turns a walled page into a clean capture with no swap.
+2. Swap to a capturable source (`references/receipt-sources.md`).
+3. Typeset the headline the gate returned anyway:
+   `evidence_card.py quote --headline "..." --domain forbes.com`.
+4. For a number or comparison beat, a built card beats any screenshot for phone
+   legibility: `evidence_card.py stat|bars|timeline|chips`. Half the claims in a typical
+   episode are numbers, and a news screenshot of a number is unreadable small grey type.
+
+`evidence_card.py` ships with `tiktok-yap-editor` and writes transparent PNGs at the
+locked receipt width, so its output drops straight into an `_overlays.json` pip entry.
+
+**Every figure on a built card must be VERBATIM from the source named in its pill.**
+Reformatting a number is fine; sourcing one from the script alone is not. If a spoken
+stat has no reachable source, it gets no card and the gap is flagged, per the receipts
+law: a claim that cannot be sourced gets cut, never softened.
+
+Verify cards by eye before burning. The gate proves a page rendered, not that the
+headline is the one the beat needs.
 
 ## Hot drop (mid-week trigger, outside the weekly cadence)
 The weekly cadence cannot catch waves. When something breaks in the creator's niche and they

@@ -37,6 +37,30 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
 
+## What's new in 2.5
+
+- **Onboarding now finishes the job.** It used to end on the config with the bundled
+  sample week still on screen, which read as a broken install. The first run now also
+  writes your first real batch, creates an actual recurring weekly run at a day and time
+  you pick, and opens the dashboard on **your** scripts.
+- **The dashboard is finally yours.** The `brand` block in `radar-config.json` (colours
+  and fonts) was being written at onboarding and then ignored by the dashboard builder,
+  so every install rendered in the same default theme no matter what you answered. It now
+  themes properly, with neutral defaults when you skip the question.
+- **Receipts: reject, never repair (`capture_gate.py` + `cdp.py`).** The old capture path
+  cropped above cookie modals and undimmed the wash, so it produced plausible-looking
+  cards from pages that never rendered: one 7-video batch shipped 21 junk receipts
+  (10 cookie walls, a 404 page, a bot challenge, a discount popup, nav lists in place of
+  headlines). The new gate drives Chrome over CDP with no extra dependencies, removes
+  consent overlays before judging, verdicts from page TEXT rather than pixels, and clips
+  the screenshot to the headline's own bounding box so "cropped the wrong region" stops
+  being possible. On the same 48 URLs: 39 pass / 9 reject, against 9 usable of 34 before.
+  `receipts_build.py` and `cards_from_raws.py` are deprecated but still bundled.
+- **Six receipt card types (`evidence_card.py`).** When a page refuses to be captured,
+  or when the beat is a number rather than a story, build the card instead: `capture`,
+  `quote`, `stat`, `bars`, `timeline`, `chips`. Brand-typeset, transparent PNG at the
+  locked receipt width. Every figure must be verbatim from the source in its pill.
+
 ## What's new in 2.4
 
 - **Three new ship gates, wired into `yapfull.sh` (a batch of 12 shipped with
@@ -228,9 +252,11 @@ python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py  # should print 
 
 ## Use
 
-- **Ideas:** in Claude Code say "run outlier radar". First time, it interviews you and creates
-  your workspace (default `~/outlier-radar/`) with `radar-config.json` inside; after that it
-  researches and writes your weekly scripts, then opens the dashboard. Fill `positioning.md`,
+- **Ideas:** in Claude Code say "run outlier radar". First time, it interviews you, creates
+  your workspace (default `~/outlier-radar/`) with `radar-config.json` inside, asks which day
+  and time you want the weekly run, then **writes your first real batch, sets up the recurring
+  run, and opens the dashboard on it** before it finishes. After that it fires on your schedule,
+  or say "run outlier radar" any time. Fill `positioning.md`,
   `methods.md` (your own how-to knowledge, so educational scripts teach a real step), and
   optionally `leaders-to-study.md` and `watch-accounts.md` in the workspace from the provided
   templates.

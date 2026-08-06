@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""receipts_build.py: turn an episode's shot list into styled on-screen receipt cards.
+"""DEPRECATED (2026-08-05): superseded by capture_gate.py.
+
+This script REPAIRED broken captures (cropping above a cookie modal,
+undimming the wash, sliding an ink-density band) and so produced
+plausible-looking cards from pages that never rendered. One 7-video batch
+shipped 21 junk receipts that way. Kept only so existing installs keep
+running; do not point a new episode at it. Use capture_gate.py, which rejects
+instead of repairing and clips to the headline by DOM geometry.
+
+receipts_build.py: turn an episode's shot list into styled on-screen receipt cards.
 
 The bridge between the show's week JSON (shot_list per episode: URL + what to frame)
 and the yap editor's evidence-insert layer (white-card receipts in the top third,
