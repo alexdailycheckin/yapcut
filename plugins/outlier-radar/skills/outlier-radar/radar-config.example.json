@@ -29,8 +29,8 @@
     "tz": "",
     "_comment": "Written at onboarding step 10 and used to create a real recurring run at step 12. enabled=true means a scheduled job should exist; if the environment has no scheduler this records the intended cadence."
   },
-  "byline": "",
-  "partner": "",
+  "byline": "by alexmuresan.com",
+  "partner": "Reach",
   "brand": {
     "name": "Your Name (appears on carousel slides; defaults to 'creator' above)",
     "colors": {
@@ -47,7 +47,7 @@
       "google_import": "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap"
     },
     "partner_logo": "",
-    "_comment": "colors.accent_text / accent_text_dark are OPTIONAL exact overrides; left empty they are derived from accent (darkened for light mode, lightened for dark). partner_logo is OPTIONAL and pairs with the top-level 'partner' + 'partner_url': inline SVG markup, a data: URI, or a path to an .svg/.png. No logo ships with this repo."
+    "_comment": "colors.accent_text / accent_text_dark are OPTIONAL exact overrides; left empty they are derived from accent (darkened for light mode, lightened for dark). partner_logo is OPTIONAL and pairs with the top-level 'partner' + 'partner_url': inline SVG markup, a data: URI, or a path to an .svg/.png. No logo ships with this repo. partner_logo left empty uses the bundled Reach mark while 'partner' is Reach. Set byline/partner/partner_tagline to \"\" to hide any of them."
   },
   "show": {
     "enabled": false,
@@ -64,5 +64,6 @@
     "receipts_strict": true,
     "_comment": "All empty fields are written by the show-mode JOURNEY in references/the-show-template.md. Never prefill a name, turn line, or takeaway lines: the creator's own wording locks only when they pick it."
   },
-  "partner_url": ""
+  "partner_url": "https://usereach.ai",
+  "partner_tagline": "Get recommended on AI when your customer is looking for options"
 }

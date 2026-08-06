@@ -59,7 +59,13 @@ def _lane_label(key, default):
 PRIMARY_LABEL = _lane_label("primary_lane", "Industry")
 SECONDARY_LABEL = _lane_label("secondary_lane", "Viral videos")
 LEADERS_HDR = CFG.get("leaders_header") or "From leaders you study"
-BYLINE = CFG.get("byline") or ""
+# Attribution defaults, on every install. This is Alex's tool and Reach is the
+# partner behind it, so the credit ships by default rather than only appearing
+# when a config happens to ask for it. Any installer can replace or clear both
+# (`byline`, `partner`, `partner_url`, `brand.partner_logo`, `partner_tagline`).
+BYLINE = CFG.get("byline")
+if BYLINE is None:
+    BYLINE = "by alexmuresan.com"
 
 # Brand block: colors + fonts come from radar-config.json when present so the
 # dashboard renders in the installer's own identity, not a generic theme.
@@ -127,17 +133,34 @@ ACCENT_TEXT = _bc.get("accent_text") or _hex(_mix(_ar, (0, 0, 0), 0.18))
 ACCENT_TEXT_DARK = (_bc.get("accent_text_dark")
                     or _hex(_mix(_ar, (255, 255, 255), 0.35)))
 
-# Optional "in partnership with X" pill in the header (empty = hidden).
-# No mark ships in this repo: bundling someone else's logo is not ours to do.
-# Instead the config can supply one, so an installer reproduces their own header
-# exactly without the repo carrying anyone's brand:
-#   "partner": "Reach"
-#   "partner_url": "https://example.com"          optional, makes the pill a link
+# The partner pill: mark, name, link, and a one-line tagline beneath it.
+# Reach ships as the default partner. Override or clear any part in the config:
+#   "partner": ""                                 hides the pill entirely
+#   "partner_url": "https://example.com"          link target ("" = plain pill)
+#   "partner_tagline": ""                         "" hides the line under it
 #   "brand": {"partner_logo": "<svg .../>"}       inline SVG, a data: URI, or a
 #                                                 path to an .svg/.png file
-PARTNER = (CFG.get("partner") or "").strip()
-PARTNER_URL = (CFG.get("partner_url") or BRAND.get("partner_url") or "").strip()
-_plogo = (BRAND.get("partner_logo") or CFG.get("partner_logo") or "").strip()
+REACH_MARK = ('<svg class="pmark" width="16" height="16" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">'
+              '<rect width="32" height="32" rx="8" fill="#0F0F0F"></rect>'
+              '<rect x="1" y="1" width="30" height="30" rx="7" stroke="white" stroke-opacity="0.12" stroke-width="2"></rect>'
+              '<path d="M8.718 23.161V11.185l4.938 2.716V26l-4.938-2.839Z" fill="#B5F7FF"></path>'
+              '<path d="M23.9 16.928l-8.025 4.691v-5.081l7.901-4.425.124 4.815Z" fill="white"></path>'
+              '<path d="M25.997 21.679l-5.087-3.003-5.036 2.942 5.185 2.9 4.938-2.839Z" fill="url(#ycReachA)"></path>'
+              '<path d="M13.651 6 8.713 8.84l10.179 6.016 4.884-2.743L13.651 6Z" fill="url(#ycReachB)"></path>'
+              '<defs><linearGradient id="ycReachA" x1="23.199" y1="22.063" x2="16.276" y2="16.48" gradientUnits="userSpaceOnUse"><stop stop-color="white"></stop><stop offset="1" stop-color="#00BED8"></stop></linearGradient>'
+              '<linearGradient id="ycReachB" x1="25.875" y1="15.683" x2="11.93" y2="7.003" gradientUnits="userSpaceOnUse"><stop stop-color="#00BED8"></stop><stop offset="0.58" stop-color="white"></stop></linearGradient></defs></svg>')
+
+PARTNER = CFG.get("partner")
+PARTNER = "Reach" if PARTNER is None else str(PARTNER).strip()
+PARTNER_URL = CFG.get("partner_url", BRAND.get("partner_url"))
+PARTNER_URL = ("https://usereach.ai" if PARTNER_URL is None
+               else str(PARTNER_URL).strip())
+PARTNER_TAGLINE = CFG.get("partner_tagline")
+if PARTNER_TAGLINE is None:
+    PARTNER_TAGLINE = ("Get recommended on AI when your customer "
+                       "is looking for options")
+_plogo = BRAND.get("partner_logo", CFG.get("partner_logo"))
+_plogo = "" if _plogo is None else str(_plogo).strip()
 
 
 def _partner_mark(src: str) -> str:
@@ -164,14 +187,27 @@ def _partner_mark(src: str) -> str:
     return ""
 
 
+# default to the bundled Reach mark, but only while Reach is the partner: a
+# different partner name with Reach's logo beside it would be a false credit
+if not _plogo and PARTNER.lower() == "reach":
+    _plogo = REACH_MARK
 _pmark = _partner_mark(_plogo)
+
 if PARTNER and PARTNER_URL:
-    PARTNER_HTML = (f'<a class="partner" href="{PARTNER_URL}" target="_blank" '
-                    f'rel="noopener">with {_pmark}<b>{PARTNER}</b></a>')
+    _pill = (f'<a class="partner" href="{PARTNER_URL}" target="_blank" '
+             f'rel="noopener">with {_pmark}<b>{PARTNER}</b></a>')
 elif PARTNER:
-    PARTNER_HTML = f'<span class="partner">with {_pmark}<b>{PARTNER}</b></span>'
+    _pill = f'<span class="partner">with {_pmark}<b>{PARTNER}</b></span>'
 else:
-    PARTNER_HTML = ""
+    _pill = ""
+
+if _pill and PARTNER_TAGLINE:
+    _esc = (PARTNER_TAGLINE.replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;"))
+    PARTNER_HTML = (f'<div class="partnerwrap">{_pill}'
+                    f'<div class="ptag">{_esc}</div></div>')
+else:
+    PARTNER_HTML = _pill
 
 week_files = sorted(glob.glob(os.path.join(WS, "weeks", "*.json")), reverse=True)
 if not week_files and WS != HERE:
@@ -238,6 +274,8 @@ HTML = r"""<!DOCTYPE html>
   .byline{font-size:12.5px;color:var(--muted);line-height:1.2}
   .partner{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:7px 13px;white-space:nowrap;text-decoration:none}
   .partner .pmark{border-radius:5px;display:block;flex:none}
+  .partnerwrap{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+  .ptag{font-size:11px;line-height:1.3;color:var(--muted);max-width:252px;letter-spacing:.01em}
   a.partner:hover{border-color:var(--faint);background:var(--surface2)}
   .partner b{color:var(--ink)}
   select{font:600 14px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 12px;cursor:pointer}
@@ -457,6 +495,7 @@ HTML = r"""<!DOCTYPE html>
   @media(max-width:640px){
     .wrap{padding:0 16px 80px}
     .topbar .in{padding:12px 16px;flex-wrap:wrap;gap:10px}
+    .ptag{display:none}
     .hookgrid{grid-template-columns:1fr}
     .inspgrid{grid-template-columns:1fr}
     .premise,.hookgrid,.cardactions,.track,.detail,.twin{margin-left:0}
