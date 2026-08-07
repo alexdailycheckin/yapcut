@@ -368,10 +368,26 @@ does the clean CFR re-encode.
 
 ### 8c. Cover (post-ready thumbnail)
 ```bash
-python3 scripts/cover.py --video final.mp4 --contact-sheet --out .yap_build/cov   # candidates
-python3 scripts/cover.py --image <frame.png> --title "HOOK|LINE2" --out output/clip.jpg
+# candidates from the CAPTION-FREE cut, never the delivered file
+python3 scripts/cover.py --video .yap_build/full_<name>.mp4 --contact-sheet --out .yap_build/cov
+python3 scripts/cover.py --video .yap_build/full_<name>.mp4 --frame 34 \
+  --title "How does Apple sell?" --kicker "How whatever sells" --out output/clip.jpg
 ```
 Pick eye-contact + expressive. Covers come from REAL frames only (no AI).
+
+**No scrim (locked 2026-08-07).** Instagram crops the grid thumbnail to the
+centre 1080x1080, so the title has to live inside that square and cannot move
+above the head to clear the face. The default `clean` style therefore sets bone
+type straight onto the dark t-shirt under the chin with an ink stroke, sentence
+case, left aligned, one tang rule. The old full-width blurred band is retired
+(`--style scrim` if you ever need it): it was muddy, it dulled the frame, and it
+sat across his eyes and mouth. Placement is measured per frame, not fixed, so a
+reframe or the camera drifting through the band cannot wreck legibility.
+
+Source the cover from `full_<name>.mp4`. Grabbing from the delivered file bakes a
+caption word or an evidence card into the thumbnail. For a show episode the title
+is the franchise question ("How does X sell?"), not the video's claim hook; long
+subjects auto-wrap to two balanced lines.
 
 ### 9. Finalize (after sign-off)
 ```bash
