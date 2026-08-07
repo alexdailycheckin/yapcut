@@ -251,8 +251,9 @@ arrays keep the historical keys `distribution` (your PRIMARY / "Industry" lane) 
 (your SECONDARY / "Viral videos" lane); the tab LABELS come from `radar-config.json`
 (`primary_lane.label` / `secondary_lane.label`), so users only ever see their own names.
 `linkedin[]` holds the leaders-scan posts (the legacy key `gtm_linkedin` is still read).
-Primary-lane items may carry an embedded `linkedin` twin `{id,type,hook_arch,body,qa,source}`
-when `linkedin_twins` is on. `inspiration[]` items:
+Primary-lane items may carry an embedded `linkedin` twin
+`{id,type,hook_arch,body,qa,source,visual}` when `linkedin_twins` is on, where `visual` is
+`{format,model,aspect,why,prompt}` (see "Twin visuals"). `inspiration[]` items:
 `{creator, platform, metric, metric_confidence, mechanic, link}`. Tracking (filmed / posted
 / views / ignore) lives in the browser's localStorage keyed by item id, so new weeks never
 wipe past logs. Dashboard tabs: **[primary] (to film)**, **[secondary] (to film)**, **Filmed
@@ -359,6 +360,7 @@ skill has TWO modes; pick by what the footage is:
 - **LinkedIn twins** (`linkedin_twins: true`): each primary-lane script gets a written LinkedIn
   version of the same core idea, embedded as `item.linkedin`. LinkedIn is the authority lane:
   lean educational and expertise-forward, one job per post, a specific-claim hook, one CTA.
+  Every twin also ships a generated visual, see "Twin visuals" below.
 - **Leaders scan** (gated by `leaders-to-study.md` existing and filled in the workspace):
   each run, study what is working from the leaders in that roster, capture hook + structure +
   why-it-worked with citations, and turn the sharpest mechanics into that week's scripts.
@@ -369,6 +371,48 @@ skill has TWO modes; pick by what the footage is:
 - **Carousels:** flag any script "Carousel" on the dashboard, click "Export carousel queue",
   save the file into `<workspace>/carousels/`, then run `python3 build_carousels.py`. Branding
   (name, accent colour, fonts) comes from the `brand` block in `radar-config.json`.
+
+## Twin visuals (the image-generation prompt step)
+
+A written twin competes in a feed against images, so every twin ships with one. Write the
+prompt at the same time you write the post, never afterwards, because the format is a
+consequence of what the post is doing and you only know that while you are writing it.
+
+**Pick the format from the post, not from habit.**
+
+- **Image** when one object or one scale contrast carries the whole idea.
+- **Loop** when the joke is motion: something landing on something, a before becoming an after.
+- **Slideshow** when the teach has layers, or when it is a data post. Three to five slides
+  beat one crowded chart, and carousels earn saves, which is the twin's job.
+
+**Every prompt carries the brand verbatim.** Read the `brand` block from `radar-config.json`
+(the same one the carousel pipeline uses) and paste its palette and type rules into the prompt
+body. Generators keep no memory of your brand between calls, so a prompt that leaves it out
+returns a stock-looking image that happens to be on topic.
+
+The shape that works:
+
+> [subject doing one thing], [setting], [one concrete detail that carries the claim], [mood].
+> Editorial-minimal, generous negative space, soft flat studio light. Palette: [background hex],
+> [ink hex], [accent hex] as the single accent. Any on-image text in [the brand display face],
+> 1-4 words max. No logos or trademarks, no watermark, no glowing circuits, no robots, no
+> lens flare.
+
+**Models.** Use a current top-tier image model for stills and a current top-tier video model
+for loops. That roster turns over every few months, so check what is live rather than trusting
+a name written in a skill file. Two rules outlast the roster: the model that wins on aesthetics
+is rarely the one that wins at replicating a real product or UI, so pick per job; and a
+slideshow that needs exact typography goes through the carousel HTML pipeline instead, because
+generators still cannot set type reliably.
+
+**The anti-slop list is not optional.** Ban glowing circuits, robots, floating holograms, neon
+grids, handshakes, lightbulbs, chess pieces and lens flare in every prompt. They read as "AI
+made this" in well under a second, which is the same one-second test the video hook has to
+pass. One absurd real object photographed plainly beats every one of them.
+
+**Write down why.** Each visual carries a one-line `why this format` next to the prompt. If you
+cannot say what the image does that the words do not, the post does not need an image. It needs
+a better first line.
 
 ## Quantity bar
 At least ~10 scripts per lane per run. Give the creator volume to choose from, not a curated 3.

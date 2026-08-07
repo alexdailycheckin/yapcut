@@ -5,10 +5,15 @@ description: Turn raw phone clips into finished, post-ready vertical TikTok/Reel
 
 # TikTok Yap Editor
 
-Turn raw phone clips into a finished vertical short. The pipeline is
-deterministic (bundled scripts); the editorial judgment (which take, what story,
-where to stop) stays with you and the creator. Bias toward shipping a clean,
-tight, captioned clip that serves the channel, not technical perfection.
+Turn raw phone clips into a finished vertical short. Bias toward shipping a
+clean, tight, captioned clip that serves the channel, not technical perfection.
+
+Two parts. **Part 1 is the editorial judgment** (which take, what story, what
+goes on screen, where to stop) and it is where the video is won or lost.
+**Part 2 is the pipeline**, which is deterministic and lives in bundled scripts.
+Read Part 1 before you cut anything. When a pipeline step and an editorial rule
+pull against each other, Part 1 wins, because a gate that passes on an
+illegible video has measured the wrong thing.
 
 ## Two modes (pick one before you start)
 - **Mode A: talking-head yap.** The creator yaps to camera; **audio leads,
@@ -55,39 +60,137 @@ Write the answers to `<footage>/.yap_build/brand-config.json` using
 `brand-config.example.json` as the schema. `scripts/yapfull.sh` reads it, so the
 brand is data, not hardcoded. (The font choice must be installed, see Preflight.)
 
-## Two non-negotiables (every run, never skip)
+---
 
-1. **Premise first (storyline step).** Never go transcript -> clauses. Build the
-   story around a one-sentence takeaway. **The creator supplies the takeaway; you
-   build the storyline.** If they haven't, ASK before cutting.
-2. **Line audit (after the cut).** Read the actual cut line sequence and audit for
-   (a) timeline/logical contradictions from reordering, and (b) repetition that
-   isn't worth repeating (restart-heavy phone takes constantly double phrases).
-   Fix before captioning. Every time, even when it "sounds fine".
+# Part 1: Editorial. This decides whether the video is good.
 
-## The locked short-form format
+The pipeline in Part 2 is deterministic and it will happily produce a technically
+clean video nobody watches. This part is the judgment no script can make. It
+binds both modes.
 
-1. **Cold open**: the sharpest, most honest fragment first. No "hey guys".
-2. **On-screen hook**: ~6 words, high contrast, clear of platform UI. Burned for
-   the muted majority. **The hook can never be cut off: `build_ass.py` measures
-   the real rendered width with the actual font and auto-wraps + auto-shrinks
-   it to a title-safe width (≤90% of 1080px, ≤3 lines) on every run.** You no
-   longer hand-break long hooks; pass the whole line and it fits itself. You
-   may still force a break with `|` (`--hook "line one|line two"`) for a
-   deliberate two-line look, and it will still be width-checked.
-3. **Visual interrupt** in frame zero.
-4. **3-5 loose points**, free-flow.
-5. **Land on one closing line** (button), hard stop or loop. **A spoken CTA is
-   OPTIONAL and off by default.** Watch-through is the metric: a "follow for
-   more" tacked on after the payoff is the exact spot people drop, which drags
-   the retention curve the algorithm reads. End on the button. Only append the
-   CTA when it genuinely earns its seconds (a strong reason to follow that lands
-   before attention dies), never as a reflex.
+**The law: nothing goes on screen that a stranger cannot decode in one second.**
+Every rule below is that law pointed at a different surface. A cutaway that needs
+explaining fails it. A hook that wraps to four lines fails it. A logo burned over
+the caption fails it. Cleverness the viewer cannot see is noise.
 
-Target 25-40s. If a spoken-outro CTA is used it adds ~9s, so only spend that
-when retention can carry it. Tag each video to a pillar.
+**Precedence, when two rules pull against each other:**
 
-**Never use em/en dashes** in any on-screen text or message. Commas/colons.
+1. **Legibility.** A weak cutaway is worse than staying on the face.
+2. **Story.** A beat that breaks the premise comes out, even when it is the best
+   take you have.
+3. **Retention.** Density serves the story. The story does not get rearranged to
+   feed a gate.
+4. **Polish.**
+
+A retention gate demanding a visual event at 14s does not license a cutaway that
+fails the one-second test. Use a punch-in and move on.
+
+## Premise first, always
+
+The creator supplies the takeaway in one sentence. You build the storyline. If
+they have not given you one, ask before you cut anything, because a story built
+backwards from a transcript is just a list of things they said in the order they
+said them.
+
+Inventory every usable fragment with its source and timestamp. Tag each one with
+a role: HOOK, STAKES, ESCALATION, TURN, EVIDENCE, BUTTON, CUT. (Mode B uses its
+own shorter role set, see B1.) Pick a shape (confession to cost to reframe;
+contrarian to proof to implication; before and after; problem to insight to
+payoff; list with a turn). Write the ordered line sequence before you touch the
+footage.
+
+Lead with the sharpest line even when it sits ninety seconds into the take.
+
+Then test it. Does line one open a loop? Is the sharpest line first? Is there an
+escalation and a turn? Does the button pay the loop? Is it one idea? Present the
+beat sheet and get a yes.
+
+## The shape
+
+1. Cold open on the sharpest, most honest fragment. Never "hey guys".
+2. A burned on-screen hook, around six words, for the majority watching muted.
+3. A visual interrupt in frame zero.
+4. Three to five loose points.
+5. One closing line, then a hard stop or a loop.
+
+Short-form runs 25 to 40 seconds. Long-form runs 60 to 90, and past 90 it needs a
+mid-point reset (a new sub-hook line) or it sags. Tag each video to a pillar.
+
+**The spoken CTA is off by default.** Watch-through is the metric the algorithm
+reads, and a "follow for more" tacked on after the payoff is the exact frame
+where people leave. It costs around nine seconds. Spend them only when the reason
+to follow is strong enough to land before attention dies. End on the button.
+
+## The line audit is editorial, not QA
+
+After the cut, read the line sequence back as a story. Two things kill it and
+neither one trips a gate. Reordering creates contradictions the original take
+never had. Restart-heavy phone takes double their phrases, and while
+`stutter_check.py` catches the literal repeats, you catch the ones that use
+different words to say the same thing twice.
+
+Do this every time, including when it sounds fine.
+
+## Cutaways earn their place or stay off
+
+Match the LINE to what the clip actually shows, never to a metaphor that needs
+outside knowledge. Three legal matches, strongest first:
+
+1. **Literal.** The clip shows the thing the line says.
+2. **Speaker-action.** The creator is visibly doing what the line describes.
+3. **Neutral motion.** Register-matched movement under a purely conceptual line,
+   and only when the retention gate demands an event there and no literal shot
+   exists.
+
+If the connection needs explaining, it fails, however clever it is. When nothing
+passes, stay on the face and use a punch-in, a text pop, or an evidence insert.
+
+Register gates it too. Holiday footage under a work argument reads as a vlog,
+unless the take itself was filmed in that context and the line is about
+lifestyle, reward, or people.
+
+## Density and receipts
+
+One event per beat, not per word. In order of preference: a real cut, then a PiP
+evidence insert, then a number count-up, then a source lower-third, then a
+caption emphasis pop, then a punch-in. SFX hits land on those events and never
+between them. Under-season it. Sound is seasoning, not the dish.
+
+**Every spoken brand, stat or quote gets an on-screen receipt.** The mechanics,
+the receipt hierarchy and the `pip_coverage.py` gate live in Part 2. The
+editorial half is simpler: assign the receipt to the claim while you write the
+story, not after the cut. A script that names a claim with no capturable receipt
+gets rewritten now, not discovered at compose.
+
+Real footage and real screenshots only. No AI-generated visuals anywhere.
+
+## The words
+
+Two rules carry most of it.
+
+**Speak so that someone with zero prior knowledge follows it.** One gloss and one
+metaphor per video, maximum. Video has no scroll-back, so a viewer who loses the
+thread does not recover it. A gloss that explains jargon with more jargon is not
+a gloss.
+
+**Write it the way you would say it out loud.** Read every line aloud before it
+reaches the clauses file. If you would not say it to someone's face, it does not
+get said to camera.
+
+Never use em dashes or en dashes, on screen or anywhere else. Commas and colons.
+
+## Before it ships
+
+- Did the creator give you the takeaway, and did they approve the beat sheet?
+- Does the sharpest line open the video?
+- Would a stranger connect every cutaway to its line in one second?
+- Does every spoken claim have a receipt on screen while it is spoken?
+- Does it end on the button?
+- Is there anything on screen you would have to explain?
+
+---
+
+# Part 2: The pipeline
 
 ## Folder convention (non-negotiable)
 
@@ -216,14 +319,15 @@ python3 "${YAP_LIBRARY:-$HOME/outlier-radar/footage-library}/library.py" mark-us
 ```
 
 ### 3. Build the storyline (premise first)
-Get the takeaway (one sentence) from the creator. Inventory usable fragments with
-source+timestamp, tag each a role (HOOK / STAKES / ESCALATION / TURN / EVIDENCE /
-BUTTON / CUT), pick a story shape (confession->cost->reframe; contrarian->proof->
-implication; before/after; problem->insight->payoff; list-with-a-turn), and write
-the full ordered line sequence BEFORE cutting. Lead with the sharpest line even if
-it sits late. Story-test: does line one open a loop? sharpest line first?
-escalation + turn? button pays the loop? one idea? Present the beat sheet, get a
-yes.
+This step is editorial. Run it against Part 1 ("Premise first", "The shape", "The
+words"), not from this line. The output is an ordered line sequence with a role
+and a source timestamp per line, approved by the creator before you cut.
+
+Two things to write down here, because they are cheap now and expensive later:
+the **receipt** each spoken claim will get (see "Evidence inserts" below for the
+hierarchy) and the **cutaway** each line will carry (Part 1, "Cutaways earn their
+place"). A script that names a claim with no capturable receipt gets rewritten
+now, not discovered at step 8.
 
 ### 4. Write clauses.json (ordered source + in/out)
 ```json
@@ -270,22 +374,11 @@ the QA seam audit. Do NOT snap cuts to whisper word timings: DTW tokens tile
 the whole timeline (spans absorb pauses), so word-snapping degenerates into
 padding every cut with dead air.
 
-### 5b. Cutaway legibility rule (Mode A b-roll inserts)
-When laying library b-roll over a talking-head line, match the LINE to the
-clip's `reads_as` field, never to a metaphor that needs outside knowledge.
-Three legal matches, in order of strength:
-1. **Literal**: the clip shows the thing the line says.
-2. **Speaker-action**: the creator visibly doing what the line describes.
-3. **Neutral-motion filler**: on a purely conceptual line, a register-matched
-   motion shot (walking, hands working) ONLY when the retention gate demands an
-   event there and no literal shot exists.
-The test: would a stranger connect clip to line in under one second? If the
-connection needs explaining ("this city has the oldest university"), it FAILS,
-even if it is clever. Cleverness the viewer can't see is noise. When no clip
-passes, stay on the face and use a punch-in, text pop, or evidence insert
-instead. Register also gates: holiday footage under a work argument reads as a
-vlog unless the take itself was filmed in that context and the line is about
-lifestyle, reward, or people.
+### 5b. Cutaway legibility (Mode A b-roll inserts)
+Editorial. The rule and the three legal matches live in Part 1, "Cutaways earn
+their place or stay off". Match against what the clip actually shows (the
+library's `reads_as` field if you keep one). When nothing passes the one-second
+test, stay on the face.
 
 ### 6. QA gate (automate it, don't eyeball randomly)
 `yapfull.sh` runs the fatal gates itself; this is what they are, and how to run
@@ -349,6 +442,13 @@ the brand font/case (active word scales, no neon), an accent spark on the hook
 word, and the handle + contact block at the CTA tail. For caption fixes write a
 `<out>_corrections.json` (`{"fix":{"5":"Google"},"drop":[31]}`) keyed by the
 build word index (it skips empty tokens).
+
+**The hook can never be cut off.** `build_ass.py` measures the real rendered
+width with the actual font and auto-wraps plus auto-shrinks to a title-safe width
+(<=90% of 1080px, <=3 lines) on every run, so pass the whole line and it fits
+itself. Never hand-break a long hook. You may still force a break with `|`
+(`--hook "line one|line two"`) for a deliberate two-line look, and it is still
+width-checked.
 
 **Scripted runs (the creator read a written script): save the FULL spoken
 script, cold open included, to `<workdir>/<out>_script.txt` BEFORE running
@@ -424,7 +524,7 @@ coffee, screen, street) with no usable on-camera speech. You build the video by
 **locking picture to a script**, then the creator records the voiceover to a
 guide. Same brand-config, captions, SFX, cover.
 
-### B1. Survey + script the voiceover (premise first, same rule)
+### B1. Survey + script the voiceover (Part 1 binds here too)
 Probe the clips (duration, what's in frame). Get the takeaway from the creator,
 then **YOU write the beat-by-beat VO script**: one short spoken line per beat,
 each with a role (HOOK / CONTEXT / BEAT / TURN / BUTTON) and a target on-screen
@@ -568,10 +668,9 @@ ffmpeg -i output/clip.mp4 -frames:v 1 .yap_build/frame0.png   # first-frame audi
    payoff or connects back to the first line so rewatches register. Never let
    the energy trail off after the payoff.
 
-**Density levers, in order of preference:** a real cut > a PiP evidence insert >
-a number count-up > a source lower-third > a caption emphasis pop > a punch-in.
-Under-season: one event per beat, not per word. SFX hits should land ON these
-events (same timestamps), not between them.
+Which lever to reach for, and how much to season, is Part 1, "Density and
+receipts". **Precedence bites here:** a flagged static stretch is not a licence
+to drop in a cutaway that fails the one-second test. Use a punch-in.
 
 ### Evidence inserts (receipts: logos, headlines, counters)
 **The receipts rule: every named brand/product and every stat gets something
@@ -707,8 +806,8 @@ transcriber seam hallucinations, no-libass constraint, black-video fix) and
 improvising.
 
 ## Hard rules
-- **No AI-generated assets** (covers, b-roll, hero frames). Covers from real
-  frames; visual variety from the creator's own footage only.
+Editorial hard rules (no AI-generated visuals, no dashes, receipts on every
+claim) live in Part 1. One operational rule lives here:
 - Run the batch **sequentially** in one process (the cutters are parallel-safe via
-  per-output scratch, but races still risk surprises).
-- No em/en dashes anywhere on screen or in messages.
+  per-output scratch, but races still risk surprises). Never build ahead of the
+  gates.
