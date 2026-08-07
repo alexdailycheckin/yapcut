@@ -16,6 +16,74 @@ first use each part interviews you about your niche and brand, then works to you
 
 Pick a script on the dashboard, shoot it, drop the clips on the editor. That is the loop.
 
+## Install it on your own computer
+
+You need [Claude Code](https://claude.com/claude-code). Two routes.
+
+**Route 1, the plugin marketplace.** Type these three commands inside Claude Code:
+
+```
+/plugin marketplace add alexdailycheckin/yapcut
+/plugin install outlier-radar
+/plugin install tiktok-yap-editor
+```
+
+**Route 2, from git, with Claude doing the setup.** Copy the prompt below, paste it into
+Claude Code, and it clones the repo, installs both skills, pulls the video dependencies,
+and verifies the install before telling you it is done.
+
+```text
+Install YapCut (Alex Mureșan's short-form content engine) from git into my Claude Code
+setup, then verify it actually runs. Do the work, don't just print instructions.
+
+1. Clone and copy the two skills to user level so they load in every project:
+   git clone https://github.com/alexdailycheckin/yapcut.git ~/yapcut
+   mkdir -p ~/.claude/skills
+   cp -R ~/yapcut/plugins/outlier-radar/skills/outlier-radar ~/.claude/skills/
+   cp -R ~/yapcut/plugins/tiktok-yap-editor/skills/tiktok-yap-editor ~/.claude/skills/
+
+2. Install the video editor dependencies (macOS + Homebrew required):
+   bash ~/.claude/skills/tiktok-yap-editor/scripts/setup_fonts.sh
+   brew install whisper-cpp
+   mkdir -p ~/.whisper-models
+   curl -L -o ~/.whisper-models/ggml-small.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
+   pip3 install Pillow fonttools
+
+   setup_fonts.sh installs a libass-enabled ffmpeg (ffmpeg-full) plus the caption fonts
+   (Montserrat Black/ExtraBold, Anton, Bricolage Grotesque ExtraBold, Space Mono). It is
+   idempotent. If a later `brew upgrade` relinks the minimal ffmpeg and captions break,
+   re-run: brew link --overwrite --force ffmpeg-full
+
+3. Verify before you tell me anything is done:
+   python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py
+   It must print ALL GOOD. Every failed check prints its own fix hint. Apply the hints and
+   re-run until it is green. If something cannot be fixed, say exactly which check failed
+   and what still works without it.
+
+4. Then report: what got installed, the preflight output, and the two entry points.
+   - Ideas: say "run outlier radar". First run interviews me about my niche, creates the
+     workspace at ~/outlier-radar/ with radar-config.json, asks which day and time I want
+     the weekly run, writes the first real batch, and opens the dashboard.
+   - Editing: drop a folder of .MOV/.mp4 clips and say either "make a tiktok from these"
+     (Mode A, talking head) or "script my voiceover and cut my day clips" (Mode B, day in
+     the life). First run asks brand questions and saves brand-config.json.
+
+Notes:
+- Restart Claude Code after step 1 so both skills are picked up.
+- Outlier Radar itself needs nothing but Claude Code with web access. Everything in step 2
+  is for the editor only, so if I only want the research engine, stop after step 1.
+- My data (config, weekly batches, dashboard, exports) lives in ~/outlier-radar/, outside
+  the skill folder, so reinstalls never touch it. Override with OUTLIER_RADAR_HOME or --dir.
+- License is CC BY-NC 4.0: free to use, modify and share for noncommercial purposes, must
+  credit "Alex Mureșan (https://alexmuresan.com)". Commercial use needs a separate license
+  via alex@alexmuresan.com.
+```
+
+Either route, the research side works anywhere Claude Code runs. **The editor side is
+macOS + Homebrew**: the font setup script targets `~/Library/Fonts` and preflight looks for
+a macOS system font, so on Linux or Windows you get Outlier Radar and the editor will not
+pass preflight. Step-by-step detail is in [Install details](#install-details) below.
+
 ## What you get, end to end
 
 - **Discovery, once.** Both parts walk you through setup the first time (your niche, the
@@ -227,15 +295,13 @@ Pick a script on the dashboard, shoot it, drop the clips on the editor. That is 
 - **Long clips are mined end to end** in Mode B: every distinct action in a long take is
   treated as its own usable shot.
 
-## Install (Claude Code plugin, recommended)
+## Install details
 
-```
-/plugin marketplace add alexdailycheckin/yapcut
-/plugin install outlier-radar
-/plugin install tiktok-yap-editor
-```
+<a id="install-details"></a>
+The paste-in prompt at the top does all of this for you. Here it is by hand.
 
-## Install (manual copy)
+**1. Copy the skills** (or use the `/plugin` route at the top, which keeps them updated
+with the marketplace):
 
 ```
 git clone https://github.com/alexdailycheckin/yapcut.git
@@ -243,11 +309,22 @@ cp -R yapcut/plugins/outlier-radar/skills/outlier-radar        ~/.claude/skills/
 cp -R yapcut/plugins/tiktok-yap-editor/skills/tiktok-yap-editor ~/.claude/skills/
 ```
 
-## One-time editor setup (for the video side)
+Restart Claude Code so both skills load. Outlier Radar is ready at this point.
+
+**2. One-time editor setup** (video side only):
 
 ```
 bash ~/.claude/skills/tiktok-yap-editor/scripts/setup_fonts.sh   # libass ffmpeg + fonts
-python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py  # should print ALL GOOD
+brew install whisper-cpp                                          # transcription
+mkdir -p ~/.whisper-models && curl -L -o ~/.whisper-models/ggml-small.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
+pip3 install Pillow fonttools
+```
+
+**3. Verify.** This must print `ALL GOOD`; each failed check prints its own fix:
+
+```
+python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py
 ```
 
 ## Use
@@ -275,10 +352,10 @@ python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py  # should print 
 
 ## What's inside
 
-- `plugins/outlier-radar/skills/outlier-radar/` — the research playbook (`SKILL.md`),
+- `plugins/outlier-radar/skills/outlier-radar/`: the research playbook (`SKILL.md`),
   `build_dashboard.py`, `build_carousels.py`, `references/` (templates you fill + the hook
   library + the mechanic library), `radar-config.example.json`, and a bundled example week.
-- `plugins/tiktok-yap-editor/skills/tiktok-yap-editor/` — the editor playbook + deterministic
+- `plugins/tiktok-yap-editor/skills/tiktok-yap-editor/`: the editor playbook + deterministic
   scripts (`yapcut.py`, `stutter_check.py`, `build_ass.py`, `brollcut.py`, `vo_guide.py`, and
   the drivers), `brand-config.example.json`.
 
@@ -288,7 +365,7 @@ week ship.
 
 ## Author
 
-Created by **Alex Mureșan** — [alexmuresan.com](https://alexmuresan.com). If this is useful, a
+Created by **Alex Mureșan** ([alexmuresan.com](https://alexmuresan.com)). If this is useful, a
 credit and a link back are appreciated.
 
 ## License
@@ -296,7 +373,7 @@ credit and a link back are appreciated.
 Licensed under **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**
 (full text in [LICENSE](LICENSE); attribution in [NOTICE](NOTICE)).
 
-- **Free to use, modify, and share for noncommercial purposes** — personal projects, learning,
+- **Free to use, modify, and share for noncommercial purposes**: personal projects, learning,
   research, hobby use, nonprofits, schools.
 - **You must give credit.** Any copy, fork, or derivative has to credit
   "Alex Mureșan (https://alexmuresan.com)" and keep the notice.
