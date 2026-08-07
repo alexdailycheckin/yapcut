@@ -34,9 +34,24 @@ The skill folder stays read-only: the playbook, the scripts, the templates in
 
 ## First run: discovery (do this once)
 
-Resolve the workspace (order above). **If no `radar-config.json` exists anywhere,
-interview the user** with `AskUserQuestion`, then create the workspace and write the
-config there (schema in `radar-config.example.json`). Ask:
+Resolve the workspace (order above), then work out what discovery still owes this user.
+The config is written at step 1, so **its presence proves nothing about whether onboarding
+finished**. The signal that it finished is `schedule.enabled: true` (step 10 writes it, and
+step 12 leaves it true even where no scheduler exists). Judge on that:
+
+| State | Do this |
+| --- | --- |
+| No `radar-config.json` anywhere | Full discovery below, steps 1 to 13. |
+| Config exists, `schedule.enabled` true | Onboarded. Skip discovery, go to the Weekly routine. |
+| Config exists, `schedule.enabled` not true, and `weeks/` holds a real batch (anything other than `0000-00-00-example.json`) | An established user from a version before cadence existed. **Do not re-interview.** Ask step 10 only, do step 12, then the Weekly routine. |
+| Config exists, `schedule.enabled` not true, and `weeks/` holds only the example | A previous first run wrote the config and stopped, usually because the session ended. **Resume, do not restart.** |
+
+To resume: read the config, tell the user in one line what you already have, ask only the
+questions it does not answer, then carry on through steps 11 to 13. Never re-ask something
+the config answers; being interviewed twice about your own niche reads as a broken install.
+
+Interview with `AskUserQuestion`, then create the workspace and write the config there
+(schema in `radar-config.example.json`). Ask:
 
 1. **Workspace location.** Where to keep their data (default `~/outlier-radar/`).
    Create it, plus `weeks/` and `performance/` inside it.

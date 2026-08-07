@@ -60,16 +60,27 @@ setup, then verify it actually runs. Do the work, don't just print instructions.
    re-run until it is green. If something cannot be fixed, say exactly which check failed
    and what still works without it.
 
-4. Then report: what got installed, the preflight output, and the two entry points.
-   - Ideas: say "run outlier radar". First run interviews me about my niche, creates the
-     workspace at ~/outlier-radar/ with radar-config.json, asks which day and time I want
-     the weekly run, writes the first real batch, and opens the dashboard.
-   - Editing: drop a folder of .MOV/.mp4 clips and say either "make a tiktok from these"
-     (Mode A, talking head) or "script my voiceover and cut my day clips" (Mode B, day in
-     the life). First run asks brand questions and saves brand-config.json.
+4. Load the new skills without killing the session: tell me to run /reload-skills myself
+   (you cannot run slash commands for me). Confirm both outlier-radar and tiktok-yap-editor
+   are loaded before moving on.
+
+5. Then report the preflight output, what got installed, and end your message with the
+   exact sentence I should type next, on its own line, which is:
+
+   run outlier radar
+
+   That is what starts onboarding. Reloading the skills only makes them available, it does
+   not begin anything, so nothing happens until I say it. First run interviews me about my
+   niche, creates the workspace at ~/outlier-radar/, asks which day and time I want the
+   weekly run, writes the first real batch, and opens the dashboard on my own scripts.
+
+   Also tell me the editor entry point: drop a folder of .MOV/.mp4 clips and say either
+   "make a tiktok from these" (Mode A, talking head) or "script my voiceover and cut my day
+   clips" (Mode B, day in the life). First run asks brand questions, saves brand-config.json.
 
 Notes:
-- Restart Claude Code after step 1 so both skills are picked up.
+- If onboarding gets interrupted before it finishes, say "run outlier radar" again and it
+  resumes from the first unanswered question rather than starting over.
 - Outlier Radar itself needs nothing but Claude Code with web access. Everything in step 2
   is for the editor only, so if I only want the research engine, stop after step 1.
 - My data (config, weekly batches, dashboard, exports) lives in ~/outlier-radar/, outside
@@ -104,6 +115,21 @@ pass preflight. Step-by-step detail is in [Install details](#install-details) be
     your brand, and a burned on-screen hook.
   - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
     locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
+
+## What's new in 2.5.1
+
+- **An interrupted onboarding resumes instead of stranding you.** The discovery gate used
+  to be "does `radar-config.json` exist", but the config is written at step 1, so a first
+  run that ended early (session closed, context ran out) left a config behind that made
+  every later run skip discovery and jump to the weekly routine. You got scripts but no
+  cadence and no chance to answer the questions you never reached. The gate now reads
+  `schedule.enabled`, which is only true once the interview has actually been through it,
+  and resumes from the first unanswered question. Established users from before cadence
+  existed are detected by a real batch in `weeks/` and are asked the cadence question only,
+  never re-interviewed.
+- **Install says `/reload-skills`, not "restart Claude Code"**, and hands you the literal
+  sentence that starts onboarding (`run outlier radar`), because loading a skill does not
+  start it and the difference read as a broken install.
 
 ## What's new in 2.5
 
@@ -309,7 +335,10 @@ cp -R yapcut/plugins/outlier-radar/skills/outlier-radar        ~/.claude/skills/
 cp -R yapcut/plugins/tiktok-yap-editor/skills/tiktok-yap-editor ~/.claude/skills/
 ```
 
-Restart Claude Code so both skills load. Outlier Radar is ready at this point.
+Then run `/reload-skills` in Claude Code so both are picked up without restarting the
+session (`/reload-plugins` if you took the marketplace route instead). Outlier Radar is
+ready at this point: say **`run outlier radar`** to start onboarding. Loading a skill does
+not start it, so nothing happens until you say that.
 
 **2. One-time editor setup** (video side only):
 
