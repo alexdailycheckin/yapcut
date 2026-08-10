@@ -361,6 +361,14 @@ skill has TWO modes; pick by what the footage is:
   version of the same core idea, embedded as `item.linkedin`. LinkedIn is the authority lane:
   lean educational and expertise-forward, one job per post, a specific-claim hook, one CTA.
   Every twin also ships a generated visual, see "Twin visuals" below.
+  Then run `python3 select_linkedin.py` before publishing. It picks each twin's FEED shape
+  from the substance, because a twin that inherits the video's `post_type` produces a week of
+  identical shapes, and it reports the week's job mix, character bands, carousel opportunities
+  and the posting ORDER. Order follows urgency, not quality: a news peg decays, so a great
+  post whose peg died is worth less than a good post published while the peg is alive. Declare
+  `news_peg_days`, `evergreen`, `arguable`, `executable`, `ordering_claim` and `friction_story`
+  on the twin so the selector is deterministic instead of conservative. Full reasoning, the
+  character bands and the sourcing caveats in `references/linkedin-selector.md`.
 - **Leaders scan** (gated by `leaders-to-study.md` existing and filled in the workspace):
   each run, study what is working from the leaders in that roster, capture hook + structure +
   why-it-worked with citations, and turn the sharpest mechanics into that week's scripts.
