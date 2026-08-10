@@ -399,6 +399,9 @@ def main():
         print(f"  LATENT: {', '.join(latent)} carries a sequence argument written as prose.")
         print("  One slide per step would make the ordering visible and unlock the 3x.")
         print("  That is a rewrite of live creative, so it is your call, not a mechanical fix.")
+        print("  If yes: flag it Carousel on the dashboard, Export carousel queue, then run")
+        print("  build_carousels.py. Card copy must come from this item's own beats, never a")
+        print("  fresh writing session, or the cards carry claims the script never verified.")
     if not shaped and not latent:
         print("  Nothing this week is carousel-shaped. That is a BRIEF-stage gap, not a")
         print("  twin-stage one: no playbook or reorder was commissioned.")

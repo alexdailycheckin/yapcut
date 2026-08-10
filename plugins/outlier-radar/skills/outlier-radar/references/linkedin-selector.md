@@ -64,6 +64,10 @@ Worth knowing before spending any effort tuning characters: document posts (nati
 
 The playbook and the reorder are already carousel-shaped: a sequence of discrete units with a header each. Ship those as documents with the text post as framing, and keep pure text for the shapes that depend on prose, which are the newsjack and the confession.
 
+The pipeline for it already exists in this skill: flag the script "Carousel" on the dashboard, click Export carousel queue, save into `<workspace>/carousels/`, then run `build_carousels.py`. Branding comes from the `brand` block in radar-config.json.
+
+One rule that matters more than the layout: **the cards come from the source script's own beats, never from a fresh writing session.** The teardown does the thinking and the carousel is a second surface for it. Inventing claims at card-design time is how a set ends up carrying facts the script never verified. And card copy is still copy: the verbless noun-phrase fragment ("Zero budget, six million views") fits a layout neatly and is the loudest generated-text tell there is. Cut an idea to fit, never the grammar.
+
 ## Posting order: urgency, not score
 
 The week ships in decay order, not quality order. **Urgency is how fast an item loses value, which is not the same as how old it is.** A 7-day peg expiring tomorrow outranks a 5-day peg with three days of room, even though the 5-day story is fresher. The selector sorts on days-until-next-decay-step, breaks ties on score, and puts evergreen items last because they hold their value.
