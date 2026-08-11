@@ -21,6 +21,15 @@
   "leaders_file": "leaders-to-study.md",
   "watch_accounts_file": "watch-accounts.md",
   "linkedin_twins": false,
+  "twin_cap": 3,
+  "twin_cap_comment": "Max video scripts that may also ship as LinkedIn twins in a 5-post week. The rest of the slots go to posts written for the feed alone in the week file's linkedin[] lane. Without this cap your LinkedIn mix can only ever be whatever your video slate already was.",
+  "target_mix": {
+    "reach": 2,
+    "playbook": 1,
+    "authority": 1,
+    "relatability": 1
+  },
+  "target_mix_comment": "Jobs per 5-post week. reach brings strangers, playbook gives them something to run, authority farms saves, relatability converts lurkers. Set a leg to 0 if you genuinely cannot supply it, rather than shipping a weak one.",
   "blog_pipeline": false,
   "schedule": {
     "enabled": false,

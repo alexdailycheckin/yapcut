@@ -91,3 +91,63 @@ The weights in `select_linkedin.py` are priors, not findings. Replace them with 
 - `select_linkedin.py` the mechanics, the weights, the week verdict and the posting order
 - `references/post-types.md` the video-side equivalent: screen shape rather than feed shape
 - `references/hook-library.md` the first-line patterns that open each shape
+
+## The twin cap, and why the mix was unreachable before it
+
+A twin used to be gated one-to-one to the video slate, so LinkedIn could only ever ship
+what the video side had already commissioned. If your week's videos were five teardowns,
+you got five teardown posts, and no amount of reshaping at publish time could produce
+anything else. The selector graded a mix that was structurally impossible to hit.
+
+So a twin is now a CANDIDATE. At most `twin_cap` of the week's five slots may be twins
+(default 3), the rest are posts written for the feed alone and live in the week file's
+`linkedin[]` lane. Video scripts and feed-only posts are ranked on the same score with no
+bonus for having a video attached.
+
+**Losing a slot means different things in each lane, so the tool says which.** A cut TWIN
+gets `twin_cut: true` and loses nothing: the script still films and still ships on every
+short-form platform, where reach is the job. A cut SOLO gets `banked: true` and carries to
+the first future week its job comes up short, because nothing else ships it.
+
+## Where each leg's substance comes from
+
+Getting this wrong is the most common way a week goes thin, and the failure is silent:
+every post is defensible on its own and the set still does one job four times.
+
+- **Reach** is your weekly sweep. One subject, one live peg, one angle nobody took.
+- **Authority** is your own back catalogue cross-cut: the pattern ACROSS subjects you have
+  already covered, so it makes no new factual claim and stays evergreen.
+- **Playbook** is DEMAND, not supply, and it is the leg people get wrong. Three tests, and
+  the third is the one that gets skipped: your audience is measurably stuck on it with a
+  real number behind the claim, the pain sits inside your niche, and **the consensus answer
+  is wrong and you can show it**. Miss the third and you wrote the post forty other people
+  wrote that week. Then pitch every move at your reader's OWN ALTITUDE: what they
+  personally decide, delegate, defend or stop funding, never a task they would hand to
+  someone else.
+- **Relatability** is you, and nothing else can supply it. If you did not have a real
+  failure that week, say so and let the slot go elsewhere. A manufactured confession is the
+  single most punished thing on the platform.
+
+## A playbook is a set of MOVES, not a set of patterns
+
+The shape gate (3+ headed units) only proves a post is FORMATTED like a playbook. A post
+can pass it and still be a set of diagnoses: true, useful to understand, impossible to act
+on before Monday.
+
+Each unit wants four things, in this order: an instruction leading with the verb, what it
+costs in time or in who has to say yes, who already proved it, and how the reader knows it
+worked. Burying the verb is the tell that a move is really an observation.
+
+`playbook_moves()` checks the first mechanically and the verdict flags any playbook whose
+units do not open with an instruction. It is a heuristic and says so: it can tell whether a
+move was named, never whether it is a good move. It also cross-checks the author-declared
+`executable` flag, because that flag is easy to over-claim in good faith.
+
+## Deadlines invert the decay model
+
+A news peg loses value as it ages, so the sort races the clock downward. A dated cutoff
+your reader has to act before gets MORE urgent as it approaches, and the post is worthless
+the day after. Declare `deadline` as an ISO date and it drives urgency directly; the
+selector also warns if the day it assigned falls after the cutoff, because a deadline post
+published late is not a weaker post, it is a wrong one.
+

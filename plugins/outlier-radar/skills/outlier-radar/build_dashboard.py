@@ -446,6 +446,19 @@ HTML = r"""<!DOCTYPE html>
   .insp a:hover{color:var(--accent-text)}
 
   /* ---------- section header + empty state ---------- */
+  .cal{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .calday{display:flex;flex-direction:column;gap:8px;min-width:0}
+  .caldate{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 2px;white-space:nowrap}
+  .caldate.today{color:var(--accent-text)}
+  .calslot{width:100%;text-align:left;font:inherit;color:var(--ink);cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow);flex:1;display:flex;flex-direction:column;gap:7px;min-height:136px;transition:border-color .15s}
+  .calslot:hover{border-color:var(--faint)}
+  .calslot .n{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.08em;color:var(--faint)}
+  .calslot .h{font-family:var(--display);font-size:14px;font-weight:700;line-height:1.32;letter-spacing:-.01em}
+  .calslot .why{font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:auto}
+  .calslot.posted{background:var(--accent-soft);border-color:var(--accent)}
+  .calempty{border:1px dashed var(--line-strong);border-radius:14px;flex:1;min-height:136px;display:grid;place-items:center;color:var(--faint);font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+  .calnote{font-size:12.5px;color:var(--muted);margin:12px 0 0;line-height:1.5}
+  @media (max-width:900px){ .cal{grid-template-columns:1fr} .calslot,.calempty{min-height:0} }
   .sechdr{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:32px 0 14px}
   .sechdr:first-child{margin-top:0}
   .empty{text-align:center;padding:72px 24px;border:1px dashed var(--line-strong);border-radius:16px}
@@ -598,7 +611,19 @@ function applyTheme(mode){
 function toggleTheme(){ applyTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"); }
 
 function officeOf(w){ return (w.office&&w.office.length)?w.office:(w.food||[]); }
-function liPostsOf(w){ return (w.linkedin&&w.linkedin.length)?w.linkedin:(w.gtm_linkedin||[]); }
+/* Three sources feed the LinkedIn tab and they are not interchangeable.
+   soloPosts  = linkedin[], written for the feed alone, no video behind them.
+   leaderPosts= gtm_linkedin[], mined from the people you study.
+   twins      = a video script's twin, and only when it earned a slot. A twin the
+                selector cut still lives in the week file so the script keeps its
+                LinkedIn draft, but it is not part of this week's plan. */
+function soloPostsOf(w){ return (w.linkedin||[]).filter(x=>x.banked!==true); }
+function bankedPostsOf(w){ return (w.linkedin||[]).filter(x=>x.banked===true); }
+function leaderPostsOf(w){ return w.gtm_linkedin||[]; }
+function liveTwinsOf(w){
+  return (w.distribution||[]).filter(x=>x.linkedin && x.linkedin.twin_cut!==true
+                                        && t(x.id).status!=="ignored");
+}
 function poolCount(arr){return (arr||[]).filter(x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";}).length;}
 function updateTabCounts(w){
   if(!w) return;
@@ -608,7 +633,7 @@ function updateTabCounts(w){
   set("dist", poolCount(w.distribution));
   set("office", poolCount(office));
   set("filmed", all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length);
-  set("linkedin", (w.distribution||[]).filter(x=>x.linkedin && t(x.id).status!=="ignored").length + liPostsOf(w).length);
+  set("linkedin", liveTwinsOf(w).length + soloPostsOf(w).length + leaderPostsOf(w).length);
   set("insp", (w.inspiration||[]).length);
 }
 
@@ -934,17 +959,99 @@ function visualBlock(v){
   const meta=[v.format,v.model,v.aspect].filter(Boolean).map(esc).join(" · ");
   return `<div class="block" style="margin-top:14px"><div class="lab">Asset · ${meta}</div>${v.why?`<p class="psy">${esc(v.why)}</p>`:""}<div class="promptbox">${esc(v.prompt||"")}</div><button class="btn" style="margin-top:8px" onclick="copyText(this.previousElementSibling.innerText,'Higgsfield prompt copied')">Copy Higgsfield prompt</button></div>`;
 }
+const CAL_DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const CAL_MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function isoParts(iso){
+  const p=String(iso||"").split("-");
+  return (p.length===3 && p.every(v=>v.length && !isNaN(+v))) ? p.map(Number) : null;
+}
+/* Parsed as UTC on purpose: a local-time parse of a bare ISO date shifts the weekday by
+   one west of Greenwich, which would print the wrong day name. */
+function fmtDay(iso){
+  const p=isoParts(iso); if(!p) return "";
+  return CAL_DOW[new Date(Date.UTC(p[0],p[1]-1,p[2])).getUTCDay()]+" "+p[2]+" "+CAL_MON[p[1]-1];
+}
+function todayIso(){
+  const n=new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`;
+}
+function jumpToPost(id){
+  const el=document.getElementById("licard-"+id);
+  if(!el) return;
+  el.scrollIntoView({behavior:"smooth", block:"center"});
+  el.style.borderColor="var(--accent)";
+  setTimeout(()=>{ el.style.borderColor=""; }, 1400);
+}
+
+/* Renders whatever select_linkedin.py assigned. No day in the week file means no calendar,
+   so weeks built before the selector persisted days degrade to the plain card list rather
+   than showing a fabricated week. */
+function calendarBlock(w){
+  const rows=[];
+  liveTwinsOf(w).forEach(x=>{
+    if(x.linkedin.post_day) rows.push({p:x.linkedin, title:x.title||x.linkedin.title||"Post"});
+  });
+  soloPostsOf(w).concat(leaderPostsOf(w)).forEach(x=>{
+    if(x.post_day && t(x.id).status!=="ignored") rows.push({p:x, title:x.title||x.type||"Post"});
+  });
+  if(!rows.length) return "";
+
+  const used=[...new Set(rows.map(r=>r.p.post_day))].sort();
+  const first=isoParts(used[0]);
+  const week=[];
+  if(first){
+    let d=new Date(Date.UTC(first[0],first[1]-1,first[2]));
+    while(week.length<5){
+      if(d.getUTCDay()>=1 && d.getUTCDay()<=5) week.push(d.toISOString().slice(0,10));
+      d=new Date(d.getTime()+86400000);
+    }
+  }
+  const today=todayIso();
+  const cols=[...new Set(week.concat(used))].sort().map(iso=>{
+    const mine=rows.filter(r=>r.p.post_day===iso)
+                   .sort((a,b)=>(a.p.post_slot||99)-(b.p.post_slot||99));
+    const cells = mine.length ? mine.map(r=>{
+      const posted=t(r.p.id).status==="posted";
+      return `<button class="calslot ${posted?'posted':''}" onclick="jumpToPost('${r.p.id}')">
+        <span class="n">${String(r.p.post_slot||"").padStart(2,"0")}${posted?" &middot; posted":""}</span>
+        <span class="h">${esc(r.title)}</span>
+        ${r.p.post_day_locked?'<span class="chip">Pinned</span>':""}
+        <span class="why">${esc(r.p.post_why||"")}</span>
+      </button>`;
+    }).join("") : `<div class="calempty">open</div>`;
+    const isToday = iso===today;
+    return `<div class="calday">
+      <div class="caldate ${isToday?'today':''}">${fmtDay(iso)}${isToday?" &middot; today":""}</div>
+      ${cells}</div>`;
+  }).join("");
+
+  return `<div class="sechdr">Posting week &middot; ordered by urgency</div>
+    <div class="cal">${cols}</div>
+    <p class="calnote">Order is decay order, not quality order: the item that loses value
+    soonest goes first, and score only breaks a tie. Re-run
+    <code>select_linkedin.py</code> to reassign, or set
+    <code>"post_day_locked": true</code> on a post to pin it.</p>`;
+}
+
 const LI_STATES=["idea","scheduled","posted"];
 function liCard(x, srcTitle, i){
   const r=t(x.id); const done=r.status==="posted";
   const title = srcTitle || x.title || x.type || "Post";
-  const typeChip = (srcTitle||x.title) && x.type ? `<span class="chip">${esc(x.type)}</span>` : "";
-  return `<div class="card ${done?'done':''}">
+  /* The FEED shape the selector assigned. Falls back to x.type only for weeks built
+     before the selector persisted it, where that field held whatever the video was. */
+  const shape = x.linkedin_shape || x.type;
+  const typeChip = shape ? `<span class="chip">${esc(shape)}</span>` : "";
+  const jobChip = x.job ? `<span class="chip">${esc(x.job)}</span>` : "";
+  const stateChip = x.twin_cut===true ? `<span class="chip">not twinned</span>`
+                  : x.banked===true ? `<span class="chip">banked</span>` : "";
+  const dayChip = x.post_day ? `<span class="chip">${esc(x.post_day)}</span>` : "";
+  return `<div class="card ${done?'done':''}" id="licard-${x.id}">
     <div class="cardtop">
       <span class="idx">${String(i+1).padStart(2,"0")}</span>
       <div class="cardtitle">
         <h3 class="ttl">${esc(title)}</h3>
-        <div class="chips">${x.qa==="passed"?'<span class="chip qa">QA passed</span>':(x.qa?'<span class="chip draft">Pre-QA</span>':'')}${done?'<span class="chip posted">Posted</span>':''}${r.status==="scheduled"?'<span class="chip">Scheduled</span>':''}${typeChip}${x.hook_arch?`<span class="chip">${esc(x.hook_arch)}</span>`:""}</div>
+        <div class="chips">${x.qa==="passed"?'<span class="chip qa">QA passed</span>':(x.qa?'<span class="chip draft">Pre-QA</span>':'')}${done?'<span class="chip posted">Posted</span>':''}${r.status==="scheduled"?'<span class="chip">Scheduled</span>':''}${dayChip}${stateChip}${typeChip}${jobChip}${x.hook_arch?`<span class="chip">${esc(x.hook_arch)}</span>`:""}</div>
       </div>
       <div class="cardops"><button class="btn" onclick="copyText(this.closest('.card').querySelector('.twinbody').innerText,'Post copied')">Copy post</button></div>
     </div>
@@ -1043,11 +1150,28 @@ function render(){
   else if(TAB==="office"){ html=pool(office).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored scripts.":"Nothing left to film in this lane. Everything is filmed, posted, or ignored."; }
   else if(TAB==="filmed"){ const items=[].concat(w.distribution||[], office).filter(x=>["filmed","posted"].includes(t(x.id).status)); html=items.map((x,i)=>scriptCard(x, office.includes(x), i)).join(""); empty="Nothing filmed yet. Mark a script Filmed and it lands here for metric tracking."; }
   else if(TAB==="linkedin"){
-    const gtm = liPostsOf(w).filter(x=>t(x.id).status!=="ignored").map((x,i)=>liCard(x, "", i));
-    const twinSrc = (w.distribution||[]).filter(x=>x.linkedin && t(x.id).status!=="ignored");
-    const twins = twinSrc.map((x,i)=>liCard(x.linkedin, x.title, i));
-    html = (gtm.length?`<div class="sechdr">__LEADERS_HDR__</div>`+gtm.join(""):"")
-         + (twins.length?`<div class="sechdr">Twins of this week's videos</div>`+twins.join(""):"");
+    /* Cards follow the selector's posting order, so the list agrees with the days it
+       assigned. Anything without a slot keeps file order, at the end. */
+    const bySlot=(a,b)=>((a.post_slot||99)-(b.post_slot||99));
+    const solo = soloPostsOf(w).filter(x=>t(x.id).status!=="ignored")
+                          .slice().sort(bySlot).map((x,i)=>liCard(x, "", i));
+    const gtm = leaderPostsOf(w).filter(x=>t(x.id).status!=="ignored")
+                          .slice().sort(bySlot).map((x,i)=>liCard(x, "", i));
+    const twins = liveTwinsOf(w).slice().sort((a,b)=>bySlot(a.linkedin,b.linkedin))
+                          .map((x,i)=>liCard(x.linkedin, x.title, i));
+    const cutSrc = (w.distribution||[]).filter(x=>x.linkedin && x.linkedin.twin_cut===true
+                                                  && t(x.id).status!=="ignored");
+    const cuts = cutSrc.map((x,i)=>liCard(x.linkedin, x.title, i));
+    const banked = bankedPostsOf(w).filter(x=>t(x.id).status!=="ignored")
+                          .map((x,i)=>liCard(x, "", i));
+    html = calendarBlock(w)
+         + (solo.length?`<div class="sechdr">Written for LinkedIn only</div>`+solo.join(""):"")
+         + (twins.length?`<div class="sechdr">Twins of this week's videos</div>`+twins.join(""):"")
+         + (gtm.length?`<div class="sechdr">__LEADERS_HDR__</div>`+gtm.join(""):"")
+         + (cuts.length?`<div class="sechdr">Not twinned this week &middot; films and ships on other platforms</div>`
+             +`<div style="opacity:.55">`+cuts.join("")+`</div>`:"")
+         + (banked.length?`<div class="sechdr">Banked &middot; written and holding for a future week</div>`
+             +`<div style="opacity:.55">`+banked.join("")+`</div>`:"");
     empty="No LinkedIn posts this week.";
   }
   else if(TAB==="insp"){ const cards=(w.inspiration||[]).map(inspCard).join(""); html=cards?`<div class="inspgrid">${cards}</div>`:""; empty="No viral inspiration logged this week."; }

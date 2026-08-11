@@ -119,7 +119,10 @@ pass preflight. Step-by-step detail is in [Install details](#install-details) be
   primary-lane script also gets a written LinkedIn post. `select_linkedin.py` then picks each
   one's shape from its substance, checks the week has a working mix rather than five of the
   same thing, flags the posts that should be carousels, and tells you what order to publish
-  in so the perishable ones go first.
+  in so the perishable ones go first. **LinkedIn is not downstream of your video slate**:
+  at most 3 of the week's 5 slots are video twins, and the rest are posts written for the
+  feed alone in the week file's `linkedin[]` lane, so the mix is something you can actually
+  hit rather than whatever your videos happened to be.
 
 ## Use
 

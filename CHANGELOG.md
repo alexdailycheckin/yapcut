@@ -2,6 +2,48 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 2.7
+
+**The LinkedIn mix is now reachable, and the shape it picks actually gets saved.**
+Only relevant if you turned LinkedIn twins on.
+
+- **2.6 shipped a fix that could not work, and this is it working.** 2.6 said a twin no
+  longer inherits the video's shape. The selector did compute a feed shape for every post,
+  then wrote back only the posting day and threw the shape away, so your twins kept
+  rendering the video's `post_type`. The shape is now persisted as `linkedin_shape` and
+  `job`, and the dashboard renders it.
+- **A twin is a candidate, not an entitlement.** Twins used to be gated one-to-one to the
+  video slate, so LinkedIn could only ever ship what your video side had already
+  commissioned: five teardown videos meant five teardown posts, and the selector graded a
+  mix that was impossible to hit. At most `twin_cap` of the five slots are now twins
+  (default 3) and the rest come from posts written for the feed alone in the week file's
+  `linkedin[]` lane. A cut twin keeps its draft and still films; a cut feed-only post is
+  marked `banked` and carries to the first week its job comes up short.
+- **Playbook is its own leg in the mix.** It used to sit inside "authority" next to
+  teardowns, which meant a week could satisfy the target with two analyses and ship nothing
+  the reader could run. Default mix is now 2 reach, 1 playbook, 1 authority, 1 relatability,
+  and `target_mix` in radar-config.json overrides it.
+- **A playbook that names no moves gets flagged.** Three headed units proves a post is
+  formatted like a playbook, not that it is one. The verdict now checks whether each unit
+  opens with an instruction the reader can act on, and cross-checks your `executable`
+  declaration against it. It is a heuristic: it can tell whether a move was named, never
+  whether it is a good move.
+- **`deadline` is a new declarable field.** A news peg fades with age; a dated cutoff gets
+  more urgent as it approaches and is worthless the day after. Deadlines now drive posting
+  order directly, and you get a warning if the assigned day falls after the cutoff.
+- **The posting week is now a calendar.** The days the selector assigns render as a five
+  column week on the LinkedIn tab, with the reason under each slot, today marked, open days
+  shown as open, and a click jumping to that post's card. Weeks built before the selector
+  persisted days fall back to the plain card list rather than drawing a fabricated week.
+- **The verdict says where missing substance comes from.** When a leg is short it names the
+  source, because the legs are not interchangeable: reach comes off your sweep, authority
+  off your own back catalogue cross-cut, playbook off researched audience demand where the
+  consensus answer is wrong, and relatability only off you.
+
+Worth saying plainly: none of this is validated against performance data. The mix split,
+the new leg and every weight remain PRIORS from published research. Replace them with your
+own numbers once a dimension has enough posts behind it.
+
 ## What's new in 2.6
 
 **Outlier Radar picks the LinkedIn post's own shape, and tells you what order to publish in.**

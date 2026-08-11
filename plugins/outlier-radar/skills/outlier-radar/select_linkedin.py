@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+import textwrap
 
 # Character bands, from published platform studies (see references/linkedin-selector.md
 # for sourcing and its limits). Characters, not words: characters are what the platform
@@ -43,7 +44,25 @@ BAND_LO, BAND_HI, HARD_STOP, SHORT_MAX, DEAD_LO, DEAD_HI = 1300, 1900, 2500, 300
 # Follower growth = reach to non-followers x conversion to follow. Reach posts bring
 # strangers, authority posts convert them and farm saves (a save reportedly drives about
 # 5x the reach of a like), relatability retains. Drop a leg and the funnel starves.
-TARGET_MIX = {"reach": 2, "authority": 2, "relatability": 1}
+#
+# PLAYBOOK IS ITS OWN LEG as of 2.7. It used to sit inside "authority" next to teardowns,
+# which meant a week could satisfy the mix with two analyses and ship nothing the reader
+# could actually run. Splitting it makes the useful leg a requirement rather than a
+# preference. Override the whole thing with "target_mix" in radar-config.json.
+DEFAULT_TARGET_MIX = {"reach": 2, "playbook": 1, "authority": 1, "relatability": 1}
+
+# How many of the week's video scripts may ALSO ship as LinkedIn twins.
+#
+# This cap is the reason the mix was previously unreachable. A twin was gated one-to-one
+# to the video slate, so LinkedIn could only ever ship what the video side had already
+# commissioned. If your week's videos are five teardowns, you got five teardown posts and
+# no amount of reshaping at publish time could produce anything else.
+#
+# So a twin is a CANDIDATE, not an entitlement. Video scripts compete for slots against
+# posts written for the feed alone, at most TWIN_CAP of them get through, and the rest
+# ship as video only. Losing the twin costs nothing: the script still films and still
+# goes out on every short-form platform. Override with "twin_cap" in radar-config.json.
+DEFAULT_TWIN_CAP = 3
 
 # Starting weights are PRIORS from published research, not from your own numbers.
 # Replace them with your measured results once a dimension has enough posts behind it.
@@ -62,12 +81,41 @@ WEIGHTS = {
 # Shape -> the job that shape does. Job is derived from shape, not from the video's intent,
 # because the same subject can do different jobs depending on how it is framed.
 SHAPES = {
-    "playbook": "authority",     # numbered repeatable system. Carousel-shaped.
+    "playbook": "playbook",      # moves the reader can run. Carousel-shaped.
     "reorder": "reach",          # the argument is the SEQUENCE, not the items. Carousel-shaped.
     "newsjack": "reach",         # borrowed attention from a live story
     "teardown": "authority",     # a subject diagnosed, standing on its own analysis
     "confession": "relatability",  # an admission that reads as bad news, then turns
     "short": "reach",            # one idea, under ~300 chars, wins on replies not dwell
+}
+
+JOB_WHY_SHORT = {
+    "reach": "No acquisition engine, so the week only reaches existing followers.",
+    "playbook": "Nothing the reader can run, so the week teaches without helping.",
+    "authority": "Nothing farms saves, and a save reportedly drives about 5x a like.",
+    "relatability": "Nothing human, so new visitors have no reason to follow rather than read.",
+}
+
+# Where each leg's substance comes from. Written down because getting this wrong is the
+# most common way a week goes thin, and the failure is silent: every post is defensible
+# on its own and the set still does one job four times.
+JOB_SOURCE = {
+    "reach": ("your weekly sweep. One subject, one live peg, one angle nobody else "
+              "took."),
+    "playbook": ("DEMAND, not supply. Find what your audience is measurably stuck on, "
+                 "then build the thing that settles it. Three tests, and the third is "
+                 "the one people skip: (1) they are stuck on it, with a real number "
+                 "behind the claim, (2) the pain sits inside your niche, (3) the "
+                 "CONSENSUS ANSWER IS WRONG and you can show it. Miss the third and you "
+                 "wrote the post forty other people wrote that week. Pitch every move at "
+                 "your READER'S OWN ALTITUDE: what they personally decide, delegate, "
+                 "defend or stop funding, never a task they would hand to someone else."),
+    "authority": ("your own back catalogue, cross-cut. The PATTERN across subjects you "
+                  "have already covered rather than one subject on one peg, so it makes "
+                  "no new factual claim and stays evergreen."),
+    "relatability": ("you, and nothing else can supply it. A confession needs a failure "
+                     "that actually happened. If you did not have one this week, say so "
+                     "and let the slot go to another leg."),
 }
 
 
@@ -160,6 +208,113 @@ def band(n):
     return "past band"
 
 
+# Verbs a reader can act on. Deliberately mundane: a playbook move is "list", "open",
+# "write down", never "leverage" or "rethink". Extend it when a real post is flagged
+# wrongly, never to make a weak post pass.
+IMPERATIVES = {
+    "add", "ask", "attach", "audit", "block", "book", "bring", "build", "call", "change",
+    "check", "choose", "compare", "count", "cut", "draft", "export", "find", "fix", "get",
+    "give", "go", "keep", "kill", "leave", "list", "map", "mark", "measure", "mine",
+    "move", "name", "note", "open", "pick", "post", "pull", "put", "read", "record",
+    "remove", "reply", "review", "run", "send", "set", "ship", "show", "start", "stop",
+    "swap", "take", "test", "track", "watch", "write",
+}
+
+
+def playbook_moves(body):
+    """How many headed units are followed by something the reader can actually run.
+
+    The shape gate (3+ headed units) only proves a post is FORMATTED like a playbook. A
+    post can pass it and still be a set of DIAGNOSES: true, useful to understand, and
+    impossible to act on before Monday. This checks whether each unit opens with an
+    instruction.
+
+    It is a heuristic and it says so: it can tell whether a move was named, never whether
+    it is a good move. That is still the difference between a playbook and an essay with
+    headings.
+    """
+    lines = [l.strip() for l in body.split("\n") if l.strip()]
+    heads = [i for i, l in enumerate(lines) if re.match(r"^[A-Z][A-Z \-/]{2,28}$", l)]
+    moves = 0
+    for i in heads:
+        if i + 1 < len(lines):
+            first = re.sub(r"^[^A-Za-z]+", "", lines[i + 1]).split()
+            if first and first[0].lower().rstrip(",.") in IMPERATIVES:
+                moves += 1
+    return moves, len(heads)
+
+
+def days_until(deadline, anchor):
+    """Days from the week's anchor to a declared deadline. None if there isn't one.
+
+    A DEADLINE INVERTS THE DECAY MODEL, which is why it needs its own field. A news peg
+    loses value as it ages, so the sort races the clock downward. A dated cutoff your
+    reader has to act before gets MORE urgent as it approaches, and the post is worthless
+    the day after. Scored as news it looks half-decayed and drifts down the order.
+    """
+    import datetime
+    if not deadline:
+        return None
+    try:
+        return (datetime.date.fromisoformat(deadline)
+                - datetime.date.fromisoformat(anchor)).days
+    except (ValueError, TypeError):
+        return None
+
+
+def allocate(rows, target_mix, twin_cap, slots=5):
+    """Fill the week's slots against the target mix. Returns (selected, cut).
+
+    Two rules, in this order, and the order is the point.
+
+    MIX FIRST. A slot belongs to a job before it belongs to a post, so the best reach post
+    cannot take a slot the week owes to another leg. Ranking everything on one list and
+    taking the top five is what produces a monoculture: in any given week the strongest
+    items tend to be the same shape, so they win every slot and the week ships one post
+    five times.
+
+    TWINS COMPETE. Inside a job, a twin and a LinkedIn-only post are ranked on the same
+    score with no bonus for having a video behind it. A twin that loses is CUT from the
+    feed, not softened: it still films and still ships everywhere else.
+
+    Leftover slots go to the best remaining candidates of any job, because an unfilled slot
+    is worse than an imperfect mix.
+    """
+    by_job = {}
+    for r in rows:
+        by_job.setdefault(r[5], []).append(r)
+    for v in by_job.values():
+        v.sort(key=lambda r: (-r[0], str(r[1].get("id"))))
+
+    selected, twins_taken = [], 0
+
+    def take(r):
+        nonlocal twins_taken
+        selected.append(r)
+        if r[1].get("_kind") == "twin":
+            twins_taken += 1
+
+    def eligible(r):
+        return r[1].get("_kind") != "twin" or twins_taken < twin_cap
+
+    for job, want in target_mix.items():
+        for r in by_job.get(job, []):
+            if sum(1 for x in selected if x[5] == job) >= want:
+                break
+            if eligible(r):
+                take(r)
+
+    spare = sorted((r for r in rows if r not in selected),
+                   key=lambda r: (-r[0], str(r[1].get("id"))))
+    for r in spare:
+        if len(selected) >= slots:
+            break
+        if eligible(r):
+            take(r)
+
+    return selected, [r for r in rows if r not in selected]
+
+
 def features(item, facets):
     tw = item.get("linkedin") or {}
     body = tw.get("body") or ""
@@ -175,8 +330,9 @@ def features(item, facets):
     }
     # Declared-only fields. Absent means unknown, never assumed false.
     for k in ("news_peg_days", "angle_unclaimed", "arguable", "executable",
-              "ordering_claim", "friction_story", "evergreen"):
+              "ordering_claim", "friction_story", "evergreen", "deadline"):
         f[k] = tw.get(k, item.get(k))
+    f["moves"], f["heads"] = playbook_moves(body)
     f["peg_decay"] = peg_decay(f["news_peg_days"])
     # An evergreen item has no peg BY DESIGN, which is not the same state as a peg
     # nobody measured.
@@ -250,25 +406,40 @@ def schedule(rows, anchor):
     live, spent, ever = [], [], []
     for s, it, f, shape, conf, job, why in rows:
         step = next_decay_step(f.get("news_peg_days"))
-        if f.get("evergreen"):
-            ever.append((s, it, f, shape, job, None))
+        dl = days_until(f.get("deadline"), anchor)
+        if dl is not None and dl >= 0:
+            # A cutoff outranks a peg: it expires hard rather than fading.
+            live.append((s, it, f, shape, job, dl, "deadline"))
+        elif f.get("evergreen"):
+            ever.append((s, it, f, shape, job, None, "evergreen"))
         elif step is not None:
-            live.append((s, it, f, shape, job, step))
+            live.append((s, it, f, shape, job, step, "peg"))
         else:
-            spent.append((s, it, f, shape, job, None))
+            spent.append((s, it, f, shape, job, None, "spent"))
 
-    live.sort(key=lambda r: (r[5], -r[0]))
-    spent.sort(key=lambda r: -r[0])
-    ever.sort(key=lambda r: -r[0])
+    # id last so the order never depends on where items sit in the file.
+    live.sort(key=lambda r: (r[5], -r[0], str(r[1].get("id"))))
+    spent.sort(key=lambda r: (-r[0], str(r[1].get("id"))))
+    ever.sort(key=lambda r: (-r[0], str(r[1].get("id"))))
     ordered = live + spent + ever
     days = weekdays_from(anchor, len(ordered))
-    conflict = [r for r in live if r[5] <= 1]
+    conflict = [r for r in live if r[6] == "peg" and r[5] <= 1]
 
-    for i, (s, it, f, shape, job, step) in enumerate(ordered):
+    plan, missed_dl = [], []
+    for i, (s, it, f, shape, job, step, kind) in enumerate(ordered):
         day = days[i]
         when = day.strftime("%a %d %b") if day else f"slot {i+1}"
         cost = ""
-        if step is not None:
+        if kind == "deadline":
+            urgency = f"hard deadline {f['deadline']}, {step}d out"
+            left = days_until(f["deadline"], day.isoformat()) if day else step
+            if left is not None and left < 0:
+                cost = (f"   PAST ITS DEADLINE: ships {when}, cutoff was {f['deadline']}. "
+                        f"The post is wrong, not weak.")
+                missed_dl.append((it, when, f["deadline"]))
+            elif left is not None:
+                cost = f"   leaves the reader {left}d before the cutoff"
+        elif step is not None:
             age_at_post = (f["news_peg_days"] or 0) + ((day - days[0]).days if day else i)
             before, after = peg_decay(f["news_peg_days"]), peg_decay(age_at_post) or 0
             urgency = f"peg steps down in {step}d"
@@ -286,6 +457,14 @@ def schedule(rows, anchor):
         if cost:
             print(cost)
         print()
+        plan.append((it, day, i + 1, urgency))
+
+    if missed_dl:
+        print("MISSED DEADLINES (move these up or drop them)\n")
+        for it, when, dl in missed_dl:
+            print(f"  {it.get('id')} ships {when}, its cutoff was {dl}.")
+        print("  A deadline post published after the deadline is not a weaker post, it is")
+        print("  a wrong one. Pin it earlier with post_day_locked, or cut it.\n")
 
     if len(conflict) > 1:
         ids = ", ".join(r[1].get("id") for r in conflict)
@@ -298,10 +477,13 @@ def schedule(rows, anchor):
         print(f"Evergreen items ({', '.join(r[1].get('id') for r in ever)}) are the buffer:")
         print("  they hold their value, so they absorb a slipped week or a hot drop.\n")
 
+    return plan
+
 
 def main():
     if "--weights" in sys.argv:
-        print(json.dumps({"weights": WEIGHTS, "target_mix": TARGET_MIX,
+        print(json.dumps({"weights": WEIGHTS, "target_mix": DEFAULT_TARGET_MIX,
+                          "twin_cap": DEFAULT_TWIN_CAP,
                           "bands": {"short_max": SHORT_MAX, "dead": [DEAD_LO, DEAD_HI],
                                     "reach": [BAND_LO, BAND_HI], "hard_stop": HARD_STOP}},
                          indent=2))
@@ -310,6 +492,10 @@ def main():
     home = resolve_home()
     cfg = load_config(home)
     facets = [f for f in (cfg.get("facets") or []) if isinstance(f, str)]
+    target_mix = cfg.get("target_mix") or DEFAULT_TARGET_MIX
+    twin_cap = int(cfg.get("twin_cap", DEFAULT_TWIN_CAP))
+    if "--twin-cap" in sys.argv:
+        twin_cap = int(sys.argv[sys.argv.index("--twin-cap") + 1])
 
     if "--week" in sys.argv:
         wk = sys.argv[sys.argv.index("--week") + 1]
@@ -323,30 +509,33 @@ def main():
         return
 
     d = json.load(open(wk))
-    items = [i for i in d.get("distribution", []) if i.get("linkedin")]
-    items += [{"linkedin": t, **{k: v for k, v in t.items() if k != "linkedin"}}
-              for t in d.get("linkedin", [])]
+    # Two lanes. A twin rides on a video script; a solo is written for the feed alone and
+    # lives in the week file's linkedin[] list. Both compete for the same five slots.
+    items = [dict(i, _kind="twin") for i in d.get("distribution", []) if i.get("linkedin")]
+    items += [dict({"linkedin": t, **{k: v for k, v in t.items() if k != "linkedin"}},
+                   _kind="solo") for t in d.get("linkedin", [])]
 
-    print(f"week {d.get('week')}   {len(items)} twins\n")
+    n_twin = sum(1 for i in items if i["_kind"] == "twin")
+    print(f"week {d.get('week')}   {n_twin} twin candidate(s), "
+          f"{len(items) - n_twin} LinkedIn-only, twin cap {twin_cap}\n")
     if not items:
-        print("no LinkedIn twins in this week file.")
+        print("no LinkedIn posts in this week file.")
         if not cfg.get("linkedin_twins"):
             print("`linkedin_twins` is off in radar-config.json, so this is expected.")
         return
 
-    rows, jobs, shapes, undeclared_any = [], {}, {}, False
+    rows, undeclared_any = [], False
     for it in items:
         f, _ = features(it, facets)
         shape, conf = propose_shape(it, f)
         job = SHAPES[shape]
         s, why = score(f)
-        jobs[job] = jobs.get(job, 0) + 1
-        shapes[shape] = shapes.get(shape, 0) + 1
         undeclared_any = undeclared_any or bool(f["undeclared"])
         rows.append((s, it, f, shape, conf, job, why))
 
     for s, it, f, shape, conf, job, why in sorted(rows, key=lambda r: -r[0]):
-        print(f"[{s:>4}]  {it.get('id')}  {shape}  ({job})   confidence: {conf}")
+        lane = "twin" if it.get("_kind") == "twin" else "LinkedIn-only"
+        print(f"[{s:>4}]  {it.get('id')}  {shape}  ({job})  [{lane}]   confidence: {conf}")
         print(f"        {str(it.get('title'))[:72]}")
         print(f"        {f['chars']} chars = {f['band']}   units={f['units']}"
               f"   carousel_shaped={f['carousel_shaped']}")
@@ -356,25 +545,68 @@ def main():
             print(f"        UNDECLARED (not guessed): {', '.join(f['undeclared'])}")
         print()
 
+    selected, cut = allocate(rows, target_mix, twin_cap)
+    jobs, shapes = {}, {}
+    for s, it, f, shape, conf, job, why in selected:
+        jobs[job] = jobs.get(job, 0) + 1
+        shapes[shape] = shapes.get(shape, 0) + 1
+
     print("=" * 72)
     print("WEEK VERDICT\n")
+
+    cut_twins = [r for r in cut if r[1].get("_kind") == "twin"]
+    cut_solos = [r for r in cut if r[1].get("_kind") != "twin"]
+    if cut_twins:
+        print(f"CUT FROM THE FEED ({len(cut_twins)}), still films and ships elsewhere:")
+        for s, it, f, shape, conf, job, why in sorted(cut_twins, key=lambda r: -r[0]):
+            print(f"  {it.get('id')}  score {s}  ({shape})  {job} slots filled by higher scores")
+        print("  A twin is a candidate, not an entitlement. Every short-form platform still")
+        print("  gets these: reach is their job, your ICP is LinkedIn's.\n")
+    if cut_solos:
+        print(f"BANKED ({len(cut_solos)}), written and holding for a future week:")
+        for s, it, f, shape, conf, job, why in sorted(cut_solos, key=lambda r: -r[0]):
+            print(f"  {it.get('id')}  score {s}  ({shape})  {job} slot taken this week")
+        print("  No video behind these, so nothing else ships them. They keep their value")
+        print("  and fill the first week their job comes up short.\n")
+
     print(f"job mix     {dict(sorted(jobs.items()))}")
-    print(f"target      {TARGET_MIX}")
-    gap = {
-        "reach": "No acquisition engine, so the week only reaches existing followers.",
-        "authority": "Nothing farms saves, and a save is worth about 5x a like in reach.",
-        "relatability": "Nothing human, so new visitors have no reason to follow rather than read.",
-    }
-    for job, want in TARGET_MIX.items():
+    print(f"target      {target_mix}")
+    short_any = False
+    for job, want in target_mix.items():
         got = jobs.get(job, 0)
         if got < want:
-            print(f"  SHORT on {job}: {got} of {want}. {gap[job]}")
+            short_any = True
+            print(f"  SHORT on {job}: {got} of {want}. {JOB_WHY_SHORT.get(job, '')}")
+            print(f"  COMMISSION a {job} post into the week file's linkedin[] lane. It cannot")
+            print(f"  come from the video slate: the twin lane can only reshape what your")
+            print(f"  video side already wrote.")
+            src = JOB_SOURCE.get(job)
+            if src:
+                for i, line in enumerate(textwrap.wrap(src, 70)):
+                    print(f"  {'SOURCE: ' if i == 0 else '        '}{line}")
+    if not short_any:
+        print("  mix met.")
     print()
+
+    # A playbook that names no moves is an essay with headings.
+    weak = [(it.get("id"), f) for _, it, f, shape, *_ in selected
+            if shape == "playbook" and f["heads"] and f["moves"] < f["heads"]]
+    if weak:
+        print("playbook    a unit that does not open with an instruction is a DIAGNOSIS")
+        for pid, f in weak:
+            print(f"  {pid}: {f['moves']} of {f['heads']} units name a move the reader can run.")
+        print("  A playbook earns its slot by being runnable, not by being right. Each unit")
+        print("  wants an instruction, what it costs, who proved it, and how the reader knows")
+        print("  it worked. Heuristic: it checks a move was NAMED, not whether it is good.")
+        over = [pid for pid, f in weak if f.get("executable")]
+        if over:
+            print(f"  DECLARED executable but reads diagnostic: {', '.join(over)}. Re-check it.")
+        print()
 
     print(f"shape spread  {dict(sorted(shapes.items()))}")
     if len(shapes) == 1:
-        print(f"  MONOCULTURE: all {len(rows)} twins are {list(shapes)[0]}. {len(rows)} posts of one")
-        print(f"  shape read as one post published {len(rows)} times. Reassign at least two.")
+        print(f"  MONOCULTURE: all {len(selected)} posts are {list(shapes)[0]}. {len(selected)} of one")
+        print(f"  shape read as one post published {len(selected)} times. Reassign at least two.")
     print()
 
     dead = [it.get("id") for _, it, f, *_ in rows if f["band"] == "DEAD ZONE"]
@@ -388,12 +620,12 @@ def main():
         print(f"  OVER {HARD_STOP} (reported engagement falloff): {', '.join(over)}")
     print()
 
-    shaped = [it.get("id") for _, it, f, *_ in rows if f["carousel_shaped"]]
-    print(f"carousel    {len(shaped)} of {len(rows)} are carousel-shaped (3+ headed units)")
+    shaped = [it.get("id") for _, it, f, *_ in selected if f["carousel_shaped"]]
+    print(f"carousel    {len(shaped)} of {len(selected)} are carousel-shaped (3+ headed units)")
     if shaped:
         print(f"  Ship these as document posts, text as framing: {', '.join(shaped)}")
         print("  Biggest lever available: ~6.60% vs ~2.00% engagement.")
-    latent = [it.get("id") for _, it, f, *_ in rows
+    latent = [it.get("id") for _, it, f, *_ in selected
               if f.get("ordering_claim") and not f["carousel_shaped"]]
     if latent:
         print(f"  LATENT: {', '.join(latent)} carries a sequence argument written as prose.")
@@ -407,7 +639,52 @@ def main():
         print("  twin-stage one: no playbook or reorder was commissioned.")
     print()
 
-    schedule(rows, d.get("week"))
+    plan = schedule(selected, d.get("week"))
+
+    # Persist. Before 2.7 the shape was computed, printed, and thrown away, so a twin kept
+    # rendering the video's post_type and the dashboard showed a shape the selector had
+    # already replaced. A proposal nobody writes down is a proposal nobody acts on.
+    if "--no-write" not in sys.argv:
+        written, pinned, marked = 0, 0, 0
+        for s_, it, f, shape, conf, job, why in selected:
+            tw = it.get("linkedin")
+            if isinstance(tw, dict):
+                tw["linkedin_shape"], tw["job"] = shape, job
+                tw["twin_cut"] = False
+                tw.pop("banked", None)
+        # Losing a slot means different things per lane. A cut TWIN still films and ships
+        # everywhere else, so nothing is lost. A cut SOLO has no video behind it and
+        # carries to a future week instead.
+        for s_, it, f, shape, conf, job, why in cut:
+            tw = it.get("linkedin")
+            if isinstance(tw, dict):
+                tw["linkedin_shape"], tw["job"] = shape, job
+                if it.get("_kind") == "twin":
+                    tw["twin_cut"] = True
+                    tw["cut_why"] = f"score {s_}, {job} slots filled by higher-scoring posts"
+                else:
+                    tw["banked"] = True
+                    tw["cut_why"] = f"score {s_}, {job} slot taken. Carries to a future week."
+                for k in ("post_day", "post_slot", "post_why"):
+                    tw.pop(k, None)
+                marked += 1
+        for it, day, slot, why in plan:
+            tw = it.get("linkedin")
+            if not isinstance(tw, dict) or day is None:
+                continue
+            if tw.get("post_day_locked") and tw.get("post_day"):
+                pinned += 1
+                continue
+            tw["post_day"], tw["post_slot"], tw["post_why"] = day.isoformat(), slot, why
+            written += 1
+        with open(wk, "w") as fh:
+            json.dump(d, fh, indent=2)
+            fh.write("\n")
+        print(f"wrote shape + post_day to {written} post(s) in {os.path.basename(wk)}"
+              f"{f', {marked} cut or banked' if marked else ''}"
+              f"{f', kept {pinned} pinned' if pinned else ''}.")
+        print("  Pin a day against re-runs with \"post_day_locked\": true on the post.")
+        print("  Rebuild the dashboard to see the calendar: python3 build_dashboard.py\n")
 
     if undeclared_any:
         print("DECLARE THESE on the twin to make the selector deterministic:")
@@ -418,6 +695,7 @@ def main():
         print("  executable      true if the reader can run it from the post alone")
         print("  ordering_claim  true if the argument is the SEQUENCE, not the items")
         print("  friction_story  true if it carries a real failure of your own")
+        print("  deadline        ISO date the reader must act before; drives urgency")
         print("  linkedin_shape  overrides the proposal entirely "
               f"({', '.join(sorted(SHAPES))})")
 
