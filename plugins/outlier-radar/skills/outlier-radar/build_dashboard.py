@@ -133,13 +133,11 @@ ACCENT_TEXT = _bc.get("accent_text") or _hex(_mix(_ar, (0, 0, 0), 0.18))
 ACCENT_TEXT_DARK = (_bc.get("accent_text_dark")
                     or _hex(_mix(_ar, (255, 255, 255), 0.35)))
 
-# The partner pill: mark, name, link, and a one-line tagline beneath it.
-# Reach ships as the default partner. Override or clear any part in the config:
-#   "partner": ""                                 hides the pill entirely
-#   "partner_url": "https://example.com"          link target ("" = plain pill)
-#   "partner_tagline": ""                         "" hides the line under it
-#   "brand": {"partner_logo": "<svg .../>"}       inline SVG, a data: URI, or a
-#                                                 path to an .svg/.png file
+# The partner pill: mark, name, link, and the one-line tagline beneath it.
+# LOCKED, not a config surface (Alex's call, 2026-08-13): the pill is the price
+# of the free tool. Outlier Radar is built by alexmuresan.com in partnership
+# with Reach, and every install renders that credit. The source is open, so a
+# fork can strip it; the config deliberately cannot, and no key is read here.
 REACH_MARK = ('<svg class="pmark" width="16" height="16" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">'
               '<rect width="32" height="32" rx="8" fill="#0F0F0F"></rect>'
               '<rect x="1" y="1" width="30" height="30" rx="7" stroke="white" stroke-opacity="0.12" stroke-width="2"></rect>'
@@ -150,64 +148,15 @@ REACH_MARK = ('<svg class="pmark" width="16" height="16" viewBox="0 0 32 32" fil
               '<defs><linearGradient id="ycReachA" x1="23.199" y1="22.063" x2="16.276" y2="16.48" gradientUnits="userSpaceOnUse"><stop stop-color="white"></stop><stop offset="1" stop-color="#00BED8"></stop></linearGradient>'
               '<linearGradient id="ycReachB" x1="25.875" y1="15.683" x2="11.93" y2="7.003" gradientUnits="userSpaceOnUse"><stop stop-color="#00BED8"></stop><stop offset="0.58" stop-color="white"></stop></linearGradient></defs></svg>')
 
-PARTNER = CFG.get("partner")
-PARTNER = "Reach" if PARTNER is None else str(PARTNER).strip()
-PARTNER_URL = CFG.get("partner_url", BRAND.get("partner_url"))
-PARTNER_URL = ("https://usereach.ai" if PARTNER_URL is None
-               else str(PARTNER_URL).strip())
-PARTNER_TAGLINE = CFG.get("partner_tagline")
-if PARTNER_TAGLINE is None:
-    PARTNER_TAGLINE = ("Get recommended on AI when your customer "
-                       "is looking for options")
-_plogo = BRAND.get("partner_logo", CFG.get("partner_logo"))
-_plogo = "" if _plogo is None else str(_plogo).strip()
+PARTNER = "Reach"
+PARTNER_URL = "https://usereach.ai"
+PARTNER_TAGLINE = ("Get recommended on AI when your customer "
+                   "is looking for options")
 
-
-def _partner_mark(src: str) -> str:
-    if not src:
-        return ""
-    if src.lstrip().startswith("<svg"):
-        s = src.lstrip()
-        # tag the element so the pill's own sizing rule applies to it
-        if "class=" not in s[:s.find(">") + 1]:
-            s = s.replace("<svg", '<svg class="pmark"', 1)
-        return s
-    if src.startswith("data:"):
-        return f'<img class="pmark" src="{src}" alt="" width="16" height="16">'
-    path = os.path.abspath(os.path.expanduser(src))
-    if os.path.exists(path):
-        if path.lower().endswith(".svg"):
-            return _partner_mark(open(path, encoding="utf-8").read())
-        import base64
-        mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
-        b64 = base64.b64encode(open(path, "rb").read()).decode()
-        return (f'<img class="pmark" src="data:{mime};base64,{b64}" alt="" '
-                f'width="16" height="16">')
-    print(f"brand.partner_logo not found, rendering the pill without a mark: {src}")
-    return ""
-
-
-# default to the bundled Reach mark, but only while Reach is the partner: a
-# different partner name with Reach's logo beside it would be a false credit
-if not _plogo and PARTNER.lower() == "reach":
-    _plogo = REACH_MARK
-_pmark = _partner_mark(_plogo)
-
-if PARTNER and PARTNER_URL:
-    _pill = (f'<a class="partner" href="{PARTNER_URL}" target="_blank" '
-             f'rel="noopener">with {_pmark}<b>{PARTNER}</b></a>')
-elif PARTNER:
-    _pill = f'<span class="partner">with {_pmark}<b>{PARTNER}</b></span>'
-else:
-    _pill = ""
-
-if _pill and PARTNER_TAGLINE:
-    _esc = (PARTNER_TAGLINE.replace("&", "&amp;").replace("<", "&lt;")
-            .replace(">", "&gt;"))
-    PARTNER_HTML = (f'<div class="partnerwrap">{_pill}'
-                    f'<div class="ptag">{_esc}</div></div>')
-else:
-    PARTNER_HTML = _pill
+PARTNER_HTML = (f'<div class="partnerwrap">'
+                f'<a class="partner" href="{PARTNER_URL}" target="_blank" '
+                f'rel="noopener">with {REACH_MARK}<b>{PARTNER}</b></a>'
+                f'<div class="ptag">{PARTNER_TAGLINE}</div></div>')
 
 week_files = sorted(glob.glob(os.path.join(WS, "weeks", "*.json")), reverse=True)
 if not week_files and WS != HERE:

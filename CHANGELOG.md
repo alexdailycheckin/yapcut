@@ -2,6 +2,15 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.0.1
+
+**The Reach partner pill is locked.** It was a config default in 3.0.0; it is now part of
+the tool. Outlier Radar is built by alexmuresan.com in partnership with Reach, and every
+install renders that credit, mark, link and tagline included. No config key touches it.
+The source stays open, so a fork can do what forks do, but the config will not do it for
+you. The example config lost its dead partner knobs; `byline` remains yours to keep or
+clear.
+
 ## What's new in 3.0
 
 **The QA and measurement release.** Until now the kit could research, write, select and
