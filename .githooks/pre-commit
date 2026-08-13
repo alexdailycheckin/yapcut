@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# YapCut privacy gate. Refuses, never warns, same stance as prose-gate.
+#
+# This repo is PUBLIC and it is also the single source for Alex's live install:
+# his private config and data sit inside this tree, fenced by .gitignore. The
+# one habit that defeats a .gitignore is `git add -f` or a force-add sweep, and
+# the one habit that leaks without any force is committing generic-looking
+# files that carry private strings. This hook closes both.
+#
+# Install once per clone:  git config core.hooksPath .githooks
+
+set -euo pipefail
+
+fail() { echo "PRE-COMMIT GATE: $1" >&2; exit 1; }
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$STAGED" ] && exit 0
+
+# 1. Private files must never be staged, even force-added.
+#    weeks/*.json except the bundled example; filled configs; performance data;
+#    rendered dashboards; the creator's own media.
+while IFS= read -r f; do
+  case "$f" in
+    *"/weeks/0000-00-00-example.json") ;;
+    *"/weeks/"*.json) fail "week data staged: $f (private, lives only in the workspace)" ;;
+    *"/performance/"*) fail "performance data staged: $f" ;;
+    *"/radar-config.json") fail "filled radar-config staged: $f (radar-config.example.json ships instead)" ;;
+    *"/brand-config.json") fail "filled brand-config staged: $f (brand-config.example.json ships instead)" ;;
+    *"/dashboard.html") fail "rendered dashboard staged: $f" ;;
+    *"/assets/"*) fail "creator media staged: $f (the sfx pack is generated, beds are personal)" ;;
+    *".bak"*|*".pre-symlink"*) fail "backup file staged: $f" ;;
+  esac
+done <<< "$STAGED"
+
+# 2. Private strings must never appear in staged CONTENT. Reach methods, the
+#    vault, Alex's machine paths. The Reach partner pill and byline are the
+#    deliberate exceptions and they never use these strings.
+PATTERNS='[redacted]|[redacted]|[redacted]|[redacted]|~|Desktop/Claude/(Reach|outlier-radar/weeks|outlier-radar/performance)'
+# The hook itself carries the patterns (that is what a denylist is), so its own
+# diff is excluded from the content scan; path rules above still apply to it.
+HITS=$(git diff --cached -U0 -- . ':(exclude).githooks/*' \
+       | grep -E "^\+" | grep -Ev "^\+\+\+" | grep -En "$PATTERNS" || true)
+if [ -n "$HITS" ]; then
+  echo "$HITS" | head -5 >&2
+  fail "staged content carries a private marker (patterns: $PATTERNS)"
+fi
+
+exit 0
