@@ -46,7 +46,7 @@ OVRFILE="$WD/${OUTBASE}_overlays.json"; [ -f "$OVRFILE" ] || OVRFILE=""
 # use it for caption-only fixes, or when the raw is gone and the cut survives.
 if [ "${YAP_FROM_CUT:-0}" != "1" ]; then
 python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$WD/full_${OUTBASE}.mp4" \
-  --silence-db -42 --padr 0.12 --padl 0.10 --min-gap 0.55 --min-seg 0.45 --d 0.10
+  --silence-db -42 --auto-floor --head-trim --padr 0.12 --padl 0.10 --min-gap 0.55 --min-seg 0.45 --d 0.10
 fi
 echo "--- blackdetect (cut) ---"
 ffmpeg -nostdin -i "$WD/full_${OUTBASE}.mp4" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
@@ -90,7 +90,7 @@ fi
 
 python3 "$SCRIPTS/build_ass.py" --words "$WD/w_${OUTBASE}.json" --out "$WD/cap_${OUTBASE}.ass" \
   --preset minimal --font "$CFONT" --caps "$CCASE" --accent none --active-scale 112 \
-  --hook-y 430 --hook "$HOOK" --hook-anim "$HANIM" --hook-style "$HSTYLE" --hook-spark "$HOOKWORD" \
+  --hook-y 430 --hook "$HOOK" --hook-secs "${HOOK_SECS:-5.0}" --hook-anim "$HANIM" --hook-style "$HSTYLE" --hook-spark "$HOOKWORD" \
   --accent-hex "$ACCENT" --overlays "$OVRFILE" --corrections "$CORR" >/dev/null
 
 # 3. brand touches: accent spark on the hook word + contact block at the CTA tail
@@ -132,6 +132,16 @@ fi
 
 # 4. compose: burn captions, loudnorm -14, clean CFR re-encode
 bash "$SCRIPTS/compose_ass.sh" "$WD/full_${OUTBASE}.mp4" "$WD/cap_${OUTBASE}.ass" "$OUT" 2>&1 | grep -E "wrote|I:"
+
+# 4a. burn image PiPs (logos, article/headline screenshots). libass cannot
+# composite raster, so build_ass only drew the text overlays (source/counter);
+# the `pip` entries in the overlays JSON are burned here so they never silently
+# drop. Real screenshots/logos only (no AI), per the hard rule.
+if [ -n "$OVRFILE" ] && [ -f "$OVRFILE" ]; then
+  python3 "$SCRIPTS/burn_pips.py" --video "$OUT" --overlays "$OVRFILE" --workdir "$WD" \
+    --meta "$WD/cap_${OUTBASE}.ass.meta.json" --out "$OUT.pips.mp4"
+  [ -f "$OUT.pips.mp4" ] && mv "$OUT.pips.mp4" "$OUT"
+fi
 ffmpeg -nostdin -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  FINAL: NO black frames"
 

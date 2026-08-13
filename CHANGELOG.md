@@ -2,6 +2,71 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.0
+
+**The QA and measurement release.** Until now the kit could research, write, select and
+render, but it could not grade its own output or learn from what shipped. Both halves of
+that loop now ship, ported from the author's live install, where every piece below ran for
+weeks before landing here.
+
+**Outlier Radar**
+
+- **`check_fidelity.py`, the machine QA gate.** Voice fingerprint on testimony scripts
+  (does the script move like the creator talks), and a LinkedIn pass over the `linkedin[]`
+  lane plus every embedded twin: every number written as a numeral, every figure backed by
+  a source URL, duplicate ids caught (tracking is keyed on id, so a duplicate silently
+  overwrites one post's numbers with the other's), and `qa` limited to its two legal
+  values. `passed` means shippable today; `pending-approval` means clean and waiting on
+  your yes. The old `pre-qa` limbo state is gone: it rendered identically to "nothing ever
+  read this", which is how posts sat unreviewed for weeks.
+- **`log_perf.py`, the ledger.** `--paste` logs a week of video views in one paste,
+  `--linkedin` logs twin impressions, `--followers` tracks the follower delta, `--due`
+  lists what was measured too early, `--report` reads back what works by mechanic, shape
+  and job. Append-only jsonl; anything younger than 48h is stored but never ranked,
+  because early numbers measure age, not quality.
+- **`ingest_feed.py`.** Paste the whole analytics table, get clean performance rows. Dry
+  by default, `--commit` writes. One prompt per post is how a performance folder stays
+  empty for ten weeks.
+- **`visual_lint.py`, the feed-asset floor.** Measures a render against the feed's own
+  background before you post it: a cream card on LinkedIn's cream page reads as no image
+  at all (the case that created this gate measured 4.9% edge delta against a 25% floor).
+- **`hook_lint.py` v4.** Now also gates closing lines, including the banned two-sentence
+  antithesis closer, because the same closing mold on two adjacent posts reads as a
+  template even when the posts are good.
+- **`select_linkedin.py` current generation.** Twin cap with banked posts (a post that
+  loses its slot carries to a future week instead of dying), a posting calendar with
+  urgency-ordered slots, and per-post `post_day`/`post_slot`/`post_why` the dashboard
+  renders as a publishing plan. Your subject lane and weekly mix now live in
+  `radar-config.json` (`selector.lane`, `selector.target_mix`) instead of being anyone's
+  hardcode.
+- **Dashboard.** Three QA states rendered honestly (QA passed / Awaiting approval /
+  Pre-QA as a visible bug flag), the posting calendar, banked-post section, accent
+  derivatives computed from your brand accent instead of shipping the author's palette,
+  `brand.fonts.google_import` honored, and the partner pill now carries an optional
+  tagline (`partner_tagline` in the config clears or replaces it).
+- **References.** The LinkedIn selector doctrine is current, and three craft files ship:
+  `post-types.md` (pick the screen shape from substance before writing a word),
+  `video-scripting-as-a-science.md`, and `shorts-craft-2026.md`.
+
+**TikTok Yap Editor**
+
+- **`burn_pips.py`.** Receipt PiPs (logos, headline screenshots) burned onto the finished
+  clip with the hard text-collision rule: a PiP may never sit on the hook or the caption
+  line, offenders are auto-fitted or shrunk, text always wins. Wired into `yapfull.sh`
+  post-compose, so `pip` entries in the overlays JSON never silently drop.
+- **`reanchor_overlays.py`.** Re-anchor hand-placed receipts across a re-cut by
+  spoken-word index instead of re-timing them by hand.
+- **Two-pass loudness in `compose_ass.sh`.** Single-pass loudnorm under-shoots on short
+  clips with a loud transient (a 17s clip with a gong measured -17.6 LUFS against the -14
+  target, thin in the feed). Pass 1 measures, pass 2 applies a clamped linear gain with a
+  limiter guarding the ceiling. The 48kHz sample-rate pin stays.
+- **`build_ass.py` subheading fix.** In the minimal hook style, context lines after the
+  big statement are drawn smaller and are now MEASURED at that size too; measuring them
+  full-size wrapped one-line subheadings and silently broke the intended look.
+- **Cut stage defaults.** `--auto-floor` (measure each take's noise floor and lift the
+  silence gate above it, so a take with loud room tone still gets cut) and `--head-trim`
+  now on by default via `yapfull.sh`, and `HOOK_SECS` is honored end to end.
+
 ## What's new in 2.6
 
 **Outlier Radar picks the LinkedIn post's own shape, and tells you what order to publish in.**

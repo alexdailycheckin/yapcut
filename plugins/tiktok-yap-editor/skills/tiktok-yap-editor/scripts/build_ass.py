@@ -149,39 +149,60 @@ def _measurer(font_name, spacing_px):
 
 
 def fit_hook(hlines, font_name, caps, spacing_px, base_size,
-             safe_w, max_lines, min_size):
+             safe_w, max_lines, min_size, sub_frac=None):
     """Wrap + shrink author hook lines so the widest fits in safe_w.
 
     hlines: author segments (already split on '|'); each is a HARD break we
-    keep, but we may wrap a long segment further. Returns (lines, size)."""
+    keep, but we may wrap a long segment further.
+
+    sub_frac: set it for the 'minimal' style, where every segment AFTER the
+    first is DRAWN smaller (fs = size*sub_frac). Those segments must be
+    MEASURED at that smaller size too. Measuring them at the big-line size
+    wrapped a subheading that comfortably fitted one line: "first sale sounds
+    like" split into "first sale" / "sounds like", and the wrap loop then saw
+    3 lines, hit max_lines and returned without ever shrinking. A subheading
+    is a single line by design, so this silently broke the intended look.
+
+    Returns (lines, size, n_head), where n_head = how many of the returned
+    lines belong to the first segment (the big statement)."""
     measure = _measurer(font_name, spacing_px)
     segs = [(l.upper() if caps else l).strip() for l in hlines if l.strip()]
     if not segs:
-        return [], base_size
+        return [], base_size, 0
+
+    def sub_of(size):
+        return max(min_size // 2, int(size * sub_frac)) if sub_frac else size
 
     def wrap_at(size):
-        lines = []
-        for seg in segs:
+        sub_size = sub_of(size)
+        lines, n_head = [], 0
+        for i, seg in enumerate(segs):
+            sz = size if i == 0 else sub_size
             cur = ""
             for word in seg.split():
                 trial = (cur + " " + word).strip()
-                if not cur or measure(trial, size) <= safe_w:
+                if not cur or measure(trial, sz) <= safe_w:
                     cur = trial
                 else:
                     lines.append(cur); cur = word
             if cur:
                 lines.append(cur)
-        return lines
+            if i == 0:
+                n_head = len(lines)
+        return lines, n_head
 
     size = base_size
     while size >= min_size:
-        lines = wrap_at(size)
-        widest = max((measure(l, size) for l in lines), default=0)
+        lines, n_head = wrap_at(size)
+        sub_size = sub_of(size)
+        widest = max((measure(l, size if i < n_head else sub_size)
+                      for i, l in enumerate(lines)), default=0)
         if widest <= safe_w and len(lines) <= max_lines:
-            return lines, size
+            return lines, size, n_head
         size -= 4
     # floor: best effort at min_size (still wrapped, so worst case it shrank)
-    return wrap_at(min_size), min_size
+    lines, n_head = wrap_at(min_size)
+    return lines, min_size, n_head
 
 
 def main():
@@ -291,8 +312,8 @@ def main():
 
     # --- hook line (upper-middle) ---
     # hook_band = the pixel rows the fitted hook block actually occupies while
-    # it is on screen. Written to <out>.meta.json so any downstream
-    # PiP burner can keep raster receipts OFF the hook text.
+    # it is on screen. Written to <out>.meta.json so burn_pips.py can keep
+    # evidence PiPs OFF the hook text (Jul 26: logos burned straight over it).
     hook_band = None
     if a.hook:
         hlines = [s for s in a.hook.split("|") if s]
@@ -301,19 +322,24 @@ def main():
             # shrink until the widest line fits a title-safe width. Author '|'
             # breaks are kept as hard breaks; we only ADD breaks / shrink.
             safe_w = a.hook_safe_frac * W
-            disp_lines, fit_size = fit_hook(
+            SUB_FRAC = 0.55
+            disp_lines, fit_size, n_head = fit_hook(
                 hlines, p["font"], p["caps"], p["spacing"],
-                p["hook_size"], safe_w, a.hook_max_lines, a.hook_min_size)
+                p["hook_size"], safe_w, a.hook_max_lines, a.hook_min_size,
+                sub_frac=SUB_FRAC if a.hook_style == "minimal" else None)
             if fit_size != p["hook_size"]:
                 print(f"  hook auto-fit: {p['hook_size']}px -> {fit_size}px, "
                       f"{len(disp_lines)} line(s) (safe width {int(safe_w)}px)")
             p["hook_size"] = fit_size
-            if a.hook_style == "minimal" and len(disp_lines) > 1:
-                # minimal look: big statement line + smaller context line(s)
-                sub = max(a.hook_min_size // 2, int(fit_size * 0.55))
-                full = disp_lines[0] + "".join(
-                    f"\\N{{\\fs{sub}}}{ln}" for ln in disp_lines[1:])
-                block_h = 1.25 * (fit_size + sub * (len(disp_lines) - 1))
+            if a.hook_style == "minimal" and len(disp_lines) > n_head:
+                # minimal look: big statement line(s) + smaller context line(s).
+                # sub MUST match fit_hook's sub_of() or the measurement that
+                # decided the wrap no longer describes what gets drawn.
+                sub = max(a.hook_min_size // 2, int(fit_size * SUB_FRAC))
+                full = "\\N".join(disp_lines[:n_head]) + "".join(
+                    f"\\N{{\\fs{sub}}}{ln}" for ln in disp_lines[n_head:])
+                block_h = 1.25 * (fit_size * n_head
+                                  + sub * (len(disp_lines) - n_head))
             else:
                 full = "\\N".join(disp_lines)
                 block_h = 1.25 * fit_size * len(disp_lines)
@@ -445,8 +471,8 @@ def main():
         lines.append(f"Dialogue: 0,{cs(st)},{cs(en)},{style},,0,0,0,,{txt}")
 
     open(a.out, "w").write("\n".join(lines) + "\n")
-    # geometry sidecar: downstream PiP burners read this to keep raster
-    # receipts off the hook text and the caption line (they cannot parse .ass).
+    # geometry sidecar: burn_pips.py reads this to keep raster PiPs off the
+    # hook text and the caption line (it cannot parse .ass itself).
     meta = {"hook": hook_band,
             "caption_band": {"top": p["cap_y"] - 100, "bottom": p["cap_y"] + 100},
             "width": W, "height": H}

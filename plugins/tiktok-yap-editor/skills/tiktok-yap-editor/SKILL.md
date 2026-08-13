@@ -369,8 +369,12 @@ edges), `--min-gap 0.55` (only pauses this long become cuts; 0.3-0.5s pauses
 are cadence, cutting them machine-guns the edit), `--min-seg 0.45` (no
 flash-frame segments; shorter runs get bridged, never across >0.75s of pause),
 `--min-cut 0.25` (a cut must remove at least this much to earn its visual
-jump), `--d 0.10`. It writes `keeps_<out>.json` (the final cut points) for
-the QA seam audit. Do NOT snap cuts to whisper word timings: DTW tokens tile
+jump), `--d 0.10`. `--auto-floor` (on by default via yapfull) measures each
+take's noise floor and raises the silence gate above it: without it, a take
+whose room tone sits above the fixed gate never reads as "silence" anywhere,
+so NOT ONE beat gets cut and every line-by-line pause ships. `--head-trim`
+drops the dead lead-in before the first word. It writes `keeps_<out>.json`
+(the final cut points) for the QA seam audit. Do NOT snap cuts to whisper word timings: DTW tokens tile
 the whole timeline (spans absorb pauses), so word-snapping degenerates into
 padding every cut with dead air.
 
@@ -549,6 +553,10 @@ the whole value.
 ### B2. Assign a clip to each beat + write beats.json
 Match each scripted beat to its best visual (the one whose action illustrates the
 line), pick an in-point, and set the play length from the beat's target duration.
+Mode B gets the picture for free, so the legibility law bites harder here: you
+are choosing a shot for every line, and a clip that only connects to its line
+via a metaphor is the default failure of this mode. Write the VO line and its
+`reads_as` match together, never the script first and the clips after.
 ```json
 [
   {"src":"/abs/IMG_1.MOV","start":2.0,"target_dur":2.2,"role":"hook","text":"VO line you read","push":true},

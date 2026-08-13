@@ -273,11 +273,11 @@ HTML = r"""<!DOCTYPE html>
   .wordmark{font-family:var(--display);font-size:18px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
   .byline{font-size:12.5px;color:var(--muted);line-height:1.2}
   .partner{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:7px 13px;white-space:nowrap;text-decoration:none}
+  a.partner:hover{border-color:var(--faint);background:var(--surface2)}
+  .partner b{color:var(--ink)}
   .partner .pmark{border-radius:5px;display:block;flex:none}
   .partnerwrap{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
   .ptag{font-size:11px;line-height:1.3;color:var(--muted);max-width:252px;letter-spacing:.01em}
-  a.partner:hover{border-color:var(--faint);background:var(--surface2)}
-  .partner b{color:var(--ink)}
   select{font:600 14px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 12px;cursor:pointer}
   select:hover{border-color:var(--faint)}
   .iconbtn{width:38px;height:38px;flex:none;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;display:grid;place-items:center;font-size:15px}
@@ -436,6 +436,23 @@ HTML = r"""<!DOCTYPE html>
   .twinmeta{margin-top:12px}
   .promptbox{background:var(--surface2);border-radius:10px;padding:12px 14px;white-space:pre-wrap;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:8px}
 
+  /* ---------- posting calendar ---------- */
+  .cal{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .calday{display:flex;flex-direction:column;gap:8px;min-width:0}
+  .caldate{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 2px;white-space:nowrap}
+  .caldate.today{color:var(--accent-text)}
+  .calslot{width:100%;text-align:left;font:inherit;color:var(--ink);cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow);flex:1;display:flex;flex-direction:column;gap:7px;min-height:136px;transition:border-color .15s}
+  .calslot:hover{border-color:var(--faint)}
+  .calslot .n{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.08em;color:var(--faint)}
+  .calslot .h{font-family:var(--display);font-size:14px;font-weight:700;line-height:1.32;letter-spacing:-.01em}
+  .calslot .why{font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:auto}
+  .calslot.posted{background:var(--accent-soft);border-color:var(--accent)}
+  .calslot.posted .n{color:var(--accent-text)}
+  .calempty{border:1px dashed var(--line-strong);border-radius:14px;flex:1;min-height:136px;display:grid;place-items:center;color:var(--faint);font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+  .calnote{font-size:12.5px;color:var(--muted);margin:12px 0 0;line-height:1.5}
+  @media(max-width:1000px){.cal{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.cal{grid-template-columns:1fr}.calslot,.calempty{min-height:0}}
+
   /* ---------- inspiration ---------- */
   .inspgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
   .insp{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
@@ -453,7 +470,7 @@ HTML = r"""<!DOCTYPE html>
   .empty p{color:var(--muted);font-size:15px;margin:10px auto 0;max-width:44ch}
 
   /* ---------- film mode (teleprompter, always dark) ---------- */
-  .film{position:fixed;inset:0;z-index:100;background:#141310;color:#F4F2EA;display:none;flex-direction:column}
+  .film{position:fixed;inset:0;z-index:100;background:#141310;color:#F4F2EA;display:none;flex-direction:column;--accent-text:__ACCENT_TEXT_DARK__}
   .film.show{display:flex}
   .filmbar{display:flex;align-items:center;gap:16px;padding:16px 28px;border-bottom:1px solid #2A2924;flex:none}
   .filmbar .lab{color:#A5A094}
@@ -494,8 +511,8 @@ HTML = r"""<!DOCTYPE html>
   }
   @media(max-width:640px){
     .wrap{padding:0 16px 80px}
-    .topbar .in{padding:12px 16px;flex-wrap:wrap;gap:10px}
     .ptag{display:none}
+    .topbar .in{padding:12px 16px;flex-wrap:wrap;gap:10px}
     .hookgrid{grid-template-columns:1fr}
     .inspgrid{grid-template-columns:1fr}
     .premise,.hookgrid,.cardactions,.track,.detail,.twin{margin-left:0}
@@ -598,7 +615,19 @@ function applyTheme(mode){
 function toggleTheme(){ applyTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"); }
 
 function officeOf(w){ return (w.office&&w.office.length)?w.office:(w.food||[]); }
-function liPostsOf(w){ return (w.linkedin&&w.linkedin.length)?w.linkedin:(w.gtm_linkedin||[]); }
+/* Three sources feed the LinkedIn tab and they are not interchangeable.
+   soloPosts  = linkedin[], written for the feed alone, no video behind them.
+   leaderPosts= gtm_linkedin[], mined from the leaders Alex studies.
+   twins      = a video script's twin, and only when it earned a slot. A twin the
+                selector cut still lives in the week file so the script keeps its
+                LinkedIn draft, but it is not part of this week's feed plan. */
+function soloPostsOf(w){ return (w.linkedin||[]).filter(x=>x.banked!==true); }
+function bankedPostsOf(w){ return (w.linkedin||[]).filter(x=>x.banked===true); }
+function leaderPostsOf(w){ return w.gtm_linkedin||[]; }
+function liveTwinsOf(w){
+  return (w.distribution||[]).filter(x=>x.linkedin && x.linkedin.twin_cut!==true
+                                        && t(x.id).status!=="ignored");
+}
 function poolCount(arr){return (arr||[]).filter(x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";}).length;}
 function updateTabCounts(w){
   if(!w) return;
@@ -608,7 +637,7 @@ function updateTabCounts(w){
   set("dist", poolCount(w.distribution));
   set("office", poolCount(office));
   set("filmed", all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length);
-  set("linkedin", (w.distribution||[]).filter(x=>x.linkedin && t(x.id).status!=="ignored").length + liPostsOf(w).length);
+  set("linkedin", liveTwinsOf(w).length + soloPostsOf(w).length + leaderPostsOf(w).length);
   set("insp", (w.inspiration||[]).length);
 }
 
@@ -865,9 +894,19 @@ function detailBlocks(x){
   return out;
 }
 
+/* Three states, not two. The chip used to be binary on qa==="passed", so a post
+   that had cleared the gate and was only waiting on Alex's yes rendered as
+   "Pre-QA", indistinguishable from one nothing had ever read. "Pre-QA" now fires
+   only on a qa value the engine does not define, which is a bug worth seeing. */
+function qaChip(qa){
+  if(qa==="passed") return `<span class="chip qa">QA passed</span>`;
+  if(qa==="pending-approval") return `<span class="chip draft">Awaiting approval</span>`;
+  return qa ? `<span class="chip draft">Pre-QA</span>` : "";
+}
+
 function chipRow(x, r){
   const chips=[];
-  chips.push(x.qa==="passed" ? `<span class="chip qa">QA passed</span>` : `<span class="chip draft">Pre-QA</span>`);
+  chips.push(qaChip(x.qa) || `<span class="chip draft">Pre-QA</span>`);
   if(r.status==="posted") chips.push(`<span class="chip posted">Posted</span>`);
   if(x.post_type) chips.push(`<span class="chip">${esc(x.post_type)}</span>`);
   if(x.hook_family) chips.push(`<span class="chip">${esc(String(x.hook_family).replace(/^\d+\s*-\s*/,"").split("/")[0].trim())}</span>`);
@@ -935,16 +974,102 @@ function visualBlock(v){
   return `<div class="block" style="margin-top:14px"><div class="lab">Asset · ${meta}</div>${v.why?`<p class="psy">${esc(v.why)}</p>`:""}<div class="promptbox">${esc(v.prompt||"")}</div><button class="btn" style="margin-top:8px" onclick="copyText(this.previousElementSibling.innerText,'Higgsfield prompt copied')">Copy Higgsfield prompt</button></div>`;
 }
 const LI_STATES=["idea","scheduled","posted"];
+/* ---------- posting calendar ---------- */
+const CAL_DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const CAL_MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function isoParts(iso){
+  const p=String(iso||"").split("-");
+  return (p.length===3 && p.every(v=>v.length && !isNaN(+v))) ? p.map(Number) : null;
+}
+/* Parsed as UTC on purpose: a local-time parse of a bare ISO date shifts the weekday
+   by one west of Greenwich, which would print the wrong day name. */
+function fmtDay(iso){
+  const p=isoParts(iso); if(!p) return "";
+  return CAL_DOW[new Date(Date.UTC(p[0],p[1]-1,p[2])).getUTCDay()]+" "+p[2]+" "+CAL_MON[p[1]-1];
+}
+function todayIso(){
+  const n=new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`;
+}
+
+/* Renders whatever select_linkedin.py assigned. No day in the week file means no
+   calendar, so older weeks degrade to the plain card list instead of showing a fake week. */
+function calendarBlock(w){
+  const rows=[];
+  liveTwinsOf(w).forEach(x=>{
+    if(x.linkedin.post_day) rows.push({p:x.linkedin, title:x.title||x.linkedin.title||"Post"});
+  });
+  soloPostsOf(w).concat(leaderPostsOf(w)).forEach(x=>{
+    if(x.post_day && t(x.id).status!=="ignored") rows.push({p:x, title:x.title||x.type||"Post"});
+  });
+  if(!rows.length) return "";
+
+  const used=[...new Set(rows.map(r=>r.p.post_day))].sort();
+  const first=isoParts(used[0]);
+  const week=[];
+  if(first){
+    let d=new Date(Date.UTC(first[0],first[1]-1,first[2]));
+    while(week.length<5){
+      if(d.getUTCDay()>=1 && d.getUTCDay()<=5) week.push(d.toISOString().slice(0,10));
+      d=new Date(d.getTime()+86400000);
+    }
+  }
+  const today=todayIso();
+  const cols=[...new Set(week.concat(used))].sort().map(iso=>{
+    const mine=rows.filter(r=>r.p.post_day===iso)
+                   .sort((a,b)=>(a.p.post_slot||99)-(b.p.post_slot||99));
+    const cells = mine.length ? mine.map(r=>{
+      const posted=t(r.p.id).status==="posted";
+      return `<button class="calslot ${posted?'posted':''}" onclick="jumpToPost('${r.p.id}')">
+        <span class="n">${String(r.p.post_slot||"").padStart(2,"0")} &middot; 9am${posted?" &middot; posted":""}</span>
+        <span class="h">${esc(r.title)}</span>
+        ${r.p.post_day_locked?'<span class="chip">Pinned</span>':""}
+        <span class="why">${esc(r.p.post_why||"")}</span>
+      </button>`;
+    }).join("") : `<div class="calempty">open</div>`;
+    const isToday = iso===today;
+    return `<div class="calday">
+      <div class="caldate ${isToday?'today':''}">${fmtDay(iso)}${isToday?" &middot; today":""}</div>
+      ${cells}</div>`;
+  }).join("");
+
+  return `<div class="sechdr">Posting week &middot; ordered by urgency</div>
+    <div class="cal">${cols}</div>
+    <p class="calnote">Order is decay order, not quality order: the item that loses value
+    soonest goes first, score only breaks a tie. Re-run
+    <code>scripts/select_linkedin.py</code> to reassign, or set
+    <code>"post_day_locked": true</code> on a twin to pin it.</p>`;
+}
+
+function jumpToPost(id){
+  const el=document.getElementById("licard-"+id);
+  if(!el) return;
+  el.scrollIntoView({behavior:"smooth", block:"center"});
+  el.style.borderColor="var(--accent)";
+  setTimeout(()=>{ el.style.borderColor=""; }, 1400);
+}
+
 function liCard(x, srcTitle, i){
   const r=t(x.id); const done=r.status==="posted";
   const title = srcTitle || x.title || x.type || "Post";
-  const typeChip = (srcTitle||x.title) && x.type ? `<span class="chip">${esc(x.type)}</span>` : "";
-  return `<div class="card ${done?'done':''}">
+  /* The FEED shape, assigned by select_linkedin.py from the substance and persisted to
+     `shape`. Never read linkedin_format here: that key is the human override the selector
+     reads as an instruction, so echoing it back would be circular. Falls back to x.type
+     only for weeks built before the selector existed, where that field still held whatever
+     the video happened to be. */
+  const shape = x.shape ? x.shape.replace(/^F\d_/,"") : x.type;
+  const typeChip = shape ? `<span class="chip">${esc(shape)}</span>` : "";
+  const jobChip = x.job ? `<span class="chip">${esc(x.job)}</span>` : "";
+  const cutChip = x.twin_cut===true ? `<span class="chip">not twinned</span>`
+                : x.banked===true ? `<span class="chip">banked</span>` : "";
+  const dayChip = x.post_day ? `<span class="chip">${fmtDay(x.post_day)} 9am</span>` : "";
+  return `<div class="card ${done?'done':''}" id="licard-${x.id}">
     <div class="cardtop">
       <span class="idx">${String(i+1).padStart(2,"0")}</span>
       <div class="cardtitle">
         <h3 class="ttl">${esc(title)}</h3>
-        <div class="chips">${x.qa==="passed"?'<span class="chip qa">QA passed</span>':(x.qa?'<span class="chip draft">Pre-QA</span>':'')}${done?'<span class="chip posted">Posted</span>':''}${r.status==="scheduled"?'<span class="chip">Scheduled</span>':''}${typeChip}${x.hook_arch?`<span class="chip">${esc(x.hook_arch)}</span>`:""}</div>
+        <div class="chips">${dayChip}${qaChip(x.qa)}${done?'<span class="chip posted">Posted</span>':''}${r.status==="scheduled"?'<span class="chip">Scheduled</span>':''}${cutChip}${typeChip}${jobChip}${x.hook_arch?`<span class="chip">${esc(x.hook_arch)}</span>`:""}</div>
       </div>
       <div class="cardops"><button class="btn" onclick="copyText(this.closest('.card').querySelector('.twinbody').innerText,'Post copied')">Copy post</button></div>
     </div>
@@ -1043,11 +1168,30 @@ function render(){
   else if(TAB==="office"){ html=pool(office).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored scripts.":"Nothing left to film in this lane. Everything is filmed, posted, or ignored."; }
   else if(TAB==="filmed"){ const items=[].concat(w.distribution||[], office).filter(x=>["filmed","posted"].includes(t(x.id).status)); html=items.map((x,i)=>scriptCard(x, office.includes(x), i)).join(""); empty="Nothing filmed yet. Mark a script Filmed and it lands here for metric tracking."; }
   else if(TAB==="linkedin"){
-    const gtm = liPostsOf(w).filter(x=>t(x.id).status!=="ignored").map((x,i)=>liCard(x, "", i));
-    const twinSrc = (w.distribution||[]).filter(x=>x.linkedin && t(x.id).status!=="ignored");
-    const twins = twinSrc.map((x,i)=>liCard(x.linkedin, x.title, i));
-    html = (gtm.length?`<div class="sechdr">__LEADERS_HDR__</div>`+gtm.join(""):"")
-         + (twins.length?`<div class="sechdr">Twins of this week's videos</div>`+twins.join(""):"");
+    /* Cards follow the selector's posting order so the list agrees with the calendar
+       above it. Anything without an assigned slot keeps its file order, at the end. */
+    const bySlot=(a,b)=>((a.post_slot||99)-(b.post_slot||99));
+    const solo = soloPostsOf(w).filter(x=>t(x.id).status!=="ignored")
+                            .slice().sort(bySlot).map((x,i)=>liCard(x, "", i));
+    const gtm = leaderPostsOf(w).filter(x=>t(x.id).status!=="ignored")
+                            .slice().sort(bySlot).map((x,i)=>liCard(x, "", i));
+    const twins = liveTwinsOf(w).slice().sort((a,b)=>bySlot(a.linkedin,b.linkedin))
+                            .map((x,i)=>liCard(x.linkedin, x.title, i));
+    /* Cut twins render last and muted. They are still worth reading (the script films
+       and ships elsewhere), but they are not part of this week's five. */
+    const cutSrc = (w.distribution||[]).filter(x=>x.linkedin && x.linkedin.twin_cut===true
+                                                  && t(x.id).status!=="ignored");
+    const cuts = cutSrc.map((x,i)=>liCard(x.linkedin, x.title, i));
+    const banked = bankedPostsOf(w).filter(x=>t(x.id).status!=="ignored")
+                            .map((x,i)=>liCard(x, "", i));
+    html = calendarBlock(w)
+         + (solo.length?`<div class="sechdr">Written for LinkedIn only</div>`+solo.join(""):"")
+         + (twins.length?`<div class="sechdr">Twins of this week's videos</div>`+twins.join(""):"")
+         + (gtm.length?`<div class="sechdr">__LEADERS_HDR__</div>`+gtm.join(""):"")
+         + (cuts.length?`<div class="sechdr">Not twinned this week &middot; films and ships on other platforms</div>`
+             +`<div style="opacity:.55">`+cuts.join("")+`</div>`:"")
+         + (banked.length?`<div class="sechdr">Banked &middot; written and holding for a future week</div>`
+             +`<div style="opacity:.55">`+banked.join("")+`</div>`:"");
     empty="No LinkedIn posts this week.";
   }
   else if(TAB==="insp"){ const cards=(w.inspiration||[]).map(inspCard).join(""); html=cards?`<div class="inspgrid">${cards}</div>`:""; empty="No viral inspiration logged this week."; }

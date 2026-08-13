@@ -205,14 +205,26 @@ Both at once is the sweet spot. One clean yes ships.
 5. **Write ~10 primary-lane scripts and ~10 secondary-lane scripts** in the labelled anatomy.
    Read `references/script-anatomy.md` and follow it exactly. Secondary-lane scripts must
    borrow the hook + structure from a REAL viral video (put the URL in `sources`).
-6. **QA GATE.** FIRST run the two-question gate (top of this file) on every script: neither
-   yes = the script dies here, silently, and is replaced. Then run the checklist in
-   `references/script-anatomy.md`. The one thing that always fails is no payoff (a hot take
-   with nothing under it). **Fail any script whose `psych` field is empty or generic** (it
-   must name real principles from `references/virality-psychology.md`; "it's relatable" is
-   not a mechanism). **A CTA is OPTIONAL:** default is to end on the payoff/button, because
-   watch-through is the metric and a CTA that runs past the payoff makes people drop. Mark
-   each `qa:"passed"` or `"pre-qa"`.
+6. **QA GATE.** The machine half first: `python3 check_fidelity.py --week
+   weeks/<date>.json` runs the voice fingerprint on testimony scripts AND a
+   LinkedIn pass over the `linkedin[]` lane plus every embedded twin (numeral
+   law, source law, duplicate ids, legal qa values). `python3 hook_lint.py
+   --week weeks/<date>.json` gates the batch's first and last lines (hook
+   molds, the banned two-sentence antithesis closer). Any rendered feed image
+   goes through `python3 visual_lint.py <render.png>`: a field too close to
+   the feed's own background reads as no image at all. Then the human half:
+   the two-question gate (top of this file) on every script, neither yes =
+   the script dies here, silently, and is replaced; then the checklist in
+   `references/script-anatomy.md`. The one thing that always fails is no
+   payoff (a hot take with nothing under it). **Fail any script whose `psych`
+   field is empty or generic** (it must name real principles from
+   `references/virality-psychology.md`; "it's relatable" is not a mechanism).
+   **A CTA is OPTIONAL:** default is to end on the payoff/button, because
+   watch-through is the metric and a CTA that runs past the payoff makes
+   people drop. `qa` takes exactly two values: `"passed"` (shippable today:
+   filmable for a video, postable for a written post) or
+   `"pending-approval"` (clean, waiting on the creator's yes). A third state
+   is a post nothing can promote; the gate fails on any other string.
 7. **Persist + hand off.** Write the run to `<workspace>/weeks/<YYYY-MM-DD>.json`, rebuild the
    dashboard, then route picked scripts to `tiktok-yap-editor` to cut (see Handoff).
 
@@ -270,6 +282,18 @@ tracked item (status, views, link, notes, plus its mechanic, facet, intent, and 
 across all weeks; saved into `<workspace>/performance/`, step 0 reads the newest export
 silently and biases the next batch toward what actually worked. Mention the button once
 during discovery, then never nag about it: unsustainable tracking is worse than none.
+
+For the full data path, `log_perf.py` is the ledger: `--paste` logs video views
+in one paste, `--linkedin` logs the twins (impressions, reactions, comments),
+`--followers` logs the weekly follower delta, `--due` says what was logged too
+early and has now settled, `--report` reads back what is working by mechanic,
+shape and job. It writes `<workspace>/performance/performance.jsonl`,
+append-only, latest measured-per-id wins; anything under 48h old is stored but
+never ranked, because early numbers are age, not quality. `ingest_feed.py`
+turns a pasted feed table into the same rows in one pass (dry by default,
+`--commit` writes), because one input() prompt per post is how a performance
+folder stays empty for ten weeks. The selector's starting weights are priors;
+these logs are what replace them with your own numbers.
 
 ## Trend creation (the first-mover lane, every run)
 Riding trends is defence; creating them is the lean. A trend is a template other people can
