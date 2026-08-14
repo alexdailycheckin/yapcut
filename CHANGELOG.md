@@ -2,6 +2,13 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.2.1
+
+**The masthead gets out of the way.** It was eating a quarter of the viewport on
+a laptop; it is now 125px instead of 215px. The wordmark sits smaller against the
+dog so the mark leads, the byline is flush to the lockup's left edge, and the
+accent bloom behind the header is gone. The page grain stays.
+
 ## What's new in 3.2
 
 **YapCut has a face, and the dashboard wears it.** The mark is a yapping Yorkie

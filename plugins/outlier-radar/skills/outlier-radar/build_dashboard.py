@@ -287,24 +287,19 @@ __FAVICON__
     opacity:.05;mix-blend-mode:multiply}
   :root[data-theme="dark"] body::before{opacity:.07;mix-blend-mode:screen}
   body>*{position:relative;z-index:1}
-  .masthead{position:relative;overflow:hidden}
-  .masthead::before{content:"";position:absolute;left:50%;top:-58%;width:min(920px,96%);height:230%;
-    transform:translateX(-50%);pointer-events:none;
-    background:radial-gradient(ellipse at 50% 50%, rgba(__ACCENT_RGB__,.15), rgba(__ACCENT_RGB__,.05) 42%, transparent 70%)}
   ::selection{background:var(--accent-soft)}
   a{color:var(--accent-text)}
   .wrap{max-width:1080px;margin:0 auto;padding:0 24px 96px}
   .lab{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 
   /* ---------- top bar ---------- */
-  .masthead .in{max-width:1080px;margin:0 auto;padding:34px 24px 26px;display:flex;align-items:center;gap:24px}
-  /* the lockup carries the name on its own, so the brand block is the art
-     with its credit tucked under it, indented to clear the dog and sit
-     under the wordmark where the eye already is */
-  .brand{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-right:auto}
+  .masthead .in{max-width:1080px;margin:0 auto;padding:16px 24px 14px;display:flex;align-items:center;gap:24px}
+  /* the lockup carries the name on its own, so the brand block is just the
+     art with its credit under it, flush to the same left edge */
+  .brand{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-right:auto}
   .mark{width:160px;height:160px;flex:none}
-  .lockup{height:104px;width:auto;flex:none;display:block}
-  .byline{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding-left:26%}
+  .lockup{height:78px;width:auto;flex:none;display:block}
+  .byline{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
   .toolbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb, var(--bg) 86%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .toolbar .in{max-width:1080px;margin:0 auto;padding:8px 24px;display:flex;align-items:center;gap:16px}
   .minibrand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-size:14px;font-weight:800;letter-spacing:-.01em;margin-right:auto;opacity:0;transform:translateY(4px);transition:opacity .25s ease,transform .25s ease;pointer-events:none}
