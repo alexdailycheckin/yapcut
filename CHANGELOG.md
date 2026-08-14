@@ -2,6 +2,20 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.2
+
+**YapCut has a face, and the dashboard wears it.** The mark is a yapping Yorkie
+next to a red foil balloon wordmark. The kit now ships two files: `logo.png`, the
+full lockup for the masthead, and `logo-mark.png`, the dog alone for the sticky
+bar and the browser tab. Both are inlined as data URIs, so the dashboard stays a
+single self-contained file. Drop either name into your workspace to run your own
+art; with no logo file at all the original rings mark still renders.
+
+**The surface is branded, not just the header.** A fine generated grain sits over
+the whole page so flat panels read as paper instead of screen, and one soft accent
+bloom sits behind the masthead so the logo has its own light. Both derive from
+your configured accent, so they follow your palette rather than ours.
+
 ## What's new in 3.1.2
 
 **The mark doubles again, 160px.** The smiley is the header's hero now, circular

@@ -13,7 +13,7 @@ in the current dir | ~/outlier-radar | legacy: next to this script.
 
 Run: python3 build_dashboard.py [--dir /path/to/workspace]
 """
-import json, os, sys, glob
+import base64, json, os, sys, glob
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -67,10 +67,11 @@ BYLINE = CFG.get("byline")
 if BYLINE is None:
     BYLINE = "by alexmuresan.com"
 
-# The product mark. The acid smiley ships with the kit as logo.svg next to
-# this script and renders on every install, same standing as the wordmark.
-# A workspace logo.svg replaces it (your radar, your face); if neither file
-# exists the original rings mark renders so nothing breaks.
+# The product identity. YapCut ships two files next to this script: logo.png
+# is the full lockup (balloon Yorkie + wordmark) for the masthead, and
+# logo-mark.png is the dog alone for the sticky bar. Drop either name into
+# your workspace to run your own; with no logo file anywhere the original
+# rings mark renders, so a bare install still works.
 _RINGS_MARK = """<svg class="mark" viewBox="0 0 34 34" fill="none" aria-hidden="true">
       <circle cx="17" cy="17" r="15.5" stroke="currentColor" stroke-opacity=".25" stroke-width="1.5"/>
       <circle cx="17" cy="17" r="9.5" stroke="currentColor" stroke-opacity=".35" stroke-width="1.5"/>
@@ -79,23 +80,59 @@ _RINGS_MARK = """<svg class="mark" viewBox="0 0 34 34" fill="none" aria-hidden="
       <circle cx="17" cy="17" r="1.8" fill="currentColor"/>
     </svg>"""
 
+# The dashboard is one self-contained file, so raster art has to travel
+# inside it as a data URI rather than as a sibling the browser fetches.
+_MIME = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
+         ".jpeg": "image/jpeg", ".gif": "image/gif"}
 
-def _load_logo():
-    # realpath, not HERE: the working install runs this script through a
-    # symlink, and the kit's logo.svg sits next to the real file.
+
+def _logo_candidates(stem):
     kit_dir = os.path.dirname(os.path.realpath(__file__))
-    for p in (os.path.join(WS, "logo.svg"), os.path.join(kit_dir, "logo.svg")):
+    for d in (WS, kit_dir):
+        for ext in (".svg", ".png", ".webp", ".jpg", ".jpeg", ".gif"):
+            yield os.path.join(d, stem + ext)
+
+
+def _load_logo(stem, css_class, fallback=None):
+    """Inline stem.(svg|png|...) as markup, workspace first, then the kit."""
+    for p in _logo_candidates(stem):
+        if not os.path.exists(p):
+            continue
+        ext = os.path.splitext(p)[1].lower()
         try:
-            if os.path.exists(p):
+            if ext == ".svg":
                 s = open(p).read().strip()
                 if "<svg" in s:
                     return s
+            else:
+                b64 = base64.b64encode(open(p, "rb").read()).decode("ascii")
+                return (f'<img class="{css_class}" alt="" aria-hidden="true" '
+                        f'src="data:{_MIME[ext]};base64,{b64}">')
         except Exception as e:
-            print("unreadable logo.svg, using the rings mark:", e)
-    return _RINGS_MARK
+            print(f"unreadable {os.path.basename(p)}, skipping it:", e)
+    return fallback
 
 
-LOGO_SVG = _load_logo()
+# The masthead prefers the full lockup; a mark-only install still gets a
+# masthead by falling back to the mark, then to the rings.
+LOGO_MARK = _load_logo("logo-mark", "minimark")
+LOGO_SVG = _load_logo("logo", "lockup",
+                      fallback=_load_logo("logo-mark", "lockup", _RINGS_MARK))
+if LOGO_MARK is None:
+    LOGO_MARK = _load_logo("logo", "minimark", _RINGS_MARK)
+
+
+def _favicon():
+    """Reuse the mark as the tab icon, straight from the same data URI."""
+    m = LOGO_MARK or ""
+    i = m.find('src="')
+    if i == -1:
+        return ""
+    src = m[i + 5:m.find('"', i + 5)]
+    return f'<link rel="icon" href="{src}">'
+
+
+FAVICON = _favicon()
 
 # Brand block: colors + fonts come from radar-config.json when present so the
 # dashboard renders in the installer's own identity, not a generic theme.
@@ -210,7 +247,8 @@ HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Outlier Radar</title>
+<title>YapCut</title>
+__FAVICON__
 <style>
   @import url('__FONT_IMPORT__');
   :root{
@@ -239,23 +277,44 @@ HTML = r"""<!DOCTYPE html>
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  /* Brand texture. A fixed grain over the whole page so flat surfaces read
+     as paper rather than as screen, plus one soft accent bloom behind the
+     masthead so the logo sits in its own light instead of on a bare field.
+     Both are decorative and non-interactive; the grain is a generated SVG,
+     so it costs no request and tiles at any viewport. */
+  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+    opacity:.05;mix-blend-mode:multiply}
+  :root[data-theme="dark"] body::before{opacity:.07;mix-blend-mode:screen}
+  body>*{position:relative;z-index:1}
+  .masthead{position:relative;overflow:hidden}
+  .masthead::before{content:"";position:absolute;left:50%;top:-58%;width:min(920px,96%);height:230%;
+    transform:translateX(-50%);pointer-events:none;
+    background:radial-gradient(ellipse at 50% 50%, rgba(__ACCENT_RGB__,.15), rgba(__ACCENT_RGB__,.05) 42%, transparent 70%)}
   ::selection{background:var(--accent-soft)}
   a{color:var(--accent-text)}
   .wrap{max-width:1080px;margin:0 auto;padding:0 24px 96px}
   .lab{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 
   /* ---------- top bar ---------- */
-  .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb, var(--bg) 86%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
-  .topbar .in{max-width:1080px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px}
-  .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+  .masthead .in{max-width:1080px;margin:0 auto;padding:34px 24px 26px;display:flex;align-items:center;gap:24px}
+  /* the lockup carries the name on its own, so the brand block is the art
+     with its credit tucked under it, indented to clear the dog and sit
+     under the wordmark where the eye already is */
+  .brand{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-right:auto}
   .mark{width:160px;height:160px;flex:none}
-  .wordmark{font-family:var(--display);font-size:18px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
-  .byline{font-size:12.5px;color:var(--muted);line-height:1.2}
+  .lockup{height:104px;width:auto;flex:none;display:block}
+  .byline{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding-left:26%}
+  .toolbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb, var(--bg) 86%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .toolbar .in{max-width:1080px;margin:0 auto;padding:8px 24px;display:flex;align-items:center;gap:16px}
+  .minibrand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-size:14px;font-weight:800;letter-spacing:-.01em;margin-right:auto;opacity:0;transform:translateY(4px);transition:opacity .25s ease,transform .25s ease;pointer-events:none}
+  .minibrand .minimark{height:30px;width:auto;display:block}
+  .toolbar.scrolled .minibrand{opacity:1;transform:none}
   .partner{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:7px 13px;white-space:nowrap;text-decoration:none}
   a.partner:hover{border-color:var(--faint);background:var(--surface2)}
   .partner b{color:var(--ink)}
   .partner .pmark{border-radius:5px;display:block;flex:none}
-  .partnerwrap{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+  .partnerwrap{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
   .ptag{font-size:11px;line-height:1.3;color:var(--muted);max-width:252px;letter-spacing:.01em}
   select{font:600 14px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 12px;cursor:pointer}
   select:hover{border-color:var(--faint)}
@@ -491,7 +550,12 @@ HTML = r"""<!DOCTYPE html>
   @media(max-width:640px){
     .wrap{padding:0 16px 80px}
     .ptag{display:none}
-    .topbar .in{padding:12px 16px;flex-wrap:wrap;gap:10px}
+    .masthead .in{padding:20px 16px 16px;gap:16px}
+    .brand{gap:16px}
+    .mark{width:96px;height:96px}
+    .wordmark{font-size:26px}
+    .toolbar .in{padding:8px 16px;flex-wrap:wrap;gap:10px}
+    .minibrand{display:none}
     .hookgrid{grid-template-columns:1fr}
     .inspgrid{grid-template-columns:1fr}
     .premise,.hookgrid,.cardactions,.track,.detail,.twin{margin-left:0}
@@ -503,12 +567,16 @@ HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 
-<div class="topbar"><div class="in">
+<div class="masthead"><div class="in">
   <div class="brand">
     __LOGOMARK__
-    <div><div class="wordmark">Outlier Radar</div><div class="byline">__BYLINE__</div></div>
+    <div class="byline">__BYLINE__</div>
   </div>
   __PARTNER__
+</div></div>
+
+<div class="toolbar" id="toolbar"><div class="in">
+  <div class="minibrand">__LOGOMINI__<span>YapCut</span></div>
   <select id="weekSel" onchange="render()" aria-label="Pick a week"></select>
   <details class="menu" id="exportMenu">
     <summary><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Export</summary>
@@ -1177,6 +1245,10 @@ function render(){
   applyTheme(savedTheme);
   const sel=document.getElementById("weekSel");
   sel.innerHTML = WEEKS.map(w=>`<option value="${w.week}">${String(w.week).toLowerCase()==="example"?"Example week (sample data)":"Week of "+w.week}</option>`).join("");
+  const tb=document.getElementById("toolbar"), mh=document.querySelector(".masthead");
+  if(tb&&mh&&"IntersectionObserver" in window){
+    new IntersectionObserver(es=>tb.classList.toggle("scrolled",!es[0].isIntersecting),{threshold:0}).observe(mh);
+  }
   render();
 })();
 </script>
@@ -1185,6 +1257,8 @@ function render(){
 
 out = (HTML.replace("/*WEEKS_DATA*/", DATA)
            .replace("__LOGOMARK__", LOGO_SVG)
+           .replace("__LOGOMINI__", LOGO_MARK)
+           .replace("__FAVICON__", FAVICON)
            .replace("__PRIMARY_LABEL__", PRIMARY_LABEL)
            .replace("__SECONDARY_LABEL__", SECONDARY_LABEL)
            .replace("__LEADERS_HDR__", LEADERS_HDR)
