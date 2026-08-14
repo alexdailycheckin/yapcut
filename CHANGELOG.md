@@ -2,6 +2,11 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.1.2
+
+**The mark doubles again, 160px.** The smiley is the header's hero now, circular
+lettering fully readable. The sticky topbar grows with it; that is the point.
+
 ## What's new in 3.1.1
 
 **The face is legible now.** The header mark doubles from 38px to 80px; at 38px the
