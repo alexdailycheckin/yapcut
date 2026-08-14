@@ -2,6 +2,11 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.1.1
+
+**The face is legible now.** The header mark doubles from 38px to 80px; at 38px the
+smiley's circular lettering was an unreadable smudge.
+
 ## What's new in 3.1
 
 **Outlier Radar has a face.** The acid smiley: a radar sweep for an eye, a waveform

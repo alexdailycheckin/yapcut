@@ -248,7 +248,7 @@ HTML = r"""<!DOCTYPE html>
   .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb, var(--bg) 86%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
   .topbar .in{max-width:1080px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px}
   .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
-  .mark{width:38px;height:38px;flex:none}
+  .mark{width:80px;height:80px;flex:none}
   .wordmark{font-family:var(--display);font-size:18px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
   .byline{font-size:12.5px;color:var(--muted);line-height:1.2}
   .partner{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:7px 13px;white-space:nowrap;text-decoration:none}
