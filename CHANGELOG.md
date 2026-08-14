@@ -2,6 +2,14 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.1
+
+**Outlier Radar has a face.** The acid smiley: a radar sweep for an eye, a waveform
+drip for a mouth. It ships as `logo.svg` next to the build script and renders as the
+dashboard's header mark on every install, same standing as the wordmark. Drop your own
+`logo.svg` in the workspace to replace it; with no logo file anywhere, the original
+rings mark still renders.
+
 ## What's new in 3.0.1
 
 **The Reach partner pill is locked.** It was a config default in 3.0.0; it is now part of

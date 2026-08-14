@@ -67,6 +67,36 @@ BYLINE = CFG.get("byline")
 if BYLINE is None:
     BYLINE = "by alexmuresan.com"
 
+# The product mark. The acid smiley ships with the kit as logo.svg next to
+# this script and renders on every install, same standing as the wordmark.
+# A workspace logo.svg replaces it (your radar, your face); if neither file
+# exists the original rings mark renders so nothing breaks.
+_RINGS_MARK = """<svg class="mark" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+      <circle cx="17" cy="17" r="15.5" stroke="currentColor" stroke-opacity=".25" stroke-width="1.5"/>
+      <circle cx="17" cy="17" r="9.5" stroke="currentColor" stroke-opacity=".35" stroke-width="1.5"/>
+      <path d="M17 17 L28.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="23.5" cy="21.5" r="3.2" fill="__C_ACCENT__"/>
+      <circle cx="17" cy="17" r="1.8" fill="currentColor"/>
+    </svg>"""
+
+
+def _load_logo():
+    # realpath, not HERE: the working install runs this script through a
+    # symlink, and the kit's logo.svg sits next to the real file.
+    kit_dir = os.path.dirname(os.path.realpath(__file__))
+    for p in (os.path.join(WS, "logo.svg"), os.path.join(kit_dir, "logo.svg")):
+        try:
+            if os.path.exists(p):
+                s = open(p).read().strip()
+                if "<svg" in s:
+                    return s
+        except Exception as e:
+            print("unreadable logo.svg, using the rings mark:", e)
+    return _RINGS_MARK
+
+
+LOGO_SVG = _load_logo()
+
 # Brand block: colors + fonts come from radar-config.json when present so the
 # dashboard renders in the installer's own identity, not a generic theme.
 # Fallbacks are deliberately NEUTRAL: a fresh install belongs to whoever
@@ -218,7 +248,7 @@ HTML = r"""<!DOCTYPE html>
   .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb, var(--bg) 86%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
   .topbar .in{max-width:1080px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px}
   .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
-  .mark{width:34px;height:34px;flex:none}
+  .mark{width:38px;height:38px;flex:none}
   .wordmark{font-family:var(--display);font-size:18px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
   .byline{font-size:12.5px;color:var(--muted);line-height:1.2}
   .partner{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:7px 13px;white-space:nowrap;text-decoration:none}
@@ -475,13 +505,7 @@ HTML = r"""<!DOCTYPE html>
 
 <div class="topbar"><div class="in">
   <div class="brand">
-    <svg class="mark" viewBox="0 0 34 34" fill="none" aria-hidden="true">
-      <circle cx="17" cy="17" r="15.5" stroke="currentColor" stroke-opacity=".25" stroke-width="1.5"/>
-      <circle cx="17" cy="17" r="9.5" stroke="currentColor" stroke-opacity=".35" stroke-width="1.5"/>
-      <path d="M17 17 L28.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      <circle cx="23.5" cy="21.5" r="3.2" fill="__C_ACCENT__"/>
-      <circle cx="17" cy="17" r="1.8" fill="currentColor"/>
-    </svg>
+    __LOGOMARK__
     <div><div class="wordmark">Outlier Radar</div><div class="byline">__BYLINE__</div></div>
   </div>
   __PARTNER__
@@ -1160,6 +1184,7 @@ function render(){
 </html>"""
 
 out = (HTML.replace("/*WEEKS_DATA*/", DATA)
+           .replace("__LOGOMARK__", LOGO_SVG)
            .replace("__PRIMARY_LABEL__", PRIMARY_LABEL)
            .replace("__SECONDARY_LABEL__", SECONDARY_LABEL)
            .replace("__LEADERS_HDR__", LEADERS_HDR)
