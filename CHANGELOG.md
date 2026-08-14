@@ -2,6 +2,14 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.2.2
+
+**The lockup is balanced.** The wordmark now stands at 78% of the dog's height,
+close enough to read as equal without swallowing the mark, and the two sit on one
+shared centre line. Sizes were chosen from rendered comparisons at the real header
+size rather than from the numbers, since the dog is a tall thin subject and its
+optical weight is lower than its bounding box implies.
+
 ## What's new in 3.2.1
 
 **The masthead gets out of the way.** It was eating a quarter of the viewport on
