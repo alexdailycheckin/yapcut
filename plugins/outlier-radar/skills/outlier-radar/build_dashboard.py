@@ -242,6 +242,20 @@ if len(weeks) > 1:
 
 DATA = json.dumps(weeks)
 
+# Campaigns: optional cross-week collections (workspace campaigns/*.json).
+# Each file is {campaign, label, positioning, distribution[], office[],
+# linkedin[]} using the same item schemas as a week file, and renders as its
+# own tab named by `label`. No campaigns/ dir means no extra tabs, so a bare
+# install is unchanged.
+camp_files = sorted(glob.glob(os.path.join(WS, "campaigns", "*.json")))
+campaigns = []
+for f in camp_files:
+    try:
+        campaigns.append(json.load(open(f)))
+    except Exception as e:
+        print("skip campaign", f, e)
+CAMPS = json.dumps(campaigns)
+
 HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -618,6 +632,7 @@ __FAVICON__
 
 <script>
 const WEEKS = /*WEEKS_DATA*/;
+const CAMPAIGNS = /*CAMPAIGNS_DATA*/;
 const KEY = "outlier-radar-tracking";
 let TAB = "dist";
 let FILM_ID = null;
@@ -675,6 +690,8 @@ function updateTabCounts(w){
   set("filmed", all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length);
   set("linkedin", liveTwinsOf(w).length + soloPostsOf(w).length + leaderPostsOf(w).length);
   set("insp", (w.inspiration||[]).length);
+  CAMPAIGNS.forEach((c,i)=>set("camp:"+i,
+    poolCount([].concat(c.distribution||[], c.office||[], c.linkedin||[]))));
 }
 
 function curWeek(){return WEEKS.find(w=>w.week===document.getElementById("weekSel").value) || WEEKS[0];}
@@ -1131,8 +1148,13 @@ function emptyState(msg){
 
 /* ---------------- film mode ---------------- */
 function findItem(id){
-  const w=curWeek(); if(!w) return null;
-  return [].concat(w.distribution||[], officeOf(w)).find(x=>x.id===id) || null;
+  const w=curWeek();
+  let it = w ? [].concat(w.distribution||[], officeOf(w)).find(x=>x.id===id) : null;
+  if(!it) for(const c of CAMPAIGNS){
+    it=[].concat(c.distribution||[], c.office||[], c.linkedin||[]).find(x=>x.id===id);
+    if(it) break;
+  }
+  return it || null;
 }
 // the spoken read as plain text: hook + script + optional CTA. Skips the hook
 // when the script already opens with it (most weeks duplicate that line).
@@ -1231,6 +1253,22 @@ function render(){
     empty="No LinkedIn posts this week.";
   }
   else if(TAB==="insp"){ const cards=(w.inspiration||[]).map(inspCard).join(""); html=cards?`<div class="inspgrid">${cards}</div>`:""; empty="No viral inspiration logged this week."; }
+  else if(TAB.startsWith("camp:")){
+    /* A campaign tab renders its own items regardless of the selected week.
+       Video pieces reuse scriptCard (film mode, tracker, twins all work);
+       written pieces and assets reuse liCard. Tracking stays keyed by id in
+       the same localStorage, so campaign items are logged like week items. */
+    const c=CAMPAIGNS[+TAB.slice(5)];
+    if(c){
+      const alive=arr=>(arr||[]).filter(x=>t(x.id).status!=="ignored");
+      const vids=alive([].concat(c.distribution||[], c.office||[]));
+      const posts=alive(c.linkedin||[]);
+      html = (c.positioning?`<p class="calnote" style="margin:0 0 18px">${esc(c.positioning)}</p>`:"")
+        + (vids.length?`<div class="sechdr">To film</div>`+vids.map((x,i)=>scriptCard(x,false,i)).join(""):"")
+        + (posts.length?`<div class="sechdr">Posts &amp; assets</div>`+posts.map((x,i)=>liCard(x,"",i)).join(""):"");
+    }
+    empty="This campaign is empty.";
+  }
   document.getElementById("view").innerHTML = html || emptyState(empty);
 }
 
@@ -1240,6 +1278,13 @@ function render(){
   applyTheme(savedTheme);
   const sel=document.getElementById("weekSel");
   sel.innerHTML = WEEKS.map(w=>`<option value="${w.week}">${String(w.week).toLowerCase()==="example"?"Example week (sample data)":"Week of "+w.week}</option>`).join("");
+  const tabsRow=document.querySelector(".tabs");
+  CAMPAIGNS.forEach((c,i)=>{
+    const b=document.createElement("button");
+    b.className="tab"; b.dataset.t="camp:"+i; b.onclick=()=>setTab("camp:"+i);
+    b.innerHTML=`<svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>${esc(c.label||c.campaign||"Campaign")} <span class="cnt" data-c="camp:${i}"></span>`;
+    tabsRow.appendChild(b);
+  });
   const tb=document.getElementById("toolbar"), mh=document.querySelector(".masthead");
   if(tb&&mh&&"IntersectionObserver" in window){
     new IntersectionObserver(es=>tb.classList.toggle("scrolled",!es[0].isIntersecting),{threshold:0}).observe(mh);
@@ -1251,6 +1296,7 @@ function render(){
 </html>"""
 
 out = (HTML.replace("/*WEEKS_DATA*/", DATA)
+           .replace("/*CAMPAIGNS_DATA*/", CAMPS)
            .replace("__LOGOMARK__", LOGO_SVG)
            .replace("__LOGOMINI__", LOGO_MARK)
            .replace("__FAVICON__", FAVICON)
