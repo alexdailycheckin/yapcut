@@ -123,13 +123,31 @@ def fingerprint(script):
         "max": max(lens),
         "min": min(lens),
         "stdev": round(statistics.pstdev(lens), 1),
+        "over20_pct": round(100.0 * len([n for n in lens if n > 20]) / len(lens), 1),
         "quoted_dialogue": bool(QUOTED.search(script)),
         "words": sum(lens),
     }
 
 
-def verdict(fp, fid=None, tri=None):
+# The cadence floors were recalibrated on 2026-08-24 against a real unscripted speech
+# corpus, after the old ones turned out to be sitting at roughly half of it: a stdev floor
+# of 6 against a speaker measuring 12.1, cleared at a median of 7.2 across everything that
+# had shipped. Raising a floor retroactively fails work that was written to the old bar and
+# cannot be rewritten, so the new numbers apply from the first week AFTER the change and
+# older weeks keep the floors they were written under. Self-expiring, so there is no flag
+# to remember and nothing to clean up later.
+FLOORS_FROM = "2026-08-31"
+FLOORS_NEW = {"stdev": 8.0, "over20_pct": 15.0}
+FLOORS_OLD = {"stdev": 6.0, "over20_pct": 0.0}
+
+
+def floors_for(week_date):
+    return FLOORS_NEW if (week_date or "") >= FLOORS_FROM else FLOORS_OLD
+
+
+def verdict(fp, fid=None, tri=None, floors=None):
     """Gates from references/voice-fingerprint.md. Returns a list of failures."""
+    floors = floors or FLOORS_NEW
     fails = []
     if fid is not None and fid < 0.90:
         fails.append(f"FIDELITY {fid:.2f} below 0.90, the model is ghostwriting")
@@ -139,10 +157,13 @@ def verdict(fp, fid=None, tri=None):
         return ["empty script"]
     if fp["max"] < 25:
         fails.append(f"no sentence over 25 words (longest {fp['max']}), flat machine rhythm")
+    if fp.get("over20_pct", 0) < floors["over20_pct"]:
+        fails.append(f"only {fp.get('over20_pct', 0):.0f}% of sentences over 20 words "
+                     f"(target {floors['over20_pct']:.0f}%), the long causal run is missing")
     if fp["min"] > 5:
         fails.append(f"no sentence under 5 words (shortest {fp['min']}), no variance")
-    if fp["stdev"] < 6:
-        fails.append(f"stdev {fp['stdev']} below 6, cadence is flat")
+    if fp["stdev"] < floors["stdev"]:
+        fails.append(f"stdev {fp['stdev']} below {floors['stdev']:.0f}, cadence is flat")
     if not 9 <= fp["mean"] <= 13:
         fails.append(f"mean {fp['mean']} outside 9 to 13")
     return fails
@@ -285,7 +306,7 @@ def slots(text):
     }
 
 
-def spoken_report(text):
+def spoken_report(text, script_class="testimony"):
     """Position-weighted warnings. Never fails a batch."""
     sl = slots(text)
     warns = []
@@ -325,8 +346,24 @@ def spoken_report(text):
     warns += [why for rx, why in LECTURE if rx.search(text)]
 
     if not (QUOTED.search(text) or re.search(r"[\"“][^\"”]{0,200}?(?:\s+\S+){2,}[\"”]", text)):
-        warns.append("no quoted dialogue (voice-card: the default storytelling device; "
-                     "constitution rule 4: a person and a quoted line are the spine)")
+        # CONDITIONAL ON SUPPLY, changed 2026-08-24, and this is a fabrication fix rather
+        # than a style change. The unconditional version of this warning demanded a quote
+        # whether or not one existed. A research script whose sources contain no usable
+        # quote has exactly two ways to clear it: leave the warning standing, or invent a
+        # quote. On 2026-08-23 a batch invented two, and an invented quote satisfies every
+        # check in this file perfectly because they all look at shape rather than source.
+        # So the demand is now scoped to the class that has a capture to draw a real quote
+        # from. For research, no quote available means no quote, and the script ships.
+        if script_class == "testimony":
+            warns.append("no quoted dialogue, and this is testimony: the capture has one, "
+                         "use it (constitution rule 4, a person and a quoted line are the spine)")
+
+    # A script with no first person reads as an essay rather than a person talking, and it
+    # is upstream of a low contraction density, because "I'm" cannot appear in a script
+    # with no "I" in it. Warn only: some formats legitimately carry none.
+    if not re.search(r"\b(I|I'm|I've|I'd|I'll|me|my|mine)\b", text):
+        warns.append("no first person anywhere: reserved for receipts, mistakes and "
+                     "ownership does not mean absent")
     return warns
 
 
@@ -503,7 +540,11 @@ def run_week(path):
     classes = Counter()
     spoken = {}
     bad = 0
-    print(f"{len(items)} scripts in {os.path.basename(path)}\n")
+    floors = floors_for(d.get("week", ""))
+    note = "" if floors is FLOORS_NEW else (
+        f"  (cadence floors: pre-{FLOORS_FROM}, stdev {floors['stdev']:.0f}, long-run rule off. "
+        f"This week was written before the 2026-08-24 recalibration.)")
+    print(f"{len(items)} scripts in {os.path.basename(path)}{note}\n")
     for it in items:
         # FIDELITY is testimony-only: it compares a script against a capture on disk, and
         # research has no capture by design. CADENCE is not. The original skip sent
@@ -533,7 +574,7 @@ def run_week(path):
             fixes = cap.get("fact_fixes", [])
             fid = fidelity(captext, script, fixes)
             tri = trigram_share(captext, script, fixes)
-        fails = verdict(fp, fid, tri)
+        fails = verdict(fp, fid, tri, floors)
         if fid is None and cls == "testimony":
             # a testimony script with no resolvable capture is not measurable, and
             # unmeasurable means unfilmable (audit 2026-07-26): never print n/a as a pass
@@ -552,7 +593,7 @@ def run_week(path):
         # mouth on the day. Collected here so it prints next to the cadence numbers
         # it is meant to qualify.
         spoken[it.get("id")] = script
-        for w in spoken_report(script):
+        for w in spoken_report(script, cls):
             print(f"        warn: {w}")
     clash = [(s, n) for s, n in shapes.most_common() if n > 1]
     print(f"\nclass distribution: {dict(classes)}  (watch for drift toward convenient format/research tagging)")
