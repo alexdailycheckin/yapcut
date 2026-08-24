@@ -222,7 +222,7 @@ def enumerated_units(body):
 # "write down", never "leverage" or "rethink". Extend it when a real post gets flagged
 # wrongly, never to make a weak post pass.
 IMPERATIVES = {
-    "add", "ask", "attach", "audit", "block", "book", "build", "call", "change", "check",
+    "add", "agree", "anchor", "ask", "attach", "audit", "block", "book", "build", "call", "change", "check",
     "bring", "choose", "compare", "count", "cut", "draft", "export", "find", "fix", "get",
     "give", "go",
     "keep", "kill", "leave", "list",
@@ -246,15 +246,28 @@ def playbook_moves(body):
     was named at all. That is still the difference between a playbook and an essay with
     headings.
     """
+    # Two legal head shapes: numbered sentence case ("1. Agree the denominator."),
+    # the standard since Alex unlearned all-caps headers (2026-08-14), and the legacy
+    # caps header, still recognised so old weeks keep parsing. A numbered head carries
+    # its own verb; a caps head is checked on the line after it.
     lines = [l.strip() for l in body.split("\n") if l.strip()]
-    heads = [i for i, l in enumerate(lines) if re.match(r"^[A-Z][A-Z \-/]{2,28}$", l)]
     moves = 0
-    for i in heads:
-        if i + 1 < len(lines):
-            first = re.sub(r"^[^A-Za-z]+", "", lines[i + 1]).split()
-            if first and first[0].lower().rstrip(",.") in IMPERATIVES:
+    heads = 0
+    for i, l in enumerate(lines):
+        if re.match(r"^\d+[\.\)]\s+\S", l) and len(l) <= 60:
+            heads += 1
+            first = re.sub(r"^[^A-Za-z]+", "", l).split()
+            follow = re.sub(r"^[^A-Za-z]+", "", lines[i + 1]).split() if i + 1 < len(lines) else []
+            if (first and first[0].lower().rstrip(",.") in IMPERATIVES) or \
+               (follow and follow[0].lower().rstrip(",.") in IMPERATIVES):
                 moves += 1
-    return moves, len(heads)
+        elif re.match(r"^[A-Z][A-Z \-/]{2,28}$", l):
+            heads += 1
+            if i + 1 < len(lines):
+                first = re.sub(r"^[^A-Za-z]+", "", lines[i + 1]).split()
+                if first and first[0].lower().rstrip(",.") in IMPERATIVES:
+                    moves += 1
+    return moves, heads
 
 
 def has_number(text):

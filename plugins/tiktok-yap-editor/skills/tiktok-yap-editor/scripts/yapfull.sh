@@ -192,12 +192,20 @@ for l in open(sys.argv[1],encoding='utf-8',errors='ignore'):
     if l.startswith('Dialogue:') and ',Hook,' in l:
         h,m,s=l.split(',')[2].split(':'); last=max(last,int(h)*3600+int(m)*60+float(s))
 print(f'{last:.2f}' if last else '2.5')" "$WD/cap_${OUTBASE}.ass" 2>/dev/null || echo 2.5)
+# The pattern-interrupt budget is 5s for short form and ~6s once the video is
+# 60s+ (a longer video is allowed to breathe; SKILL.md, "Retention pass"). This
+# was left at retention_check's 5s default, so every long-form build was judged
+# at the short-form bar and a legal 5.9s beat failed the gate.
+MAXGAP=$(python3 -c "
+import sys
+print('6.0' if float(sys.argv[1]) >= 60 else '5.0')" "$DUR" 2>/dev/null || echo 5.0)
 if [ "${YAP_ALLOW_STATIC:-0}" != "1" ]; then
+  echo "--- retention (max-gap ${MAXGAP}s) ---"
   if [ -n "$OVRFILE" ]; then
-    python3 "$SCRIPTS/retention_check.py" --video "$OUT" --overlays "$OVRFILE" --hook-end "$HOOKEND" \
+    python3 "$SCRIPTS/retention_check.py" --video "$OUT" --overlays "$OVRFILE" --hook-end "$HOOKEND" --max-gap "$MAXGAP" \
       || { echo "RETENTION GATE FAILED: fill the static stretches (PiP/counter/punch-in)."; exit 2; }
   else
-    python3 "$SCRIPTS/retention_check.py" --video "$OUT" --hook-end "$HOOKEND" \
+    python3 "$SCRIPTS/retention_check.py" --video "$OUT" --hook-end "$HOOKEND" --max-gap "$MAXGAP" \
       || { echo "RETENTION GATE FAILED: fill the static stretches (PiP/counter/punch-in)."; exit 2; }
   fi
 fi

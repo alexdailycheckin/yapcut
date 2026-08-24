@@ -85,7 +85,14 @@ def main() -> int:
     title = a.file or pick_logo_file(a.page)
     url = file_url(title)
     td = tempfile.mkdtemp(prefix="logo_")
-    src = os.path.join(td, os.path.basename(urllib.parse.unquote(url)))
+    # Wikimedia's imageinfo now appends utm tracking params to the file url, so
+    # the naive basename becomes "Logo.svg?utm_source=...". That name still
+    # downloads fine, but the '?' truncates the <img src> below into a request
+    # for a file that does not exist, and chrome silently rasterizes its
+    # broken-image placeholder instead. Every logo chip came out as the grey
+    # picture icon. Strip the query before deriving the local filename.
+    clean = urllib.parse.urlsplit(urllib.parse.unquote(url)).path
+    src = os.path.join(td, os.path.basename(clean))
     req = urllib.request.Request(url, headers=UA)  # wikimedia 403s a bare UA
     open(src, "wb").write(urllib.request.urlopen(req).read())
 

@@ -19,7 +19,7 @@ Design:
 - **No scrim.** The default `clean` style puts bone type straight onto the black
   t-shirt under the chin, which is the darkest thing inside that square, with a
   modest ink stroke to carry it over the camera or a hand. Sentence case, left
-  aligned, one tang rule under the line. Alex killed the old full-width blurred
+  aligned, one brand-accent rule under the line. Alex killed the old full-width blurred
   band on 2026-08-07: it was muddy, it dulled the frame, and at the old default
   y it sat across his eyes and mouth. `--style scrim` still reaches it.
 - Placement is measured, not fixed: `best_title_y` slides the block down the
@@ -38,7 +38,7 @@ Pick a frame with eye contact and an expressive (not neutral) face: it lifts CTR
 The auto placement optimises legibility only, so it cannot tell a blink from a
 smile; eyeball the frame before shipping.
 """
-import argparse, os, subprocess, tempfile
+import argparse, json, os, subprocess, tempfile
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 W, H = 1080, 1920
@@ -79,7 +79,26 @@ def contact_sheet(video, out, interval):
 
 BONE = (255, 255, 251, 255)
 INK = (35, 35, 35, 255)
+
+# The accent under the title. This used to be a hardcoded tangerine, which
+# silently outvoted brand-config: a creator who set accent_hex still got Alex's
+# orange rule on every cover. It is now the brand's accent, resolved in main()
+# from brand-config.json (or --accent), with the old constant as the fallback so
+# a call with no brand file behaves exactly as before.
 TANG = (255, 90, 42, 255)
+
+
+def hex_rgba(h, a=255):
+    h = (h or "").lstrip("#")
+    if len(h) != 6:
+        return (255, 90, 42, a)
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), a)
+
+
+def default_brand_path():
+    """brand-config.json next to the skill root (scripts/../)."""
+    return os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "brand-config.json")
 
 
 def mono(size):
@@ -173,7 +192,7 @@ def draw_title_clean(img, title, kicker="", title_y=1030, side=140):
     in frame, so bone type sits on it with no scrim needed and the photograph is
     left intact. A modest ink stroke carries it over the camera or a hand when
     one drifts into the zone, matching the caption style rather than the old
-    10px slab. One tang rule under the line is the brand spark.
+    10px slab. One rule under the line, in the brand accent, is the spark.
 
     Left-aligned and sentence case: the site's convention, not all-caps.
     """
@@ -239,8 +258,24 @@ def main():
     ap.add_argument("--no-auto-y", action="store_true",
                     help="clean style: skip the automatic placement scan")
     ap.add_argument("--yt", action="store_true")
+    ap.add_argument("--brand", default="",
+                    help="path to brand-config.json for the accent rule colour "
+                         "(default: the skill's own brand-config.json)")
+    ap.add_argument("--accent", default="",
+                    help="override the accent rule colour, e.g. '#E8232F'")
     ap.add_argument("--out", default="cover.jpg")
     a = ap.parse_args()
+
+    global TANG
+    bpath = a.brand or default_brand_path()
+    accent = a.accent
+    if not accent and os.path.exists(bpath):
+        try:
+            accent = json.load(open(bpath)).get("accent_hex", "")
+        except Exception:
+            accent = ""
+    if accent:
+        TANG = hex_rgba(accent)
 
     if a.contact_sheet:
         contact_sheet(a.video, a.out, a.interval)

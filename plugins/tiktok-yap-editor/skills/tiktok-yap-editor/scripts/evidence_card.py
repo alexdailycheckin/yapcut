@@ -47,12 +47,29 @@ PAD = 30
 RADIUS = 30
 FONTS = pathlib.Path.home() / "Library" / "Fonts"
 
-# alexmuresan.com brand. Tang is the spark, used on ONE element per card.
+# The spark, used on ONE element per card. Resolved from brand-config.json so a
+# brand that moves its accent does not leave every built receipt on the old one:
+# these cards outlived a tangerine-to-red change still painting tangerine bars.
+# The old constant is the fallback when there is no brand file to read.
 BONE = (255, 255, 251, 255)
 INK = (35, 35, 35, 255)
-TANG = (255, 90, 42, 255)
 MUTE = (120, 120, 118, 255)
 HAIR = (0, 0, 0, 38)
+
+
+def _brand_accent(default=(255, 90, 42, 255)):
+    import json
+    p = pathlib.Path(__file__).resolve().parent.parent / "brand-config.json"
+    try:
+        h = (json.loads(p.read_text()).get("accent_hex") or "").lstrip("#")
+        if len(h) == 6:
+            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
+    except Exception:
+        pass
+    return default
+
+
+TANG = _brand_accent()
 
 
 def font(name: str, size: int):
