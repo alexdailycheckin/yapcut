@@ -12,12 +12,19 @@ and aggregates flags on the video timeline. Repeats up to ~15s apart land
 inside at least one window together.
 
 Usage: restart_scan.py --video cut.mp4 [--win 30] [--hop 15]
-Exit: 0 clean, 1 MEDIUM-only (review in the line audit), 2 HIGH (gate fails).
+                       [--accept-file <out>_stutter_ok.json]
+Exit: 0 clean or every MEDIUM accepted, 2 something needs a decision.
+
+MEDIUM is not advisory here either (2026-08-27): this scan flagged "Toronto's
+local... Toronto's local news" on the 08-24 CBRE episode, in both runs, and the
+build passed anyway because MEDIUM only exited 1 and yapfull fails on 2. It now
+shares stutter_check's accept-file, so one file records every repeat a human has
+actually listened to and cleared.
 """
 import argparse, json, math, os, struct, subprocess, sys, tempfile, wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stutter_check import find_flags, norm
+from stutter_check import find_flags, norm, accept_key, load_accepted
 
 MODEL = os.environ.get("WHISPER_MODEL",
                        os.path.expanduser("~/.whisper-models/ggml-small.en.bin"))
@@ -84,6 +91,10 @@ def main():
     ap.add_argument("--video", required=True)
     ap.add_argument("--win", type=float, default=30.0)
     ap.add_argument("--hop", type=float, default=15.0)
+    ap.add_argument("--accept-file", default="",
+                    help="JSON list of repeats already listened to and judged "
+                         "deliberate (shared with stutter_check.py). An unlisted "
+                         "MEDIUM fails the gate.")
     a = ap.parse_args()
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries",
                                 "format=duration", "-of", "csv=p=0", a.video],
@@ -112,11 +123,22 @@ def main():
         print("clean: no repetition found in windowed scan")
         return
     found.sort()
+    accepted = load_accepted(a.accept_file)
+    unjudged = [f for f in found
+                if f[3] != "HIGH" and accept_key(f[4]) not in accepted]
     print(f"windowed scan found {len(found)} repetition span(s) "
           f"({sum(1 for f in found if f[3]=='HIGH')} HIGH):")
     for t0, t1, kind, conf, text in found:
-        print(f"  [{conf:6}] {t0:6.2f}-{t1:6.2f}s  {kind:24} | \"{text}\"")
-    sys.exit(2 if any(f[3] == "HIGH" for f in found) else 1)
+        act = "DROP" if conf == "HIGH" else (
+            "ok'd" if accept_key(text) in accepted else "JUDGE")
+        print(f"  [{conf:6}] {t0:6.2f}-{t1:6.2f}s  {kind:24} {act:6} | \"{text}\"")
+    if unjudged:
+        print(f"\n{len(unjudged)} repeat(s) need a decision. LISTEN to each span, then "
+              "either cut it out via the clause plan, or, if it is deliberate, add "
+              "its key to the accept-file"
+              + (f" ({a.accept_file})" if a.accept_file else " (--accept-file)") + ":")
+        print(json.dumps(sorted({accept_key(f[4]) for f in unjudged}), indent=2))
+    sys.exit(2 if (any(f[3] == "HIGH" for f in found) or unjudged) else 0)
 
 if __name__ == "__main__":
     main()

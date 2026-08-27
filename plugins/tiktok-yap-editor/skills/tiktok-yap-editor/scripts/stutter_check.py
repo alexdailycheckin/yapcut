@@ -16,13 +16,26 @@ Word indices match build_ass.py exactly (non-empty words only), so the emitted
 Usage:
   python3 stutter_check.py --words words.json
       [--emit-corrections fix.json]   # write {"drop":[idx,...]} for captions
+      [--accept-file <out>_stutter_ok.json]
       [--max-phrase 6] [--gap 3] [--strict]
-Exit code: 0 = clean, 2 = stutters found (so a QA gate can fail the build).
+Exit code: 0 = clean, 2 = something needs a decision (so a QA gate can fail).
 
 It KEEPS the later (usually cleaner) delivery and drops the earlier repeat.
 Function-word dups and >=3x runs are HIGH confidence; a one-off content-word
 repeat (could be deliberate emphasis: "very very") is flagged MEDIUM so a human
 can veto. --strict drops MEDIUM too.
+
+MEDIUM MUST BE ADJUDICATED, IT IS NOT ADVISORY (2026-08-27). This gate used to
+print MEDIUM and let the build pass, and on 2026-08-24 that shipped a real
+restart: "Toronto's local... Toronto's local news ran it" was flagged MEDIUM in
+BOTH runs of the CBRE episode, sitting in a cluster with the deliberate "CNBC
+ran it / Gizmodo ran it" anaphora, so it was waved through with them and went
+out in the delivered file. The detector was right; nothing forced a decision.
+The caption gate has never shipped a garble because it refuses to pass until
+every flagged word is either fixed or written into an accept-file, so the
+repetition gate now works the same way: each MEDIUM must be cut from the clause
+plan or listed in --accept-file before the build proceeds. Keys are the
+normalised repeated text, so they survive a re-cut (timestamps do not).
 """
 import argparse, json, re, sys
 
@@ -48,6 +61,21 @@ def same(a, b):
         return True
     sa, sb = skel(a), skel(b)
     return len(sa) >= 3 and sa == sb
+
+
+def accept_key(text):
+    """Stable identity for a flagged repeat: the normalised words, space joined.
+    Deliberately NOT time-based, so an accepted call survives a re-cut."""
+    return " ".join(k for k in (norm(t) for t in text.split()) if k)
+
+
+def load_accepted(path):
+    if not path:
+        return set()
+    try:
+        return {accept_key(str(x)) for x in json.load(open(path))}
+    except Exception:
+        return set()
 
 
 def load_words(path):
@@ -117,9 +145,17 @@ def find_flags(w, max_phrase=6, gap=3):
                     # your scar tissue"). 2-word echoes -> MEDIUM (the line
                     # audit adjudicates); >=3 words -> HIGH (gates the build).
                     conf = "MEDIUM" if L == 2 else "HIGH"
+                    # g==0 means the two halves are back to back with nothing
+                    # between them, which is the ABORTED-RESTART shape ("Toronto's
+                    # local... Toronto's local news"). g>=1 put a real word in
+                    # between, which is how anaphora reads ("CNBC ran it, Gizmodo
+                    # ran it"). Both stay MEDIUM at L==2 because "again, and
+                    # again, and again" is also adjacent and deliberate, but the
+                    # label says which shape it is so the review is not a coin flip.
+                    kind = f"restart {L}w" + (f" +{g} filler" if g else " adjacent")
                     for k in range(i, s):
                         covered[k] = True
-                    flags.append((i, s, f"restart {L}w" + (f" +{g} filler" if g else ""),
+                    flags.append((i, s, kind,
                                   conf, " ".join(w[k][2] for k in range(i, s + L)),
                                   w[i][0], w[s - 1][1]))
                     matched = True
@@ -174,11 +210,19 @@ def main():
                     help="allow up to N filler words between a restart's two halves")
     ap.add_argument("--strict", action="store_true",
                     help="also drop MEDIUM-confidence (one-off content-word) repeats")
+    ap.add_argument("--accept-file", default="",
+                    help="JSON list of repeats already listened to and judged "
+                         "deliberate. An unlisted MEDIUM fails the gate: MEDIUM "
+                         "is a decision to make, not a note to skim.")
     a = ap.parse_args()
 
     w = load_words(a.words)
     flags = find_flags(w, a.max_phrase, a.gap)
     keep = [f for f in flags if a.strict or f[3] == "HIGH"]
+    accepted = load_accepted(a.accept_file)
+    unjudged = [f for f in flags
+                if f[3] != "HIGH" and not a.strict
+                and accept_key(f[4]) not in accepted]
 
     if not flags:
         print("clean: no stutters or restarts detected")
@@ -187,8 +231,13 @@ def main():
     print(f"found {len(flags)} stutter/restart span(s) "
           f"({sum(1 for f in flags if f[3]=='HIGH')} HIGH):\n")
     for st, en, kind, conf, text, t0, t1 in flags:
-        act = "DROP" if (conf == "HIGH" or a.strict) else "review"
-        print(f"  [{conf:6}] {t0:6.2f}-{t1:6.2f}s  {kind:18} {act:6} "
+        if conf == "HIGH" or a.strict:
+            act = "DROP"
+        elif accept_key(text) in accepted:
+            act = "ok'd"
+        else:
+            act = "JUDGE"
+        print(f"  [{conf:6}] {t0:6.2f}-{t1:6.2f}s  {kind:20} {act:6} "
               f"words {st}-{en-1}  | \"{text}\"")
 
     drop = sorted({k for f in keep for k in range(f[0], f[1])})
@@ -207,7 +256,14 @@ def main():
         json.dump(existing, open(a.emit_corrections, "w"), indent=2)
         print(f"\nwrote/merged {len(drop)} drops into {a.emit_corrections}")
 
-    sys.exit(2 if any(f[3] == "HIGH" for f in flags) else 1)
+    if unjudged:
+        print(f"\n{len(unjudged)} repeat(s) need a decision. LISTEN to each span, then "
+              "either cut it out via the clause plan, or, if it is deliberate, add "
+              "its key to the accept-file"
+              + (f" ({a.accept_file})" if a.accept_file else " (--accept-file)") + ":")
+        print(json.dumps(sorted({accept_key(f[4]) for f in unjudged}), indent=2))
+
+    sys.exit(2 if (any(f[3] == "HIGH" for f in flags) or unjudged) else 0)
 
 
 if __name__ == "__main__":

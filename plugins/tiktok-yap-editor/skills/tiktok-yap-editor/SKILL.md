@@ -216,7 +216,11 @@ the creator (learned 2026-07-10, three times in one day).
 6. transcribe the cut -> GATE: repetition, two detectors (yapfull, build-fatal):
    stutter_check on the transcript AND restart_scan windowed audio scan (whisper
    transcribing a whole file sometimes collapses a repeated line into one,
-   hiding it from any transcript check; short windows stay literal)
+   hiding it from any transcript check; short windows stay literal).
+   **MEDIUM is a decision, not a note.** An unlisted MEDIUM fails the build; you
+   listen and either cut it via the clause plan or record its key in
+   `<out>_stutter_ok.json`. Printing MEDIUM and passing is what shipped a real
+   restart on 2026-08-24 (see step 2c)
    -> GATE: dead air (yapfull, build-fatal): gap_check transcribes the cut
    punct-separate and fails any surviving inter-word gap >= 0.8s. Silence
    detection cannot do this job: room tone sits above any -dB threshold, and
@@ -283,9 +287,19 @@ python3 scripts/stutter_check.py --words .yap_build/transcripts/IMG_XXXX.json
 ```
 It catches adjacent restarts AND distant line re-reads (you miss a line and
 read it again seconds later): a 6+ word echo within 20s gates the build; short
-topic-phrase echoes and older callbacks are flagged MEDIUM for the line audit
+topic-phrase echoes and older callbacks are flagged MEDIUM
 (your subject noun phrase recurs legitimately, and a deliberate hook callback
-at the button should not die at a gate). It prints every hit with timestamps,
+at the button should not die at a gate).
+**A MEDIUM still has to be adjudicated one by one, and the gate enforces that.**
+Pass `--accept-file <out>_stutter_ok.json`: anything not listed there fails the
+build, and the tool prints the exact key to paste once you have listened and
+judged it deliberate. This exists because on 2026-08-24 "Toronto's local...
+Toronto's local news ran it" was flagged MEDIUM by both detectors, in both runs,
+sat in a cluster with the DELIBERATE "CNBC ran it / Gizmodo ran it" anaphora, got
+waved through with them, and shipped. Read the `kind` column to tell the two
+shapes apart: `adjacent` means the halves are back to back, the aborted-restart
+shape; `+N filler` means real words sat between them, which is how anaphora
+reads. It prints every hit with timestamps,
 keeps the cleanest (usually last) delivery, and emits both **video cut-ranges** (subtract these from the
 clause in/out you write in step 4) and a **caption drop-list**. Exit code 2 =
 stutters found, so it gates the build. Pass `--emit-corrections
@@ -363,9 +377,15 @@ One clean CFR 30fps encode: clause selection + dead-air removal + tight tails +
 alternating static crop (anti-stutter). Pause detection is a median-smoothed
 RMS envelope, immune to the mouth clicks that split a real 1.5s pause into
 sub-threshold chunks an instantaneous level gate cannot see. Flags: `--silence-db -42` (quiet indoor;
-raise toward -19 for noisy/outdoor), `--padr 0.12` / `--padl 0.10` (decay-aware:
-silencedetect fires while word tails are still audible, tighter pads shave word
-edges), `--min-gap 0.55` (only pauses this long become cuts; 0.3-0.5s pauses
+raise toward -19 for noisy/outdoor), `--padr 0.12` / `--padl 0.10` (CAPS on a
+MEASURED boundary since 2026-08-27, not fixed pads: the level gate fires where the
+ENERGY crossed, not where the WORD ended, so each edge is found by walking the
+envelope out to `--edge-margin` (6dB over the take's floor), and the tail search
+may run `--tail-extra` 0.25s past padr. The walk bridges a stop consonant's silent
+closure, which is why the words that used to clip were all stops and nasals:
+landlord, them, it, entertainment, headcount. `--lead 0.03` is the silence kept
+outside a measured edge; the old fixed 0.10s lead-in was audible as the next word
+arriving late at every join), `--min-gap 0.55` (only pauses this long become cuts; 0.3-0.5s pauses
 are cadence, cutting them machine-guns the edit), `--min-seg 0.45` (no
 flash-frame segments; shorter runs get bridged, never across >0.75s of pause),
 `--min-cut 0.25` (a cut must remove at least this much to earn its visual
@@ -514,8 +534,8 @@ pose-jump + zoom toggle; a batch audit showed 57% of joins were such micro-gap
 cuts, plus 4-frame flash segments and shaved word tails ("Follow", sentence-end
 payoff words). v2 therefore: cuts only at pauses >= 0.55s, no segment < 0.45s
 (bridged into a neighbour instead), cuts must remove >= 0.25s to exist,
-decay-aware pads (0.12/0.10, energy-verified to clip nothing audible at -42dB
-boundaries), and envelope-based pause detection (an instantaneous gate lets a
+measured decay-aware boundaries (0.12/0.10 are the search caps, see step 5), and
+envelope-based pause detection (an instantaneous gate lets a
 single mouth click hide a 2-second gap; the median envelope does not). Zero
 dead space still means
 zero DEAD space: real pauses (>= 0.55s), restarts and stutters are cut hard;

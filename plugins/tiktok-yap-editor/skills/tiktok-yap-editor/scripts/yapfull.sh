@@ -62,12 +62,23 @@ bash "$SCRIPTS/transcribe.sh" "$WD/full_${OUTBASE}.mp4" "$WD/w_${OUTBASE}" --wor
 # scan: whisper transcribing a whole file sometimes COLLAPSES a repeated line
 # into one, hiding it from any transcript check; short windows stay literal.
 # Override for a deliberate rhetorical repeat: YAP_ALLOW_STUTTER=1.
+# MEDIUM findings are NOT advisory (2026-08-27): an unlisted one fails the gate,
+# exactly like an unknown caption word does. Printing MEDIUM and passing anyway
+# is what shipped "Toronto's local... Toronto's local news" on the 08-24 CBRE
+# episode: both detectors flagged it, it sat next to the deliberate "CNBC ran it
+# / Gizmodo ran it" anaphora, and it got waved through with them. Listen to each
+# one, then either cut it via the clause plan or record it in <out>_stutter_ok.json.
+STUTOK="$WD/${OUTBASE}_stutter_ok.json"
+[ -f "$STUTOK" ] || echo '[]' > "$STUTOK"
 set +e
-python3 "$SCRIPTS/stutter_check.py" --words "$WD/w_${OUTBASE}.json"; STUT_RC=$?
-python3 "$SCRIPTS/restart_scan.py" --video "$WD/full_${OUTBASE}.mp4"; SCAN_RC=$?
+python3 "$SCRIPTS/stutter_check.py" --words "$WD/w_${OUTBASE}.json" \
+  --accept-file "$STUTOK"; STUT_RC=$?
+python3 "$SCRIPTS/restart_scan.py" --video "$WD/full_${OUTBASE}.mp4" \
+  --accept-file "$STUTOK"; SCAN_RC=$?
 set -e
 if { [ "$STUT_RC" -eq 2 ] || [ "$SCAN_RC" -eq 2 ]; } && [ "${YAP_ALLOW_STUTTER:-0}" != "1" ]; then
-  echo "STUTTER GATE FAILED: cut the flagged range out via the clause plan and rerun."
+  echo "STUTTER GATE FAILED: a real restart -> cut it via the clause plan; a"
+  echo "  deliberate repeat -> add its printed key to ${OUTBASE}_stutter_ok.json."
   exit 2
 fi
 
