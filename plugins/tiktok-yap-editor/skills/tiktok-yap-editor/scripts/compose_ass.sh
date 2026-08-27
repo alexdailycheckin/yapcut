@@ -59,7 +59,7 @@ print(f"volume={g:+.2f}dB,alimiter=limit=0.841:attack=5:release=60:level=disable
 ffmpeg -nostdin -y -i "$CUT" \
   -vf "setpts=N/(30*TB),ass='${ASS_ESC}',setsar=1,format=yuv420p" \
   -af "$AF" -ar 48000 \
-  -c:v libx264 -preset medium -crf 18 -r 30 -vsync cfr \
+  -c:v libx264 -preset medium -crf 16 -r 30 -vsync cfr \
   -video_track_timescale 30000 -c:a aac -b:a 192k -movflags +faststart \
   "$OUT" -hide_banner -loglevel error
 

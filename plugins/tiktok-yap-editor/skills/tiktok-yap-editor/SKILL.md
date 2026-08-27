@@ -389,7 +389,18 @@ arriving late at every join), `--min-gap 0.55` (only pauses this long become cut
 are cadence, cutting them machine-guns the edit), `--min-seg 0.45` (no
 flash-frame segments; shorter runs get bridged, never across >0.75s of pause),
 `--min-cut 0.25` (a cut must remove at least this much to earn its visual
-jump), `--d 0.10`. `--auto-floor` (on by default via yapfull) measures each
+jump), `--d 0.10`.
+**`--grade "eq=brightness=0.05:contrast=1.1:saturation=1.06"` for a dark take, and
+NEVER as a separate ffmpeg pass over the finished cut.** The chain is already three
+lossy generations (segments, concat, compose, plus burn_pips when there are
+receipts); grading the cut on its own adds a whole fourth encode of the entire
+video, and raising contrast on an already-compressed picture amplifies the
+artefacts that encode just introduced. Riding inside the segment pass costs
+nothing. On 2026-08-24 the two graded episodes were the two Alex called low
+quality. The same run also moved the intermediates to crf 12 and the delivered
+encodes to crf 16, which roughly doubled the cut-stage bitrate (5.8-6.4 -> 10.4-12.4
+Mbps on the same footage).
+`--auto-floor` (on by default via yapfull) measures each
 take's noise floor and raises the silence gate above it: without it, a take
 whose room tone sits above the fixed gate never reads as "silence" anywhere,
 so NOT ONE beat gets cut and every line-by-line pause ships. `--head-trim`

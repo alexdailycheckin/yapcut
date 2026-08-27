@@ -196,6 +196,12 @@ def main():
     ap.add_argument("--tail-extra",type=float,default=0.25,
         help="how far past --padr the decay search may travel to find a word's "
              "real end (cap; it also stops at the next speech run)")
+    ap.add_argument("--grade",default="",
+        help="ffmpeg filter string applied INSIDE the segment pass, e.g. "
+             "'eq=brightness=0.05:contrast=1.1:saturation=1.06'. Use this rather "
+             "than grading the finished cut: a separate pass is an extra full "
+             "lossy generation, and raising contrast on an already-compressed "
+             "encode amplifies its artefacts.")
     ap.add_argument("--lead",type=float,default=0.03,
         help="silence kept outside a measured boundary. Small on purpose: the "
              "onset is measured, so the old fixed 0.10s lead-in was audible as "
@@ -337,8 +343,14 @@ def main():
         z=ALT[i%len(ALT)]; W=round(1080*z); H=round(1920*z)
         if W%2: W+=1
         if H%2: H+=1
+        # --grade rides HERE, inside the segment pass, so a brightness lift costs
+        # ZERO extra generations. Grading the finished cut as a separate ffmpeg
+        # run (what the 08-24 batch did to popmart and mrbeast) is a whole extra
+        # lossy encode of the entire video on top of an already 3-generation
+        # chain, and those were the two files Alex called low quality.
+        grade=(a.grade+",") if a.grade else ""
         vf=(f"scale={W}:{H}:force_original_aspect_ratio=increase,"
-            f"crop=1080:1920,setsar=1,fps=30,"
+            f"crop=1080:1920,setsar=1,{grade}fps=30,"
             f"tpad=stop_mode=clone:stop_duration=0.3")
         # -ss/-to (not -t): input -t measures from the packet where reading
         # starts, not from the seek point, and shaves ~5-10ms of AUDIO per
@@ -346,7 +358,10 @@ def main():
         subprocess.run(["ffmpeg","-nostdin","-y","-ss",f"{s:.3f}","-to",f"{e:.3f}",
             "-i",src,
             "-map","0:v","-vf",vf,"-frames:v",str(nfr),
-            "-c:v","libx264","-preset","veryfast","-crf","18","-pix_fmt","yuv420p",
+            # Segments are throwaway intermediates that get re-encoded at the
+            # concat, so crf 12 here is effectively transparent and stops the
+            # first generation eating detail the later ones can never restore.
+            "-c:v","libx264","-preset","veryfast","-crf","12","-pix_fmt","yuv420p",
             "-video_track_timescale","30000","-an",ov,
             "-map","0:a","-af",af,"-c:a","pcm_s16le","-ar","48000","-ac","2","-vn",oa,
             "-hide_banner","-loglevel","error"],check=True)
@@ -366,7 +381,7 @@ def main():
         "-map","0:v","-map","1:a",
         "-vf","setpts=N/(30*TB),setsar=1","-r","30","-vsync","cfr",
         "-video_track_timescale","30000",
-        "-c:v","libx264","-preset","veryfast","-crf","18","-pix_fmt","yuv420p",
+        "-c:v","libx264","-preset","medium","-crf","16","-pix_fmt","yuv420p",
         "-c:a","aac","-b:a","192k",a.out,"-hide_banner","-loglevel","error"],check=True)
     os.remove(tmpv); os.remove(tmpa)
     shutil.rmtree(segdir,ignore_errors=True)   # segments are spent once concatenated

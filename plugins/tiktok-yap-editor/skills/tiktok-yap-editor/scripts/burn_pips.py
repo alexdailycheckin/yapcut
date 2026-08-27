@@ -142,7 +142,7 @@ def main():
     fc = fc.rsplit(f"[{last}]", 1)[0] + "[vout]"
     cmd = ["ffmpeg", "-nostdin", "-y", *inputs, "-filter_complex", fc,
            "-map", "[vout]", "-map", "0:a?", "-c:a", "copy",
-           "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+           "-c:v", "libx264", "-preset", "medium", "-crf", "16",
            "-pix_fmt", "yuv420p", a.out,
            "-hide_banner", "-loglevel", "error"]
     subprocess.run(cmd, check=True)
