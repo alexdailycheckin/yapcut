@@ -216,7 +216,11 @@ the creator (learned 2026-07-10, three times in one day).
 6. transcribe the cut -> GATE: repetition, two detectors (yapfull, build-fatal):
    stutter_check on the transcript AND restart_scan windowed audio scan (whisper
    transcribing a whole file sometimes collapses a repeated line into one,
-   hiding it from any transcript check; short windows stay literal).
+   hiding it from any transcript check; short windows stay literal). restart_scan
+   runs TWO window tiers, 30s and 6s, and the narrow one is not optional: 30s is
+   still wide enough for whisper to tidy an aborted restart into the clean retake
+   beside it, which is how "a viral mark... a viral marketing creative" shipped
+   on 2026-08-24 with both gates silent. At 6s the same audio gates HIGH.
    **MEDIUM is a decision, not a note.** An unlisted MEDIUM fails the build; you
    listen and either cut it via the clause plan or record its key in
    `<out>_stutter_ok.json`. Printing MEDIUM and passing is what shipped a real
@@ -498,6 +502,15 @@ notations ("fifteen dollars" == "$15"), and the handle/contact block is
 allowlisted from brand-config. No script file = gate skips (freestyle yaps).
 
 ### 8. Compose
+**Loudness is measured, corrected and verified, never assumed.** Pass 1 measures
+the cut, pass 2 renders the gained audio and MEASURES it, pass 3 corrects the
+limiter's residue. There is no round-number ceiling on the gain: a flat 12dB cap
+used to eat the target on every take Alex shoots (his lav sits near -28 LUFS and
+needs about +14.5dB), which shipped the whole 08-24 batch at -15.9 to -16.8 and
+the 08-17 batch at -16.2 to -17.7 before anyone noticed. The safety rail lives on
+the INPUT instead: below -45 LUFS there is no speech to lift, only room tone, so
+it refuses rather than amplifying noise. Check the printed `loudness:` line.
+
 `compose_ass.sh` (called by yapfull) burns the `.ass`, normalizes to -14 LUFS, and
 does the clean CFR re-encode.
 

@@ -89,8 +89,13 @@ def verify_flag(video, t0, t1, text, tmpdir):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", required=True)
-    ap.add_argument("--win", type=float, default=30.0)
+    ap.add_argument("--win", type=float, default=30.0,
+                    help="wide tier: catches a line re-read many seconds later")
     ap.add_argument("--hop", type=float, default=15.0)
+    ap.add_argument("--short-win", type=float, default=6.0,
+                    help="narrow tier: catches an ADJACENT restart. 30s is not "
+                         "short enough to stay literal, see the note below.")
+    ap.add_argument("--short-hop", type=float, default=3.0)
     ap.add_argument("--accept-file", default="",
                     help="JSON list of repeats already listened to and judged "
                          "deliberate (shared with stutter_check.py). An unlisted "
@@ -101,24 +106,35 @@ def main():
                                capture_output=True, text=True).stdout)
     found = []   # (t0, t1, kind, conf, text)
     with tempfile.TemporaryDirectory() as td:
+      # TWO TIERS, and the narrow one is not optional (added 2026-08-28).
+      # A 30s window is short compared to a whole file but it is NOT short
+      # enough to stay literal: whisper still tidies an aborted restart into
+      # the clean retake next to it. On the 08-24 MrBeast episode "a viral
+      # mark... a viral marketing creative" came back from every 30s window,
+      # and from the full file, as ONE clean phrase, so both repetition gates
+      # saw nothing and it shipped. Re-scanned at 6s the same audio returns
+      # "a viral marketing, a viral marketing" and gates HIGH. Short windows
+      # give whisper no room to smooth, which is the entire point.
+      for win, hop in ((a.win, a.hop), (a.short_win, a.short_hop)):
         t = 0.0
         while t < dur - 1.0:
-            w = window_tokens(a.video, t, min(dur, t + a.win), td)
+            w = window_tokens(a.video, t, min(dur, t + win), td)
             for (_i, _j, kind, conf, text, t0, t1) in find_flags(w):
                 # dedupe across overlapping windows by time+text
                 if any(abs(t0 - f[0]) < 0.8 and norm(text)[:24] == norm(f[4])[:24]
                        for f in found):
                     continue
                 found.append((t0, t1, kind, conf, text))
-            t += a.hop
-        # HIGH must reproduce in a tight re-transcription or it is demoted
-        verified = []
-        for t0, t1, kind, conf, text in found:
-            if conf == "HIGH" and not verify_flag(a.video, t0, t1, text, td):
-                conf = "MEDIUM"
-                kind += " (unverified)"
-            verified.append((t0, t1, kind, conf, text))
-        found = verified
+            t += hop
+      # HIGH must reproduce in a tight re-transcription or it is demoted.
+      # Runs once, after BOTH tiers have contributed.
+      verified = []
+      for t0, t1, kind, conf, text in found:
+          if conf == "HIGH" and not verify_flag(a.video, t0, t1, text, td):
+              conf = "MEDIUM"
+              kind += " (unverified)"
+          verified.append((t0, t1, kind, conf, text))
+      found = verified
     if not found:
         print("clean: no repetition found in windowed scan")
         return

@@ -41,7 +41,23 @@ ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:
 # headroom left (measured input_tp -0.34 dBTP), so the only way to reach -14 is
 # to gain first and let the limiter absorb that spike, which is inaudible on a
 # transient and is what makes the voice sit forward in the feed.
-AF=$(ffmpeg -nostdin -i "$CUT" -af "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json" \
+#
+# THE GAIN CEILING IS NOT A ROUND NUMBER YOU PICK (fixed 2026-08-28). It used to
+# be a flat min(12.0), and that clamp silently ate the target on every single
+# take Alex shoots: his lav records around -28 LUFS, so reaching -14 needs about
+# +14.5dB, the clamp gave 12, and the whole 08-24 batch shipped 2 to 3dB thin
+# (-15.9 to -16.8 against -14). The Aug 17 batch did too, at -16.2 to -17.7, so
+# it had been quietly wrong for weeks. The rail it was trying to be, do not
+# amplify a take that is silence, belongs on the INPUT (is there speech here at
+# all), not on the gain. And the arithmetic is no longer trusted: the limiter
+# does real work at these gains, so pass 2 renders the audio and MEASURES it,
+# then pass 3 corrects the residue. Landing on target is verified, not assumed.
+LIM="alimiter=limit=0.841:attack=5:release=60:level=disabled"
+measure_i() {   # integrated LUFS of $CUT through filter chain $1
+  ffmpeg -nostdin -i "$CUT" -af "$1,ebur128=framelog=quiet" -f null - 2>&1 \
+    | awk '/Integrated loudness/{f=1} f&&/I:/{print $2; exit}' || true
+}
+G1=$(ffmpeg -nostdin -i "$CUT" -af "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json" \
        -f null - 2>&1 | python3 -c '
 import sys,json,re
 t=sys.stdin.read()
@@ -51,9 +67,28 @@ d=json.loads(m[-1])
 try: i=float(d["input_i"])
 except Exception: sys.exit(1)
 if i!=i or i in (float("inf"),float("-inf")): sys.exit(1)
-g=max(-6.0,min(12.0,-14.0-i))          # clamp: never wildly boost a near-silent take
-print(f"volume={g:+.2f}dB,alimiter=limit=0.841:attack=5:release=60:level=disabled")
-' 2>/dev/null) || AF=""
+# Guard the INPUT, not the gain: below -45 LUFS there is no speech to lift,
+# only room tone, so refuse to amplify it into noise. Above that, allow the
+# gain the take actually needs (a phone lav routinely wants +14 or +15).
+if i < -45.0: sys.exit(1)
+print(f"{max(-6.0,min(24.0,-14.0-i)):.2f}")
+' 2>/dev/null) || G1=""
+
+AF=""
+if [ -n "$G1" ]; then
+  L2=$(measure_i "volume=${G1}dB,$LIM")
+  GF=$(python3 -c "
+import sys
+try: l=float('$L2')
+except Exception: sys.exit(1)
+g=float('$G1')
+if l==l and abs(l)!=float('inf'):
+    g=max(-6.0,min(24.0,g+max(-3.0,min(3.0,-14.0-l))))   # correct the limiter's residue
+print(f'{g:.2f}')" 2>/dev/null) || GF="$G1"
+  [ -n "$GF" ] || GF="$G1"
+  printf '  loudness: %sdB then corrected to %sdB (pass-2 measured %s LUFS)\n' "$G1" "$GF" "${L2:-n/a}"
+  AF="volume=${GF}dB,$LIM"
+fi
 [ -n "$AF" ] || { AF="loudnorm=I=-14:TP=-1.5:LRA=11"; echo "  (loudnorm measure failed, single-pass fallback)"; }
 
 ffmpeg -nostdin -y -i "$CUT" \

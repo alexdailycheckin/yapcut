@@ -142,7 +142,7 @@ elif [ ! -f "$SCRIPTFILE" ]; then
 fi
 
 # 4. compose: burn captions, loudnorm -14, clean CFR re-encode
-bash "$SCRIPTS/compose_ass.sh" "$WD/full_${OUTBASE}.mp4" "$WD/cap_${OUTBASE}.ass" "$OUT" 2>&1 | grep -E "wrote|I:"
+bash "$SCRIPTS/compose_ass.sh" "$WD/full_${OUTBASE}.mp4" "$WD/cap_${OUTBASE}.ass" "$OUT" 2>&1 | grep -E "wrote|I:|loudness"
 
 # 4a. burn image PiPs (logos, article/headline screenshots). libass cannot
 # composite raster, so build_ass only drew the text overlays (source/counter);
