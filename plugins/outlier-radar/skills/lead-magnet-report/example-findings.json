@@ -1,0 +1,146 @@
+{
+  "meta": {
+    "issue": "01",
+    "doc_title": "Who Answers Field Service",
+    "title_before": "The Field Service Software Category Has",
+    "title_claim": "No Clear Leader",
+    "title_after": " in AI Answers in 2026.",
+    "questions": 88,
+    "answers": 9856,
+    "citations": 141203,
+    "cited_domains": 11402
+  },
+  "headline": {
+    "anchor": {
+      "label": "Share of voice",
+      "value": "19.4%",
+      "unit": "the five biggest vendors, combined",
+      "body": "Every brand mention across every question, added up. The five most visible vendors hold <span class=\"em\">less than a fifth of it between them.</span> The remaining 81% is spread across 1,204 other vendors.",
+      "caption": "There is no incumbent in the answers. There is a long tail with a logo."
+    }
+  },
+  "segments": {
+    "eyebrow": "Who wins the settled questions",
+    "headline": "Every question has a winner. <span class=\"em\">Half the time it is not a specialist.</span>",
+    "rows": [
+      {"name": "A category specialist", "value": 24},
+      {"name": "A horizontal platform", "value": 12},
+      {"name": "Another profession entirely", "value": 9},
+      {"name": "A regulator or trade body", "value": 4}
+    ],
+    "extra_label": "The biggest wins that went outside",
+    "caption": "Of the 49 questions with a dominant answer, only 24 go to a category specialist."
+  },
+  "top_outside": [
+    {"name": "A global consultancy", "value": 92.4},
+    {"name": "A horizontal CRM", "value": 88.1},
+    {"name": "An insurance carrier", "value": 81.7}
+  ],
+  "concentration": {
+    "eyebrow": "How decided each question is",
+    "headline": "49 are settled. <span class=\"em\">14 are wide open.</span>",
+    "segments": [
+      {"name": "Settled, one name in 30% of answers or more", "short": "Settled", "value": 49},
+      {"name": "Contested, 15% to 30%", "short": "Contested", "value": 25},
+      {"name": "Open, under 15% and nobody owns it", "short": "Open", "value": 14}
+    ],
+    "ends": [
+      {"label": "Most settled", "body": "A global consultancy takes implementation planning at <b>92.4%</b>."},
+      {"label": "Most open", "body": "Multi-site rollout sequencing. The leading name reaches <b>8.8%</b>."}
+    ],
+    "caption": "The answers are not random. They are just not the same answer twice."
+  },
+  "tables": [
+    {
+      "eyebrow": "Who the engines name  ·  earned mentions only",
+      "headline": "The board",
+      "rows": [
+        ["Vendor A", 6.9, "6.90%"],
+        ["Vendor B", 3.6, "3.60%"],
+        ["Vendor C", 3.4, "3.40%"],
+        ["Vendor D", 2.8, "2.80%"],
+        ["Vendor E", 2.7, "2.70%"],
+        ["Vendor F", 1.9, "1.90%"],
+        ["Vendor G", 1.7, "1.70%"],
+        ["Vendor H", 1.5, "1.50%"]
+      ],
+      "caption": "Share of voice, on the 88 questions that name no vendor at all. Vendor H appears in 29 of them and wins none. Being in the answer and owning it are different achievements."
+    },
+    {
+      "eyebrow": "What kind of page gets cited",
+      "headline": "A page with no list is <span class=\"em\">barely in the data.</span>",
+      "rows": [
+        ["Pages containing a list", 90.1, "90.10%"],
+        ["Complete guides", 27.4, "27.40%"],
+        ["Service detail pages", 20.2, "20.20%"],
+        ["Pages containing a table", 18.3, "18.30%"],
+        ["Listicles", 15.8, "15.80%"],
+        ["Review pages", 1.1, "~1.10%"],
+        ["Case studies", 0.3, "~0.30%"]
+      ],
+      "caption": "The list and table rows are the share of 14,880 cited pages carrying that structure. The rest are each format's share of all citations."
+    },
+    {
+      "eyebrow": "Where the citations come from",
+      "headline": "A video platform and a trade title <span class=\"em\">out-cite the vendors.</span>",
+      "rows": [
+        ["a government portal", 5410, "5,410"],
+        ["the category leader's own site", 4180, "4,180"],
+        ["a video platform", 2905, "2,905"],
+        ["a competitor's own site", 1980, "1,980"],
+        ["a trade publication", 1844, "1,844"],
+        ["a comparison affiliate", 1391, "1,391"]
+      ],
+      "caption": "Own-site citations are 5.1% of the total. The other 94.9% is the engines describing this category using somebody else's pages."
+    },
+    {
+      "eyebrow": "The engines disagree",
+      "headline": "The same questions, <span class=\"em\">four different markets.</span>",
+      "anchor": {
+        "value": "3.4x",
+        "body": "between the engine that names this category most and the one that names it least, on identical questions over identical days."
+      },
+      "columns": ["Engine", "Names it  ·  Citations"],
+      "rank": false,
+      "rows": [
+        ["Engine 1", 29.7, "29.70%", "44,120"],
+        ["Engine 2", 25.4, "25.40%", "22,870"],
+        ["Engine 3", 17.2, "17.20%", "52,940"],
+        ["Engine 4", 8.7, "8.70%", "21,273"]
+      ],
+      "caption": "Engine 3 cites the most and names the category second least. Volume of sourcing and willingness to name are not the same thing, and treating AI visibility as one number hides both."
+    }
+  ],
+  "question_list": {
+    "eyebrow": "The 14 questions nobody owns",
+    "headline": "On 8 of them, the leading name is <span class=\"em\">a regulator.</span>",
+    "char_budget": 480,
+    "max_rows": 6,
+    "items": [
+      {"text": "How do I sequence a multi-site rollout without pausing operations?", "meta": "A trade body &nbsp;·&nbsp; 8.8% &nbsp;·&nbsp; 2 citations"},
+      {"text": "What compliance records do I have to keep for subcontracted field work?", "meta": "A regulator &nbsp;·&nbsp; 9.4% &nbsp;·&nbsp; 0 citations"},
+      {"text": "How should I price recurring maintenance versus one-off callouts?", "meta": "A trade publication &nbsp;·&nbsp; 10.2% &nbsp;·&nbsp; 6 citations"},
+      {"text": "What does a realistic first-year total cost of ownership look like?", "meta": "A regulator &nbsp;·&nbsp; 11.6% &nbsp;·&nbsp; 1 citation"},
+      {"text": "How do I migrate historical job data without losing the audit trail?", "meta": "A consultancy &nbsp;·&nbsp; 12.9% &nbsp;·&nbsp; 4 citations"}
+    ],
+    "caption": "When a regulator leads, no vendor has published an answer the engines would rather quote, and several draw almost no citations."
+  },
+  "quad": {
+    "eyebrow": "One content plan will not serve both",
+    "headline": "The winning format changes <span class=\"em\">with the question.</span>",
+    "cells": [
+      {"label": "They ask who to hire", "value": "31.4%", "primary": "Service detail page", "note": "34 questions", "secondary": "then Complete guide at 18.9%<br>then Listicle at 12.1%"},
+      {"label": "They ask how it works", "value": "46.2%", "primary": "Complete guide", "note": "29 questions", "secondary": "then Listicle at 13.8%<br>then How to at 9.4%"},
+      {"label": "They ask for a shortlist", "value": "29.8%", "primary": "Service detail page", "note": "15 questions", "secondary": "then Complete guide at 20.1%<br>then Listicle at 15.5%"},
+      {"label": "They ask X versus Y", "value": "24.9%", "primary": "Comparison page", "note": "10 questions", "secondary": "then Service detail page at 22.4%<br>then Complete guide at 19.7%"}
+    ],
+    "caption": "Same industry, same thirty days. The page that wins an explanation is not the page that wins a shortlist."
+  },
+  "gate": {
+    "eyebrow": "Next issue",
+    "headline": "Your category,<br><span class=\"em\">measured the same way.</span>",
+    "body": "Comment the category you sell into. It goes in the queue, runs against all four engines, and the findings become an issue.",
+    "next": "Commercial insurance",
+    "method": "Method: 88 questions, none naming a vendor, run daily against four AI engines for 30 days. Mention rate is mentions per answer, not the share of answers a vendor appears in."
+  }
+}
