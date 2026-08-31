@@ -12,7 +12,7 @@
     {
       "name": "outlier-radar",
       "source": "./plugins/outlier-radar",
-      "description": "Weekly viral-outlier research + ideation engine with optional SHOW MODE, plus the LEAD MAGNET REPORT: turn one category's measured data into a branded paginated report that posts natively as a LinkedIn document and gates a data sheet on a comment rather than a link. Guided journeys name your franchise and pick your magnet shape. Weekly scripts + LinkedIn twins land on a self-contained tracked dashboard. Data lives in a local workspace plugin updates never touch."
+      "description": "Weekly viral-outlier research + ideation engine with optional SHOW MODE, plus the LEAD MAGNET REPORT. NEW in 3.4: the VOICE STACK writes every script against verbatim transcripts of YOU speaking, with cadence targets measured from your own corpus instead of hand-picked constants, and a rejection ledger that makes a line you kill stay dead. First run asks for 20-30 minutes of you talking unscripted, and everything downstream is grounded in that. Weekly scripts + LinkedIn twins land on a self-contained tracked dashboard. Data lives in a local workspace plugin updates never touch."
     },
     {
       "name": "tiktok-yap-editor",
@@ -20,5 +20,5 @@
       "description": "Turn raw phone clips into finished vertical TikTok/Reels/Shorts. Mode A talking-head: transcript-first cut, zero dead air, brand captions, an auto-fitted on-screen hook that never clips, automatic stutter/restart catching. Mode B day-in-the-life: script the voiceover, lock picture to b-roll, record to a guide. Brand-agnostic via first-run discovery."
     }
   ],
-  "version": "3.3.0"
+  "version": "3.4.0"
 }
