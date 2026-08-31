@@ -2,6 +2,30 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.4.1
+
+**The dashboard survives a number where it expected a word.** One numeric field in
+an episode's `shot_list` used to take down the entire card render. `esc()` assumed
+its argument was a string, so `"beat": 4` threw `(s || "").replace is not a
+function` inside `render()`, and because the header, tabs and brief are static HTML
+the page still looked healthy while every card and every button in it was gone. It
+reported as "the ignore button doesn't work", which it could not, since no card had
+been drawn to carry a button. Fixed at `esc()` rather than at the one field: the
+same line already coerced `s.n`, and patching field by field is what left the
+landmine in place.
+
+**The shot list stops hiding its own instructions.** The table read only `shoot`,
+while `capture_gate.py` accepts `what` or `shoot`. A shot list written for the
+capture pipeline rendered an empty "Shoot this" column. The dashboard reads either
+name now, so the two tools agree.
+
+**Tracking admits when the browser will not let it save.** The theme calls were
+always wrapped; the two the whole UI depends on were not. Where `localStorage`
+throws, and Safari on a `file://` origin does exactly that, the unguarded write
+killed `setT()` before it reached `render()`, so a click changed nothing on screen.
+Both calls are guarded now. A failed write no longer stops the UI updating, and it
+says once that marks will not survive a reload instead of failing quietly.
+
 ## What's new in 3.2.2
 
 **The lockup is balanced.** The wordmark now stands at 78% of the dog's height,
