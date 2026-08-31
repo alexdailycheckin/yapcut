@@ -1,3 +1,54 @@
+# What's new
+
+## 3.4.0: the Voice Stack
+
+Scripts are now grounded in recordings of YOU talking, not in adjectives describing how you
+talk. This is the fix for the most persistent complaint this skill has ever had: "it still
+sounds like AI wrote it."
+
+**What broke, so the fix makes sense.** A 64-agent rewrite of one week's episodes, at
+serious cost, failed to change the creator's verdict. Every writer had been handed
+adjectives about the voice while thousands of words of that creator actually talking sat
+unused on disk. A model given a description of a voice imitates the description, which is
+the generic confident-operator register everyone recognises and nobody wants.
+
+Worse, the cadence gate was causing the problem it was meant to catch. It required a
+sentence mean of 9 to 13 words. The creator's unscripted on-subject speech measured 17.8.
+For weeks the machine demanded sentences roughly half his natural length and every batch was
+written to satisfy it. The number came from a corpus that was 76% casual off-topic chat,
+where he genuinely did run short. Two other things hid it: a `Path.resolve()` in a symlinked
+script meant the corpus-derivation mode had never once run, and the old rule "at least one
+sentence over 25 words" was satisfied by a 26-word sentence, so homogenised output passed.
+
+**New:**
+- `derive_voice_targets.py` measures your speech and writes `voice-corpus/targets.json`: a
+  full percentile profile, not a few floors. Summary stats can be satisfied a hundred ways.
+- `segment_corpus.py` splits your corpus by register and mode. On-subject speech, casual
+  speech, and anything you TYPED are three different voices and pooling them is what went
+  wrong. Typed material is excluded from a speech profile automatically.
+- `voice_brief.py` emits the writing brief: measured targets plus VERBATIM passages of you
+  talking. The playbook now requires running it before any script is written, so grounding
+  is mechanical and a scheduled run gets it for free.
+- `voice-corpus/rejections.json` (start from `rejections.example.json`) is a ledger of lines
+  you have killed. `spoken_lint.py` fails on recurrence. Model weights do not change between
+  sessions, so this is the only thing that accumulates your taste.
+- `spoken_lint.py` adds `rejected_phrase`, `no_speech_markers`, `tail_flat` and
+  `batch_no_runaway`. The last one fails a whole batch with no long sentence anywhere, because
+  the runaway sentence is usually the most distinctive thing about how someone talks.
+- `check_fidelity.py` reads the measured profile instead of constants, and prints a loud
+  banner when there is no profile so you never write a batch against unvalidated defaults
+  believing they are grounded.
+
+**Fixed:** `spoken_lint.py --dir` crashed with an argparse error, despite `--dir` being
+resolution option 1 in the documented order. `--corpus` never worked at all from a symlinked
+install.
+
+**What this asks of you, once.** 20 to 30 minutes of you talking through 4 or 5 subjects in
+your niche, unscripted, into a phone. Not read, not rehearsed. Transcripts go in `capture/`
+with a `mode:` line. Everything above is capped by that supply, and no amount of compute
+substitutes for it. Never feed teleprompter reads of AI-written scripts back in: an audit
+found 71 of 71 records were exactly that, so the voice being measured was the AI's own.
+
 # What is new in Outlier Radar
 
 ## 3.3.0: the Lead Magnet Report

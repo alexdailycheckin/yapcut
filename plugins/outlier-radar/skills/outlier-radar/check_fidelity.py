@@ -141,7 +141,47 @@ FLOORS_NEW = {"stdev": 8.0, "over20_pct": 15.0}
 FLOORS_OLD = {"stdev": 6.0, "over20_pct": 0.0}
 
 
+def load_targets():
+    """voice-corpus/targets.json, written by scripts/derive_voice_targets.py from the
+    creator's REAL unscripted speech in the target register. Added 2026-08-30.
+
+    Until this existed every band in this file was a guess, and one of them was doing
+    active harm. `mean 9 to 13` was set from a pooled corpus that is 76% casual banter
+    (median 7). Alex's unscripted speech ABOUT WORK, which is what this show is, runs
+    mean 17.8 and median 17. So for weeks the gate required sentences about half the
+    length of how he actually talks about business, every batch was written to satisfy
+    it, and he kept reporting that the results read as written prose with weird
+    structure. He was right and the gate was the cause."""
+    p = os.path.join(RADAR, "voice-corpus", "targets.json")
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p) as fh:
+            return json.load(fh)
+    except Exception:
+        return None
+
+
+TARGETS = load_targets()
+
+
 def floors_for(week_date):
+    """Measured floors when targets.json is present, else the old guesses.
+
+    The MEAN band is centred on his measured mean with a tolerance wide enough that a
+    performed 60-second script is not forced to match conversational scatter exactly.
+    Everything else is read straight off the profile."""
+    if TARGETS:
+        sw = TARGETS["sentence_words"]
+        sh = TARGETS["shape"]
+        return {
+            "stdev": max(4.0, round(sw["stdev"] * 0.6, 1)),
+            "over20_pct": max(0.0, round(sh["pct_over_20"] * 0.6, 1)),
+            "mean_lo": round(sw["mean"] - 4.5, 1),
+            "mean_hi": round(sw["mean"] + 4.5, 1),
+            "p90": sw["p90"],
+            "_measured": True,
+        }
     return FLOORS_NEW if (week_date or "") >= FLOORS_FROM else FLOORS_OLD
 
 
@@ -155,8 +195,11 @@ def verdict(fp, fid=None, tri=None, floors=None):
         fails.append(f"TRIGRAM {tri:.2f} below 0.50, sentences are not the creator's")
     if not fp:
         return ["empty script"]
-    if fp["max"] < 25:
-        fails.append(f"no sentence over 25 words (longest {fp['max']}), flat machine rhythm")
+    p90 = floors.get("p90", 25)
+    if fp["max"] < p90:
+        fails.append(f"longest sentence {fp['max']}w, below the p90 of his own speech "
+                     f"({p90}w). The old rule asked for 25, which a 26-word sentence "
+                     f"satisfied, and that is how 8 homogenised scripts passed on 08-30.")
     if fp.get("over20_pct", 0) < floors["over20_pct"]:
         fails.append(f"only {fp.get('over20_pct', 0):.0f}% of sentences over 20 words "
                      f"(target {floors['over20_pct']:.0f}%), the long causal run is missing")
@@ -164,8 +207,13 @@ def verdict(fp, fid=None, tri=None, floors=None):
         fails.append(f"no sentence under 5 words (shortest {fp['min']}), no variance")
     if fp["stdev"] < floors["stdev"]:
         fails.append(f"stdev {fp['stdev']} below {floors['stdev']:.0f}, cadence is flat")
-    if not 9 <= fp["mean"] <= 13:
-        fails.append(f"mean {fp['mean']} outside 9 to 13")
+    lo = floors.get("mean_lo", 9)
+    hi = floors.get("mean_hi", 13)
+    if not lo <= fp["mean"] <= hi:
+        src = ("his measured work-speech mean of "
+               f"{TARGETS['sentence_words']['mean']}" if floors.get("_measured")
+               else "the pre-2026-08-30 guess")
+        fails.append(f"mean {fp['mean']} outside {lo} to {hi} (band from {src})")
     return fails
 
 
@@ -529,7 +577,7 @@ def run_linkedin(d):
         for w in warns:
             print(f"        warn: {w}")
     print(f"{bad}/{len(rows)} failed the LinkedIn gate")
-    print("two-question gate (insider-entertaining OR usable) is still a human read")
+    print("two-question gate (insider-entertaining AND usable, Alex 2026-08-19) is still a human read")
     return bad
 
 
@@ -545,6 +593,20 @@ def run_week(path):
         f"  (cadence floors: pre-{FLOORS_FROM}, stdev {floors['stdev']:.0f}, long-run rule off. "
         f"This week was written before the 2026-08-24 recalibration.)")
     print(f"{len(items)} scripts in {os.path.basename(path)}{note}\n")
+    if TARGETS is None:
+        # PRODUCTION SAFETY, added 2026-08-30. Falling back silently to the pre-2026-08-30
+        # constants would hand every new creator the exact defect that broke 8 of Alex's
+        # scripts: a mean band of 9 to 13 when his real work speech measures 17.8. The
+        # numbers below were never measured against anyone's voice, so say so loudly rather
+        # than let a creator write a whole batch to them believing they are grounded.
+        print("!! NO voice-corpus/targets.json: cadence bands are UNVALIDATED DEFAULTS,")
+        print("!! not measured against your voice. They are the numbers that made 8 scripts")
+        print("!! read as written prose on 2026-08-30 (they demanded sentences roughly half")
+        print("!! the length of real unscripted speech about work).")
+        print("!! Fix, once, about 30 minutes: record yourself talking through 4-5 subjects")
+        print("!! in your niche unscripted, drop the transcripts in capture/, then run")
+        print("!!   python3 scripts/segment_corpus.py && python3 scripts/derive_voice_targets.py")
+        print()
     for it in items:
         # FIDELITY is testimony-only: it compares a script against a capture on disk, and
         # research has no capture by design. CADENCE is not. The original skip sent

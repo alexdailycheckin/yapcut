@@ -1,0 +1,27 @@
+{
+  "_what": "Phrases and constructions the creator has explicitly rejected, with the date and the reason. scripts/spoken_lint.py reads this file and FAILS any script that reproduces one. Copy this to <workspace>/voice-corpus/rejections.json and empty the array before first use: the entries below are illustrations of the SHAPE of a good entry, not rules for your creator.",
+  "_why": "This is the only mechanism that accumulates the creator's taste across sessions. A model's weights do not change between runs and nothing about a conversation survives it, so a correction made today is lost tomorrow unless it lands in a file that executes. Prose guidance was tried first and failed: a 187-line document describing the voice in adjectives still produced pastiche, because a description of a voice generates an imitation of the description. A ledger of concrete rejected strings cannot be misread.",
+  "_how_to_add": "When the creator kills a line, append it with the date and their reason, in their words where they gave them. NEVER add a phrase on your own judgement: this file is a record of their rulings, not a style opinion. Keep `pattern` a lowercase substring, or a regex flagged with is_regex, and keep it narrow enough that it cannot fire on legitimate copy.",
+  "rejections": [
+    {
+      "pattern": "another beat",
+      "date": "2026-08-30",
+      "why": "EXAMPLE ENTRY. Domain shorthand compressing 'another earnings beat'. The creator's words: 'it just sounds weird. It's not something that I would ever say, nor do I know how to say it.' Jargon standing in for plain words: reads as clever on a page and is unsayable aloud.",
+      "class": "jargon-compression"
+    },
+    {
+      "pattern": "(you'd think|you'd assume|you'd guess|everyone says|everyone assumes)[^.!?]{0,80}(and it is|and they do|and it was|and for years|and honestly)",
+      "is_regex": true,
+      "date": "2026-08-30",
+      "why": "EXAMPLE ENTRY. The ritual concede-then-pivot seam. It shipped 8 times in one batch because the show skeleton's 'assumption' beat was being satisfied by a formula instead of by a real surprise.",
+      "class": "concession-seam"
+    },
+    {
+      "pattern": "^(that's not|it's not|this isn't)\\b[^.!?]{0,40}[.!?]\\s*(that's|it's|this is)\\b[^.!?]{0,40}[.!?]",
+      "is_regex": true,
+      "date": "2026-08-10",
+      "why": "EXAMPLE ENTRY. The two-sentence antithesis epigram. Carries no fact and tells the viewer what to conclude. Clusters at the END of scripts, where it does most damage, because the symmetry sounds like a verdict.",
+      "class": "antithesis-epigram"
+    }
+  ]
+}

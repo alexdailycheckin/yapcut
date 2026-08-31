@@ -42,6 +42,7 @@ import argparse, json, os, subprocess, tempfile
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 W, H = 1080, 1920
+IG_BOTTOM = 1500          # the Instagram grid crop; cover text must finish above it
 FONT_CANDIDATES = [
     os.path.expanduser("~/Library/Fonts/BricolageGrotesque-ExtraBold.ttf"),
     os.path.expanduser("~/Library/Fonts/Montserrat-Black.ttf"),
@@ -149,11 +150,23 @@ def best_title_y(img, block=300, side=140, lo=880, hi=1420):
     camera body and a lit hand, not the average.
     """
     px = img.convert("L").load()
+    rgb = img.convert("RGB").load()
     w, h = img.size
     hi = min(hi, h - block)
+    if hi < lo:
+        return max(0, hi)
+
+    def skin(r, g, b):
+        """Classic skin-tone rule. Luma alone cannot keep type off the face: on a
+        WHITE t-shirt the shirt is the brightest thing in frame, so the darkest
+        band the old cost could find was his own face, and a 128pt title landed
+        across the mouth. Hue separates them where value does not: skin runs
+        R > G > B with real spread, the wall and the shirt sit near-neutral."""
+        return (r > 95 and g > 40 and b > 20 and r > g and r > b
+                and max(r, g, b) - min(r, g, b) > 15)
 
     def cost(y):
-        tot = n = brt = 0
+        tot = n = brt = skn = 0
         for yy in range(y, y + block, 6):
             for xx in range(side, w - side, 10):
                 v = px[xx, yy]
@@ -161,7 +174,9 @@ def best_title_y(img, block=300, side=140, lo=880, hi=1420):
                 n += 1
                 if v > 140:
                     brt += 1
-        return (tot / n) / 255.0 + 2.4 * (brt / n)
+                if skin(*rgb[xx, yy]):
+                    skn += 1
+        return (tot / n) / 255.0 + 2.4 * (brt / n) + 3.2 * (skn / n)
 
     return min(range(lo, hi + 1, 10), key=cost)
 
@@ -183,6 +198,101 @@ def _wrap_two(dr, text, fnt, max_w):
     return best or [text]
 
 
+def _wrap_n(dr, text, fnt, max_w, n):
+    """Split text over exactly n lines as evenly as possible, or None if it
+    cannot be done inside max_w.
+
+    Minimum-raggedness DP over the word breaks. A greedy fill cannot do this
+    job: filling to a running target leaves the whole remainder on the last
+    line, which is how a 3-line attempt reported "impossible" at every size
+    while an obvious even split existed."""
+    words = text.split()
+    if n == 1:
+        return [text] if dr.textlength(text, font=fnt) <= max_w else None
+    if len(words) < n:
+        return None
+    m = len(words)
+    w = [[None] * (m + 1) for _ in range(m)]
+    for i in range(m):
+        for j in range(i + 1, m + 1):
+            wid = dr.textlength(" ".join(words[i:j]), font=fnt)
+            w[i][j] = wid if wid <= max_w else None
+    INF = float("inf")
+    dp = [[INF] * (n + 1) for _ in range(m + 1)]
+    back = [[None] * (n + 1) for _ in range(m + 1)]
+    dp[0][0] = 0.0
+    for k in range(1, n + 1):
+        for j in range(1, m + 1):
+            for i in range(k - 1, j):
+                if dp[i][k - 1] == INF or w[i][j] is None:
+                    continue
+                c = dp[i][k - 1] + (max_w - w[i][j]) ** 2
+                if c < dp[j][k]:
+                    dp[j][k] = c
+                    back[j][k] = i
+    if dp[m][n] == INF:
+        return None
+    lines, j = [], m
+    for k in range(n, 0, -1):
+        i = back[j][k]
+        lines.append(" ".join(words[i:j]))
+        j = i
+    return lines[::-1]
+
+
+# Below this, two big lines read better than one small line. Alex's call
+# 2026-08-31, after a batch shipped with "How does Tesla sell?" at 78 on one
+# line next to "How does MrBeast sell?" at 116 on two: the old loop exhausted
+# every one-line size before it ever tried wrapping, so the SHORTEST titles
+# came out smallest. TARGET is the size that batch's biggest cover landed on,
+# and it is now the floor the fitter aims at, adding lines to reach it.
+TITLE_TARGET = 116
+# Ceiling as well as a target: the set should read as ONE set, and a 128pt
+# Tesla next to a 114pt Pop Mart does not. 120 is what the biggest cover in the
+# 08-30 batch landed on, which is the size Alex pointed at. It also keeps the
+# block short enough to sit under the chin once the mark's room is reserved.
+TITLE_MAX = 120
+MAX_TITLE_LINES = 3
+# An extra line has to EARN itself. Without this, "How does Pop Mart sell?"
+# takes 3 lines to gain 14pt and reads "How / does Pop / Mart sell?", which is
+# worse than 2 lines at 114 however much taller the type is. A break mid-phrase
+# costs more than a small size gain.
+LINE_GAIN = 1.20
+
+
+def fit_title(dr, title, max_w):
+    """Return (font, lines): the biggest type that fits, lines added as needed.
+
+    Walks 1..MAX_TITLE_LINES, keeping the largest size each arrangement allows,
+    and only takes a taller-line-count option when it is LINE_GAIN bigger than
+    the best fewer-line option. Stops as soon as TITLE_TARGET is reached."""
+    best = None                       # (fs, font, lines)
+    for n in range(1, MAX_TITLE_LINES + 1):
+        fs = TITLE_MAX
+        while fs >= 62:
+            f = font(fs)
+            cand = _wrap_n(dr, title, f, max_w, n)
+            if cand:
+                if best is None or fs >= best[0] * LINE_GAIN:
+                    best = (fs, f, cand)
+                break
+            fs -= 2
+        if best and best[0] >= TITLE_TARGET:
+            break
+    if best:
+        return best[1], best[2]
+    f = font(62)
+    return f, _wrap_two(dr, title, f, max_w)
+
+
+def title_block_height(dr, title, kicker, side=140):
+    """Rendered height of the kicker + title + accent rule block, so a caller
+    can place it without running off the Instagram grid crop."""
+    f, lines = fit_title(dr, title, W - side * 2)
+    h = (58 if kicker else 0) + int(f.size * 1.06) * len(lines) + 15
+    return h
+
+
 def draw_title_clean(img, title, kicker="", title_y=1030, side=140):
     """The default cover treatment.
 
@@ -198,25 +308,8 @@ def draw_title_clean(img, title, kicker="", title_y=1030, side=140):
     """
     dr = ImageDraw.Draw(img)
     max_w = W - side * 2
-    fs = 128
-    f = font(fs)
-    lines = [title]
-    while dr.textlength(title, font=f) > max_w and fs > 78:
-        fs -= 2
-        f = font(fs)
-    if dr.textlength(title, font=f) > max_w:
-        # still too wide at the floor: go to two balanced lines and refit
-        fs = 116
-        f = font(fs)
-        while fs > 62:
-            cand = _wrap_two(dr, title, f, max_w)
-            if len(cand) == 2 and max(dr.textlength(l, font=f) for l in cand) <= max_w:
-                lines = cand
-                break
-            fs -= 2
-            f = font(fs)
-        else:
-            lines = _wrap_two(dr, title, f, max_w)
+    f, lines = fit_title(dr, title, max_w)
+    fs = f.size
 
     y = title_y
     if kicker:
@@ -255,6 +348,9 @@ def main():
     ap.add_argument("--no-text", action="store_true")
     ap.add_argument("--title-y", type=int, default=None,
                     help="default: auto for clean (see --no-auto-y), 520 for scrim")
+    ap.add_argument("--no-mark-room", action="store_true",
+                    help="do not reserve space under the rule for the inflatable "
+                         "mark (use when no balloon will be added)")
     ap.add_argument("--no-auto-y", action="store_true",
                     help="clean style: skip the automatic placement scan")
     ap.add_argument("--yt", action="store_true")
@@ -295,8 +391,18 @@ def main():
             if a.title_y is not None:
                 ty = a.title_y
             elif a.style == "clean" and not a.no_auto_y:
-                ty = best_title_y(img)
-                print(f"  auto title-y {ty}")
+                # The scan must know the REAL block height. It used to assume a
+                # fixed 300px, so a two-line title placed near the bottom of the
+                # search range ran past the Instagram grid crop: that is how
+                # "How does Pop Mart sell?" shipped with its question below the
+                # square entirely. reserve keeps room under the rule for the
+                # inflatable mark add_logo.py places there (GAP + LOGO_H).
+                dr0 = ImageDraw.Draw(img)
+                blk = title_block_height(dr0, a.title, a.kicker)
+                reserve = 0 if a.no_mark_room else 34 + 132
+                hi = IG_BOTTOM - blk - reserve
+                ty = best_title_y(img, block=blk, lo=min(880, hi), hi=hi)
+                print(f"  auto title-y {ty}  (block {blk}px, ends {ty + blk})")
             else:
                 ty = 1030 if a.style == "clean" else 520
             if a.style == "clean":

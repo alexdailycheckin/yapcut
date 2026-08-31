@@ -40,7 +40,9 @@ Both Python scripts and this playbook resolve the workspace in this order:
 
 The workspace holds: `radar-config.json`, `positioning.md`, `methods.md`,
 `leaders-to-study.md`, `watch-accounts.md`, `mechanic-library.md` (your growing copy),
-`weeks/`, `performance/`, `carousels/`, `blog-queue/`, and the generated `dashboard.html`.
+`weeks/`, `performance/`, `carousels/`, `blog-queue/`, `capture/` and `voice-corpus/`
+(your recorded speech, the measured profile derived from it, and the rejection ledger),
+and the generated `dashboard.html`.
 The skill folder stays read-only: the playbook, the scripts, the templates in
 `references/`, and a bundled example week.
 
@@ -240,9 +242,68 @@ Both at once is the sweet spot. One clean yes ships.
 7. **Persist + hand off.** Write the run to `<workspace>/weeks/<YYYY-MM-DD>.json`, rebuild the
    dashboard, then route picked scripts to `tiktok-yap-editor` to cut (see Handoff).
 
+## The voice stack: SHOW the voice, never describe it (run this BEFORE writing)
+
+The single most expensive lesson this skill has learned. A 64-agent rewrite of one week's
+episodes, at considerable cost, failed to change the creator's verdict: "they still are
+written in the same voice that you always write." The cause was not scale, model, or prompt
+length. Every writer had been handed ADJECTIVES about the creator's voice while thousands of
+words of that creator actually talking sat unused on disk. **A model given a description of
+a voice produces an imitation of the description.** That is the generic-confident-operator
+register creators reject on sight.
+
+So grounding is mechanical, not advice, because advice is what failed. Before writing any
+spoken script:
+
+    python3 scripts/segment_corpus.py         # only when the corpus has changed
+    python3 scripts/derive_voice_targets.py   # only when the corpus has changed
+    python3 scripts/voice_brief.py --week <date>
+
+`voice_brief.py` prints the measured profile plus VERBATIM passages of the creator talking.
+**Write against those passages. Do not paraphrase the brief into guidance.** The passages
+are the specification.
+
+**Register is not optional, and pooling destroys it.** A corpus is usually several different
+voices: casual conversation, on-subject talk, and anything the creator TYPED rather than
+said. In the reference deployment the pool was 76% off-topic small talk at median 7 words
+per sentence, while the same creator's on-subject speech ran median 17. Pooled, the numbers
+looked fine and the gate ended up demanding sentences roughly half the creator's natural
+length, which every batch was then written to satisfy. `segment_corpus.py` splits by
+register and mode; `derive_voice_targets.py` reads only the on-subject SPOKEN segment.
+A typed segment is writing, not speech: in that deployment its filler rate was 2.3 per 1000
+words against 35.3 for actual speech, which is proof enough that the two cannot be mixed.
+
+**Exclude teleprompter reads from the corpus, always.** If the creator is reading scripts
+this skill wrote, measuring them measures the model, not the creator. An audit in the
+reference deployment found 71 of 71 records were exactly that, so the "voice" being
+measured was the AI's own. This is a trap that closes silently.
+
+**The rejection ledger is the only thing that accumulates taste.** `voice-corpus/
+rejections.json` (start from `rejections.example.json`, empty the array) records every line
+the creator kills, with the date and their reason. `spoken_lint.py` FAILS on recurrence.
+Model weights do not change between sessions and no conversation survives itself, so a
+correction is lost by the next batch unless it lands here. **When the creator kills a line,
+append it. Never add one on your own judgement.**
+
+**With no corpus, the stack degrades loudly and on purpose.** `voice_brief.py` and
+`derive_voice_targets.py` exit with the command that fixes them, `spoken_lint.py` reports
+`no_targets`, and `check_fidelity.py` prints a banner saying its cadence bands are
+UNVALIDATED DEFAULTS. Do not quietly write a batch against those defaults: in the reference
+deployment they were the direct cause of eight rejected scripts.
+
+**Onboarding owes the creator this ask, once:** 20 to 30 minutes of them talking through 4
+or 5 subjects in their niche, unscripted, into a phone. Not read, not rehearsed. Transcripts
+go in `capture/` with a `mode:` line (`granola`/`voice` for spoken, `typed` for written), then
+run the two build commands above. Everything the voice stack can do is capped by that
+supply, and no amount of compute substitutes for it.
+
 ## Script anatomy (summary; full spec in references/script-anatomy.md)
 Each script is written in labelled parts: `title`, `borrows`, `carries`, `text_hook`
-(~6-word on-screen overlay, NOT spoken; pick a family from `references/hook-library.md`),
+(~6-word on-screen overlay, NOT spoken, and it must NOT restate the spoken hook: burned text
+and spoken words are two channels, so a viewer who reads the overlay while hearing the same
+words has been given one hook twice and no reason to stay. Screen carries the consequence or
+the tension; the mouth carries the claim. Strip stopwords from both and any shared content
+word is an echo to rewrite. Pick a family from `references/hook-library.md`),
 `visual_hook` (what to show), `spoken_hook` (the opening 1-2 lines said, the dashboard
 renders this BOLD as the HOOK section), `script` (verbatim spoken body, starting AFTER
 the spoken hook: never repeat the hook inside `script`, it renders twice), `directions`
