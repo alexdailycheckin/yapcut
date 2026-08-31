@@ -636,8 +636,30 @@ const CAMPAIGNS = /*CAMPAIGNS_DATA*/;
 const KEY = "outlier-radar-tracking";
 let TAB = "dist";
 let FILM_ID = null;
-const track = JSON.parse(localStorage.getItem(KEY) || "{}");
-function save(){localStorage.setItem(KEY, JSON.stringify(track));}
+/* Both tracking calls are guarded. The theme calls below always were; these two
+   were not, and they are the ones the whole UI depends on. Where localStorage
+   throws (Safari on a file:// origin, a browser set to block site data, private
+   mode quota) the unguarded setItem took setT() down before it reached render(),
+   so a click changed nothing on screen: the exact "the button does nothing"
+   report, with no error anywhere a user would look. The read is guarded too,
+   which also covers a corrupted value that no longer parses. */
+const track = (function(){
+  try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; }
+  catch(e) { return {}; }
+})();
+let STORAGE_DEAD = false;
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(track)); }
+  catch(e) {
+    /* Swallow so render() still runs and the click visibly does something, but
+       say so once: tracking that silently fails to persist is worse than a
+       tracker that admits it cannot. */
+    if(!STORAGE_DEAD){
+      STORAGE_DEAD = true;
+      try { toast("Browser storage is blocked, so filmed and ignored marks will not survive a reload"); } catch(_){}
+    }
+  }
+}
 function t(id){return track[id] || {status:"idea", views:"", link:"", notes:"", carousel:false};}
 function setT(id, patch){track[id] = Object.assign(t(id), patch); save(); render(); if(FILM_ID) syncFilmFoot();}
 function toggleCarousel(id){setT(id,{carousel:!t(id).carousel}); toast(t(id).carousel?"Flagged for a carousel":"Carousel flag removed");}
