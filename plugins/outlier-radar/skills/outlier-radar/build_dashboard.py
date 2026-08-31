@@ -642,7 +642,7 @@ function t(id){return track[id] || {status:"idea", views:"", link:"", notes:"", 
 function setT(id, patch){track[id] = Object.assign(t(id), patch); save(); render(); if(FILM_ID) syncFilmFoot();}
 function toggleCarousel(id){setT(id,{carousel:!t(id).carousel}); toast(t(id).carousel?"Flagged for a carousel":"Carousel flag removed");}
 function setTab(x){TAB=x; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on", b.dataset.t===x)); render();}
-function esc(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function closeMenu(){const m=document.getElementById("exportMenu"); if(m) m.removeAttribute("open");}
 document.addEventListener("click",e=>{const m=document.getElementById("exportMenu"); if(m&&m.hasAttribute("open")&&!m.contains(e.target)) m.removeAttribute("open");});
 
@@ -893,7 +893,7 @@ function readScript(x){
 
 function shotTable(x){
   if(!Array.isArray(x.shot_list)||!x.shot_list.length) return "";
-  const rows=x.shot_list.map(s=>`<tr><td class="bn">${esc(String(s.n!=null?s.n:""))}</td><td class="bmut">${esc(s.beat||"")}</td><td>${esc(s.shoot||"")}${s.url?` <a href="${esc(s.url)}" target="_blank">open &rarr;</a>`:""}</td></tr>`).join("");
+  const rows=x.shot_list.map(s=>`<tr><td class="bn">${esc(String(s.n!=null?s.n:""))}</td><td class="bmut">${esc(s.beat||"")}</td><td>${esc(s.what||s.shoot||"")}${s.url?` <a href="${esc(s.url)}" target="_blank">open &rarr;</a>`:""}</td></tr>`).join("");
   return `<div class="block"><div class="lab">Shot list · receipts to capture</div><div class="tblwrap"><table class="tbl"><thead><tr><th>#</th><th>Beat</th><th>Shoot this</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
