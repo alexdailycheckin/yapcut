@@ -2,6 +2,32 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.4.2
+
+**The source gate finally looks at the date.** `source_check.py` proved every claim
+string was on its page and never once asked when the page was written, so a batch
+shipped describing a February 2025 campaign as "the most copied campaign of the year",
+and, worse, ran a head-to-head between 2 LinkedIn experiments 18 months apart that
+straddled the March 2026 feed-ranker replacement. 32 verified claims produced total
+confidence in a stale one. The gate now reads each page's own machine-readable
+publication date, prints the age of every receipt, and fails on 2 things: a declared
+`published` date the page contradicts from a trustworthy field, and any script
+asserting freshness whose newest dated source is over 45 days old.
+
+**Age by itself is not a defect, and the gate is built to keep it that way.** A
+wildcard tears down an old subject on purpose. Only claiming recency you do not have
+fails. Sources are tiered too: a date from article-level structured data can fail a
+declaration, while a bare `<time>` tag or a date in the URL path can only raise an
+unconfirmed warning. That tier exists because the first run of this gate read a
+related-posts sidebar on buffer.com and called a correct declaration a mismatch.
+
+**The freshness vocabulary is deliberately narrow.** Bare "just" and bare "now" are
+ordinary adverbs and matching them flagged every script in the batch. First-person
+time references were dropped for the same reason: "a post I wrote 9 days ago" claims
+nothing about a source. "this week" and "this month" are kept despite the same risk,
+because a false positive costs 1 reworded hook and a miss costs a batch asserting a
+dead story is live.
+
 ## What's new in 3.4.1
 
 **The dashboard survives a number where it expected a word.** One numeric field in

@@ -190,6 +190,21 @@ Both at once is the sweet spot. One clean yes ships.
    to post" or "how to go viral" as the SUBJECT of a script unless that literally is the
    creator's niche; present every signal WITH the transferred version ("the shell: X. Your
    version: Y about Z").
+   **The DATE LAW (added 2026-08-31, after it was broken).** Every source carries a
+   `published` date, and every figure is spoken with its date attached when the date
+   changes what the figure means. `source_check.py` now reads each page's own
+   machine-readable publication date and fails the batch on two things: a `published`
+   declaration the page contradicts from a trustworthy field, and any script asserting
+   freshness ("of the year", "this week", "just launched", "the latest") whose newest
+   dated source is more than 45 days old. **Age on its own is never a failure**: a
+   wildcard tears down an old subject on purpose. Asserting recency you do not have is
+   the failure. This exists because a batch shipped calling a February 2025 campaign
+   "the most copied campaign of the year", and because the same batch ran a head-to-head
+   between two experiments 18 months apart that straddled a ranking-model replacement,
+   which made the comparison meaningless. Both passed every gate that existed, including
+   32 verified source claims, because proving a string is ON a page proves nothing about
+   WHEN the page was written. Two dates make a comparison; check both before you draw one.
+
    **Verification rules (non-negotiable):** every outlier must be a real post you actually
    found at a real URL. Never invent a creator, a video, a metric, or a link. Tag every
    metric with `metric_confidence`: `"verified"` (you fetched the post or a primary source),
