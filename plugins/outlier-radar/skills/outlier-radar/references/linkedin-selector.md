@@ -127,6 +127,10 @@ That ordering has a consequence worth stating: **a great post whose peg died is 
 
 Evergreen wildcards are the buffer. They absorb a slipped week or get bumped for a hot drop without costing anything, which is the real argument for keeping two of them in every five.
 
+**Not every post's asset is a carousel.** Stage 0 of the asset step picks between four
+single-image shapes and the document, from the post's own inputs, and answers "text
+only" when none of them has an input on disk. See `references/linkedin-visuals.md`.
+
 When the selector flags a LATENT carousel (a sequence argument written as prose), the restructure is a judgment call on live creative, so it reports and stops. The tooling is ready if the call is yes: read `carousel-cards.md`, write a spec, run `carousel.py`.
 
 **The order is total, and the days are written down.** Sort keys are days-until-next-decay-step, then score, then id. The id key exists so the result never depends on the order items happen to sit in the file: same week in, same days out, every run. The selector writes `post_day`, `post_slot` and `post_why` back onto each twin, which is what the dashboard calendar renders. Before 2026-08-10 it printed the days to stdout and wrote nothing, so the schedule died with the terminal buffer and the dashboard had nothing to show.

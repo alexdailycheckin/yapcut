@@ -2,6 +2,31 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.4.3
+
+**The show's shape stopped reading as a checklist.** SKILL.md called the six beats in
+`references/the-show-template.md` a fixed skeleton, so an episode that filled all six
+could satisfy every gate and surprise nobody. Two parts are fixed now: the receipt sits
+in frame one, and the verdict comes through the creator's own lens. Those two are what
+an audience returns for. The middle exists to get from one to the other, so a story that
+arrives in a different order, or cracks two assumptions, or has no clean steal line,
+should run that way.
+
+**The asset step knows more than one shape.** It recognised exactly one before: three or
+more headed units becomes a document post. Everything else shipped as plain text, or
+shipped with a card invented that afternoon and never written down. On 2026-09-07 four
+single-image cards got built in a day, none of them a carousel, all four worth repeating,
+and their builders lived in a session scratchpad that garbage collects.
+`references/linkedin-visuals.md` is now Stage 0 of the asset step: meme, borrowed quote,
+customer sighting, category map, carousel, asked cheapest first, and answering "text
+only" when nothing on the list has an input on disk. `linkedin-selector.md` points at it.
+
+**What that file stores is reasoning, not layout.** Each shape carries what it is for,
+what it requires on the table before it can be built at all, the one move that makes it
+work, and the way it fails. Those transfer between builds. Type sizes do not, so the
+worked examples record one solution each with real hexes and paths and are labelled as
+the instance rather than the pattern.
+
 ## What's new in 3.4.2
 
 **The source gate finally looks at the date.** `source_check.py` proved every claim

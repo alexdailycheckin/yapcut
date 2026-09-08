@@ -136,10 +136,17 @@ creator can run weekly with fresh substance.
 The primary lane's weekly output becomes THE SHOW, under the creator's own name and
 lens: `episodes_per_week` subject teardowns from this week's news in THEIR industry
 (`news_picks` subjects with genuinely viral stories in the configured beats +
-`wildcards` picked purely for viral ceiling), each on the
-fixed skeleton in `references/the-show-template.md` (news open with the headline
+`wildcards` picked purely for viral ceiling), each built on the
+franchise shape in `references/the-show-template.md` (news open with the headline
 receipt in frame one, the turn line, the assumption cracked, the receipts walk, the
-steal line, the verdict close through the creator's lens). Hard rules that ride along:
+steal line, the verdict close through the creator's lens). **The shape is what makes it
+a show rather than a run of videos, so it is recognisable on purpose, but only two parts
+of it are fixed: the receipt is in frame one, and the verdict comes through the
+creator's own lens.** Those two are what the audience returns for. The middle exists to
+get from the receipt to the verdict, and a story that gets there in a different order,
+or cracks two assumptions, or has no clean steal line, should run that way. An episode
+that hits all six beats and surprises nobody has satisfied the template and missed the
+week. Hard rules that ride along:
 every spoken fact VERIFIED with a source URL or cut; every claim carries a screenshot
 receipt in the episode's `shot_list`; capture them with **`capture_gate.py`** (see the
 receipts section below); the two-question gate and the field contract apply unchanged. Episodes are
