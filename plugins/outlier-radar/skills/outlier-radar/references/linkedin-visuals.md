@@ -129,12 +129,13 @@ van you walked past is a sighting.
 the frame, the picture is a van and the headline has to carry the card alone, which it
 cannot. Reshoot or pick another shape.
 
-**Worked example, 2026-09-07.** [redacted customer], three stats (14x revenue from AI search
-YoY, 15% to 33% share of AI answers across 77 buyer prompts and 4 engines, +88%
-ChatGPT-driven add to cart YoY). Reach brand: mint rule `#2ED3B7`, which is the kit's
-own cover edge, over a dark green stat band, Reach wordmark top right, full bleed at
-1882x2352, which is the photo's own crop rather than the deck's 2000x2500.
-`indie-campers-sighting-FINAL-4x5.png`.
+**Worked example, 2026-09-07.** A named customer, photographed in the wild, with three
+measured stats (a revenue multiple year on year, a share-of-answers range across a
+counted prompt set and four engines, and a conversion lift). Employer brand rather than
+personal: a mint rule `#2ED3B7` matching the kit's own cover edge, over a dark green
+stat band, wordmark top right, full bleed at 1882x2352, which is the photo's own crop
+rather than the deck's 2000x2500. Name the customer and quote the figures only where
+they are already public and the customer has agreed to it.
 
 **Open: the display face is unrecorded.** It is a heavy geometric sans and it is not the
 deck's Romie. Name it before a second sighting ships, or the second one will not match
@@ -192,10 +193,10 @@ changing the claim, the split is decoration and the card has nothing to say.
 **Worked example, 2026-09-07.** The organic UA stack map, fourteen line items, built
 BESPOKE on the reach-infographic shell rather than as one of its eleven templates,
 structure borrowed from the workflows.io "Best GTM APIs" market map. Two dashed
-containers, SEO and AEO merged into one Reach block spanning two columns, and the
+containers, SEO and AEO merged into one owned block spanning two columns, and the
 35-45% figure as a light source between them. Jewel skin: outer `#1B2140`, tile
 `#232A4C`, category box `#303864`, sapphire `#6480DC` for core, amethyst `#9E6FE0` for
-the Reach block, topaz `#C08A24` for contested, cyan kept on the frame edge, the
+the owned block, topaz `#C08A24` for contested, cyan kept on the frame edge, the
 headline italic and the figure. Grain off, per Motion below. Plain title, the source of
 the figure set small directly under it, and the comment ask filling the empty slot in
 the contested group. Reproducible at `~/Desktop/organic-budget-map/` (`build_map.py`

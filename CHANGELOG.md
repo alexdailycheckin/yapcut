@@ -2,6 +2,24 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.4.4
+
+**Private material is out of the public repo, and the gate that missed it is wider.**
+Four things had reached this repo that should never have: a private vault file cited by
+bare name in two places, a named customer's revenue metrics sitting next to that
+customer's name, the employer's commercial strategy given as the reason for a design
+decision, and one absolute path into a private folder. The path was the only one the
+pre-commit gate caught, because the gate only knew about machine paths. It now also
+refuses vault filenames, the employer named as an actor or owner rather than as the
+partner pill, and a list of named customers.
+
+**The reasoning survived the scrub, which is the test that mattered.** Every passage
+that cited something private was making a real argument, so each was rewritten to make
+the same argument from the creator's own configuration instead of from one creator's
+private files. The worked example that named a customer now describes the shape of its
+stats and says to name a customer only where the figures are already public and the
+customer has agreed.
+
 ## What's new in 3.4.3
 
 **The show's shape stopped reading as a checklist.** SKILL.md called the six beats in

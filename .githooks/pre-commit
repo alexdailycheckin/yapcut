@@ -35,7 +35,20 @@ done <<< "$STAGED"
 # 2. Private strings must never appear in staged CONTENT. Reach methods, the
 #    vault, Alex's machine paths. The Reach partner pill and byline are the
 #    deliberate exceptions and they never use these strings.
+# Widened 2026-09-09. The old list caught machine paths and missed everything
+# else: a [redacted] file cited by BARE NAME ([redacted vault file]), a named
+# customer's revenue metrics, and Reach's own brand tokens all reached a commit
+# and two of them reached the public remote. A denylist that only knows about
+# absolute paths is a denylist for one kind of accident.
 PATTERNS='[redacted]|[redacted]|[redacted]|[redacted]|~|Desktop/Claude/(Reach|outlier-radar/weeks|outlier-radar/performance)'
+# [redacted] files cited by bare filename.
+PATTERNS="$PATTERNS"'|personal-brand\.md|reach-ai\.md|reach-messaging\.md|gtm-linkedin-radar\.md|(^|[^a-z-])(now|decisions|preferences)\.md'
+# Reach as an actor, an owner or a seller, rather than the partner pill. The
+# pill renders from PARTNER/attribution constants and never says these.
+PATTERNS="$PATTERNS"'|Reach (sells|pipeline|brand|block|wordmark|customer)|Reach'"'"'s (product|own|brand)|joining Reach|at Reach\b'
+# Named Reach customers. Add to this list when a new one is discussed anywhere
+# near this repo; naming one alongside its numbers is the worst case here.
+PATTERNS="$PATTERNS"'|[redacted customer]|[redacted customer]|[redacted customer]|[redacted customer]'
 # The hook itself carries the patterns (that is what a denylist is), so its own
 # diff is excluded from the content scan; path rules above still apply to it.
 HITS=$(git diff --cached -U0 -- . ':(exclude).githooks/*' \

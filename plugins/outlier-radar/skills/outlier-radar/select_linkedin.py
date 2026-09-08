@@ -170,10 +170,11 @@ JOB_WHY_SHORT = {
 # media and organic marketing. He is a Head of Growth writing for his own peers.
 #
 # This exists because the playbook leg drifted twice. Both times it drifted the same way:
-# toward SEO and AEO technical work, because that is what Reach sells and it is the nearest
-# thing to hand. It is not the subject. [redacted vault file] puts AEO inside pillar 3 as ONE
-# channel, and the subject is how products and companies reach their market and get bought.
-# A post about writing a GA4 regex is in Reach's product lane, not in Alex's subject lane.
+# toward whatever technical speciality the creator's employer sells, because that is the
+# nearest thing to hand. It is not the subject. A speciality belongs inside one pillar as
+# ONE channel; the subject is how products and companies reach their market and get bought.
+# A post about writing a GA4 regex is in an employer's product lane, not the creator's
+# subject lane. Set the boundary in radar-config.json and hold it.
 LANE = _SCFG.get("lane") or (
     "The creator's own subject lane, one line, set it in radar-config.json "
     "(selector.lane). Every leg stays inside it; the tools or channels you "

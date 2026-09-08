@@ -23,7 +23,7 @@ Alex's stated north star is engagement and account growth. Decomposed, follower 
 
 That decomposition is the whole reason a mix exists, and it is worth being precise about because the two halves are served by different posts.
 
-**One refinement, and it is a real disagreement with the raw north star.** Raw follower growth is cheap to buy with broad-appeal content, and buying it makes the funnel worse while the number gets better. `[redacted vault file]` locks the primary student as the B2B growth leader at Series B to D, and the funnel as video to LinkedIn to newsletter to diagnostic to Reach pipeline. The same file records the audience's own words: "followers don't pay bills", "that viral content didn't translate into a single qualified lead", "a hobby with good branding". Optimising raw follower count would have Alex doing the exact thing his positioning mocks.
+**One refinement, and it is a real disagreement with the raw north star.** Raw follower growth is cheap to buy with broad-appeal content, and buying it makes the funnel worse while the number gets better. Your positioning file is what locks the primary student and the funnel it feeds, and it is the thing to read before accepting the raw number as the goal. If your audience's own words include any version of "followers don't pay bills", optimising raw follower count has you doing the exact thing your positioning mocks.
 
 So the objective is **ICP-weighted growth**: net new followers times the share of them who are growth, marketing or GTM leaders. 200 followers at 20% ICP beats 500 at 2%. LinkedIn's follower demographics expose seniority, function and industry, so this is measurable rather than aspirational, and `log_perf.py --followers` records both numbers.
 
@@ -39,7 +39,7 @@ Not taste, and not a copied ratio. A portfolio, because each job serves a differ
 
 Target is 2 reach, 2 authority, 1 relatability per 5-post week. Drop the reach leg and there is nobody new to convert. Drop the authority leg and strangers arrive with no reason to stay. Drop relatability and the account reads as a feed of press releases.
 
-**Precedence.** The pillar mix in `[redacted vault file]` (roughly 3 / 1.5 / 1 / 1 / 1.5 across five pillars per seven) decides WHAT the week is about. The job mix decides WHAT EACH POST IS FOR. They are orthogonal and the pillar mix wins on subject matter. If the two ever conflict, change the shape of a post, never its pillar.
+**Precedence.** The pillar mix in your own positioning file decides WHAT the week is about. The job mix decides WHAT EACH POST IS FOR. They are orthogonal and the pillar mix wins on subject matter. If the two ever conflict, change the shape of a post, never its pillar.
 
 ## The two lanes and the twin cap (2026-08-11)
 

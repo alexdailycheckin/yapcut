@@ -255,8 +255,8 @@ def report():
             print()
 
         # An unrepeatable post is history, not a lever. Two of the three top performers in
-        # the 2026-08-11 sweep were one-off life events (joining Reach, the first sale); rank
-        # them alongside formats and the engine "learns" to post more job announcements.
+        # the 2026-08-11 sweep were one-off life events (a new job, a first sale); rank them
+        # alongside formats and the engine "learns" to post more job announcements.
         rankable = [r for r in green if items.get(r["id"], {}).get("repeatable") is not False]
         dropped = len(green) - len(rankable)
         if dropped:
