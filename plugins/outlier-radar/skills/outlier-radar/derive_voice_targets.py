@@ -18,7 +18,7 @@ The distribution says why:
     creator, really talking   median  8   mean 12.5   p90 29   max 98   >30w 8.4%  >45w 1.6%
     the generated batch       median  8   mean 11.6   p90 27   max 38   >30w 6.6%  >45w 0.0%
 
-Real speech has a FAT TAIL: mostly short lines, with occasional 50-to-98-word runs where he
+Real speech has a FAT TAIL: mostly short lines, with occasional 50-to-98-word runs where they
 keeps going into the why and then the consequence in one breath. Across 128 generated
 sentences there was not one sentence over 45 words. The old gate asked for `max >= 25`,
 which a 26-word sentence satisfies, so it certified homogenised output as compliant. A mean
@@ -41,8 +41,8 @@ import sys
 
 # Discourse markers. These are NOT stylistic garnish, they are the load-bearing finding of
 # the 2026-08-30 diagnosis: in the reference deployment the creator said "like" 42.6 times
-# per 1000 words and the generated batch said it 2.8 times. Quotative "like" was his
-# documented signature ("and he's like, yeah, but they're all vanity metrics") and it was
+# per 1000 words and the generated batch said it 2.8 times. Quotative "like" was their
+# documented signature ("and they're like, yeah, but they're all vanity metrics") and it was
 # absent from every script. The reason is
 # upstream: the `copywriting` skill's sentence layer binds every lane with no short-form
 # exemption, and it cuts hedges and filler on sight because in WRITTEN copy they are waste.

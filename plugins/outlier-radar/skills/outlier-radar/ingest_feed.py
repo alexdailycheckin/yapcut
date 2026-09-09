@@ -2,7 +2,7 @@
 """
 Weekly LinkedIn intake. The creator pastes a feed table, this turns it into store rows.
 
-The loop it serves (his 2026-08-11 directive): at some point each week he hands over the
+The loop it serves (a standing call from the creator, 2026-08-11): each week they hand over the
 activity-feed numbers, the engine studies them, and the LOCAL Radar gets small tuning
 edits from what is working. This script is only the intake half. It never tunes anything;
 it lands clean rows and prints what a human then has to decide.

@@ -165,9 +165,9 @@ JOB_WHY_SHORT = {
 # Where each leg's substance comes from. Written down because getting this wrong is what
 # produced two weeks of bad posts: authority was drafted from the creator's work journal when it
 # should have come off the same research as reach, and playbooks were drafted from the
-# show corpus when what his audience wanted was this week's releases.
+# show corpus when what their audience wanted was this week's releases.
 # THE LANE. Every leg stays inside it (the creator's call, 2026-08-11): GTM, growth, CMO, sales, social
-# media and organic marketing. He is a Head of Growth writing for his own peers.
+# media and organic marketing. The creator is a practitioner writing for their own peers.
 #
 # This exists because the playbook leg drifted twice. Both times it drifted the same way:
 # toward whatever technical speciality the creator's employer sells, because that is the

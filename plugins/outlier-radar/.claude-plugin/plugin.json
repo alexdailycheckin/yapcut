@@ -1,7 +1,7 @@
 {
   "name": "outlier-radar",
   "description": "Weekly viral-outlier research + ideation engine with optional SHOW MODE, plus the LEAD MAGNET REPORT: turn one category's measured data into a branded paginated report that posts natively as a LinkedIn document and gates a data sheet on a comment rather than a link. NEW in 3.4: the VOICE STACK grounds every script in verbatim transcripts of the creator speaking, with cadence targets measured from their own corpus instead of hand-picked constants, and a rejection ledger that makes a killed line stay dead. Guided journeys name your franchise and pick your magnet shape. Weekly scripts + LinkedIn twins land on a self-contained tracked dashboard. Data lives in a local workspace plugin updates never touch.",
-  "version": "3.4.5",
+  "version": "3.4.6",
   "author": {
     "name": "Alex Muresan",
     "url": "https://alexmuresan.com"

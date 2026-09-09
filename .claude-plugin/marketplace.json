@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "YapCut by alexmuresan.com: a short-form content engine plus a weekly lead-magnet engine. Outlier Radar researches your niche and writes weekly ready-to-film scripts to a tracked dashboard. The Lead Magnet Report turns one category's measured data into a branded paginated report that posts natively as a LinkedIn document. The TikTok Yap Editor turns raw phone clips into finished vertical videos. All three are creator-agnostic via a one-time discovery interview.",
-    "version": "2.7.5"
+    "version": "2.7.6"
   },
   "plugins": [
     {
@@ -20,5 +20,5 @@
       "description": "Turn raw phone clips into finished vertical TikTok/Reels/Shorts. Mode A talking-head: transcript-first cut, zero dead air, brand captions, an auto-fitted on-screen hook that never clips, automatic stutter/restart catching. Mode B day-in-the-life: script the voiceover, lock picture to b-roll, record to a guide. Brand-agnostic via first-run discovery."
     }
   ],
-  "version": "3.4.5"
+  "version": "3.4.6"
 }

@@ -152,7 +152,7 @@ def main():
     print(f"# corpus: {targets['corpus']['words']} words, {targets['corpus']['sentences']} sentences"
           + (f" | week {week}" if week else ""))
     print()
-    print("## HOW HE ACTUALLY TALKS (measured, not chosen)")
+    print("## HOW THEY ACTUALLY TALK (measured, not chosen)")
     print()
     print(f"- Sentence length: median {sw['median']:.0f} words, mean {sw['mean']}. Most lines are SHORT.")
     print(f"- But the tail is the voice: p90 {sw['p90']}, longest {sw['max']} words.")
@@ -170,7 +170,7 @@ def main():
     print("Their absence is the single loudest tell. Rates per 1000 words in their real speech:")
     print("  " + ", ".join(f"{k} {v}" for k, v in mk))
     print()
-    print("Quotative \"like\" is a common signature: \"and he's like, yeah, but they're all vanity")
+    print("Quotative \"like\" is a common signature: \"and they're like, yeah, but they're all vanity")
     print("metrics\". A script with none of these reads as an essay performed aloud, which is")
     print("the exact note that comes back on every rejected batch. NOTE: the `copywriting` skill's")
     print("sentence layer deletes hedges and filler because in WRITTEN copy they are waste.")
