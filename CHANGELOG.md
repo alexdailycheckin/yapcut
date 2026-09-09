@@ -2,6 +2,28 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.6.0 (outlier-radar)
+
+**The gate now grades whether the week got made, not only how it reads.**
+
+Every gate in the runner checked craft: hook length, verbless runs, the antithesis epigram,
+the numeral law, whether a figure carries a source URL. None of them checked whether the
+research behind the week happened. So a week with zero outliers, zero episodes and zero ammo
+passed with a clean table, as long as its sentences were tidy.
+
+That gap has a predictable shape. Step 1 of the weekly routine, the early-signal sweep, is the
+expensive step, so it is the one a hurried run drops. What comes out instead is a diary: posts
+about the creator's own posting habits and analytics, which read perfectly well and teach their
+audience nothing. On 2026-09-09 a run did exactly this and went green.
+
+- **New `completeness` gate in `radar_gate.py`.** FAILs a week that shipped items in any lane
+  with an empty `inspiration[]`, and names the sweep in the failure. Warns on outliers missing a
+  link or a `metric_confidence`, an empty `ammo[]`, a missing `experiment` block, and video
+  slots configured in `quantity` but left unfilled.
+- Skippable as `--skip complete` when you know the week has no sweep and have said so in
+  `sweep_note`.
+- The bundled example week passes it unchanged.
+
 ## What's new in 3.5.0 (outlier-radar) and 3.1.0 (tiktok-yap-editor)
 
 **The audit release.** A 13-lens audit of the repo and its live install on 2026-09-09 found that
