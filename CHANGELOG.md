@@ -2,6 +2,18 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.6.2 (outlier-radar)
+
+**The same blind spot, the other half of English.** 3.6.1 taught `has_verb()` third-person
+present after a PERSONAL pronoun. Indefinite pronouns were still missing, so "One counts visits
+to the platforms. The other counts the clicks those platforms send back out." scored as a
+verbless run at HIGH severity inside a day of shipping the first fix.
+
+- `has_verb()` now covers one, another, other, nobody, somebody, someone, everyone, anyone,
+  each, both, all, most, none, everything, nothing, something.
+- Re-verified against the fragment set: 3 false positives cleared, every genuine verbless
+  fragment still fails.
+
 ## What's new in 3.6.1 (outlier-radar)
 
 **`spoken_lint` could not see the present tense.** `has_verb()` tested a closed verb list,

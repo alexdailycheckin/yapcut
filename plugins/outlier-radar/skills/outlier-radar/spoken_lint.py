@@ -115,10 +115,12 @@ ING_ED = re.compile(r"\b\w{4,}(ing|ed)\b", re.I)
 # the forms, sends the emails and checks out" carries 4 finite verbs and scored as a
 # verbless_list before 2026-09-09, because not one of them is in VERBS and not one ends in
 # -ing or -ed. A subject pronoun followed by a word ending in -s is a verb often enough to
-# trust, and the asymmetry matters: a missed detection costs one warning, a false FAIL costs
+# trust, and the asymmetry matters. Indefinite pronouns added 2026-09-09 after the same bug
+# bit twice in one session: 'One counts visits. The other counts clicks.' scored verbless.
+# The original list held only personal pronouns, which is half of English subjects: a missed detection costs one warning, a false FAIL costs
 # a correct line, which the writer then mangles to satisfy a gate that was wrong.
 THIRD_PERSON_S = re.compile(
-    r"\b(it|he|she|they|we|you|i|that|this|which|who|there)\s+(\w{3,}s)\b", re.I)
+    r"\b(it|he|she|they|we|you|i|that|this|which|who|there|one|another|other|nobody|somebody|someone|everyone|anyone|each|both|all|most|none|everything|nothing|something)\s+(\w{3,}s)\b", re.I)
 
 
 def is_speech_act(chunk: str) -> bool:
