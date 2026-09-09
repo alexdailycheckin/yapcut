@@ -43,8 +43,8 @@ fi
 if [ -x tests/run.sh ]; then tests/run.sh --fast || { echo "fast tests failed"; exit 1; }; fi
 
 git add -A
-git commit -m "$PLUGIN $VERSION: $NOTE"
-git tag -a "$PLUGIN-v$VERSION" -m "$NOTE"
+if git diff --cached --quiet; then echo "version already at $VERSION in the tree; tagging HEAD"; else git commit -m "$PLUGIN $VERSION: $NOTE"; fi
+git tag -f -a "$PLUGIN-v$VERSION" -m "$NOTE"
 git push origin main --tags
 
 if command -v claude >/dev/null 2>&1; then
