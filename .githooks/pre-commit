@@ -53,23 +53,38 @@ PRIV="$(dirname "$0")/private-patterns.txt"
 PRIVATE_PATTERNS="$(grep -hvE '^[[:space:]]*(#|$)' "$PRIV" | paste -sd'|' - || true)"
 [ -n "$PRIVATE_PATTERNS" ] || fail "private-patterns.txt holds no patterns; refusing to run a half-blind gate"
 
-# Structural half, safe to publish: workspace paths that should never be quoted
-# in tracked prose.
-PATTERNS='Desktop/Claude/(Reach|outlier-radar/weeks|outlier-radar/performance)'
+# The denylist splits by what each mode is FOR, and the split is the point.
+#
+# SECRETS are things that must never be public at all: customer names, vault
+# filenames, machine paths. They justify rewriting history, because a rewrite is
+# the only way to un-publish them.
+#
+# STYLE rules are things that must never be newly WRITTEN: this tree is public
+# doctrine and should not read as if Reach owns or sells through it. They do not
+# justify a rewrite. Scrubbing "joining Reach" out of immutable commits changes
+# nothing anyone can be harmed by, and gating releases on it means every release
+# needs another history rewrite, forever. Established 2026-09-09, when the first
+# rewrite cleared every real secret and left 31 instances of "joining Reach"
+# holding the release gate shut.
+#
+# So: --history scans SECRETS only. The staged diff scans both.
+SECRET_PATTERNS='Desktop/Claude/(Reach|outlier-radar/weeks|outlier-radar/performance)'
 # Generic vault filenames. The identifying ones load from private-patterns.txt.
-PATTERNS="$PATTERNS"'|(^|[^a-z-])(now|decisions|preferences)\.md'
+SECRET_PATTERNS="$SECRET_PATTERNS"'|(^|[^a-z-])(now|decisions|preferences)\.md'
+SECRET_PATTERNS="$SECRET_PATTERNS|$PRIVATE_PATTERNS"
+
 # Reach as an actor, an owner or a seller, rather than the partner pill. The
 # pill renders from PARTNER/attribution constants and never says these.
-PATTERNS="$PATTERNS"'|Reach (sells|pipeline|brand|block|wordmark|customer)|Reach'"'"'s (product|own|brand)|joining Reach|at Reach\b'
-# Identifying half, loaded from outside the tree.
-PATTERNS="$PATTERNS|$PRIVATE_PATTERNS"
+STYLE_PATTERNS='Reach (sells|pipeline|brand|block|wordmark|customer)|Reach'"'"'s (product|own|brand)|joining Reach|at Reach\b'
+
+PATTERNS="$SECRET_PATTERNS|$STYLE_PATTERNS"
 # --history: scan every reachable commit for the same patterns (the 3.4.4 scrub cleaned HEAD and
 # left a customer's figures in commit 15838a7; a staged-diff gate can never see that).
 if [ "$MODE" = "--history" ]; then
-  HITS=$(git grep -nE "$PATTERNS" $(git rev-list --all) -- . ':(exclude).githooks/*' 2>/dev/null | head -20 || true)
+  HITS=$(git grep -nE "$SECRET_PATTERNS" $(git rev-list --all) -- . ':(exclude).githooks/*' 2>/dev/null | head -20 || true)
   if [ -n "$HITS" ]; then
     echo "$HITS" >&2
-    fail "private markers are reachable in git history ($(echo "$HITS" | wc -l | tr -d ' ') hits shown). Rewrite with git filter-repo --replace-text before releasing."
+    fail "SECRET markers are reachable in git history ($(echo "$HITS" | wc -l | tr -d ' ') hits shown). Rewrite with git filter-repo --replace-text before releasing."
   fi
   echo "history clean"; exit 0
 fi
