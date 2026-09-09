@@ -48,9 +48,11 @@ from yapcut_home import radar_home  # noqa: E402
 
 HOME = radar_home()          # consumes --dir; exits 2 with the places looked when none found
 PY = sys.executable or "python3"
-GATES = ("check_fidelity", "hook_lint", "spoken_lint", "source_check", "visual_lint", "weeks")
+GATES = ("check_fidelity", "hook_lint", "spoken_lint", "source_check", "visual_lint",
+         "completeness", "weeks")
 SKIP_ALIASES = {"source": "source_check", "visual": "visual_lint", "fidelity": "check_fidelity",
-                "hook": "hook_lint", "spoken": "spoken_lint", "weeks": "weeks"}
+                "hook": "hook_lint", "spoken": "spoken_lint", "weeks": "weeks",
+                "complete": "completeness", "completeness": "completeness"}
 TIMEOUT = {"source_check": 900}
 
 
@@ -195,6 +197,84 @@ def cross_week(path, d):
     return rc, lines
 
 
+VIDEO_LANES = ("distribution", "office")
+POST_LANES = ("linkedin", "gtm_linkedin")
+
+
+def completeness(d):
+    """Did the week actually get made, or only written? Returns (rc, lines).
+
+    Added 2026-09-09 after a run that skipped step 1 entirely and still went green. Every
+    other gate in this file grades HOW a week is written: hook length, verbless runs, the
+    epigram, the numeral law, whether a figure carries a source. Nothing graded WHETHER the
+    research behind it happened, so a week with zero outliers, zero episodes and zero ammo
+    passed with a clean table as long as its sentences were tidy.
+
+    That failure mode is not exotic. The routine's step 1 is the expensive one, so it is the
+    one a hurried run drops, and what comes out is a diary: posts about the creator's own
+    posting habits, which read fine and teach the audience nothing. The gate has to be able
+    to say "you skipped the sweep", because by the time a human notices, the week has shipped.
+
+    FAIL means the week cannot be graded as a real week. WARN means a step of the routine is
+    missing but the week still stands.
+    """
+    lines, rc = [], 0
+    def n(key):
+        v = d.get(key)
+        return len(v) if isinstance(v, list) else 0
+
+    content = sum(n(k) for k in VIDEO_LANES + POST_LANES)
+    outliers = n("inspiration")
+
+    if content == 0:
+        lines.append("FAIL: no items in any lane. Nothing to grade.")
+        return 2, lines
+
+    if outliers == 0:
+        lines.append(
+            f"FAIL: {content} item(s) shipped and inspiration[] is empty. That is routine step 1, "
+            f"the early-signal sweep, skipped: every outlier is a real post at a real URL with a "
+            f"metric_confidence, and it is what the week's mechanics are supposed to borrow from. "
+            f"A batch written with no sweep behind it is sourced from whatever was already on the "
+            f"creator's desk. Run the sweep, or say out loud in sweep_note that this week has none.")
+        rc = 2
+    else:
+        bad = [i for i, o in enumerate(d.get("inspiration") or [])
+               if not (isinstance(o, dict) and o.get("link") and o.get("metric_confidence"))]
+        if bad:
+            lines.append(f"warn: {len(bad)} of {outliers} inspiration entries lack a link or a "
+                         f"metric_confidence. An outlier you cannot source is not evidence.")
+            rc = max(rc, 1)
+
+    if n("ammo") == 0:
+        lines.append("warn: ammo[] is empty. The daily comment block and the reply pass both "
+                     "read it, so an empty ammo list is a week with nothing to say underneath "
+                     "other people's posts.")
+        rc = max(rc, 1)
+
+    if not isinstance(d.get("experiment"), dict) or not d.get("experiment"):
+        lines.append("warn: no experiment block. Step 0 asks for ONE pre-registered two-arm "
+                     "question; passive bucketing across six dimensions learns nothing at five "
+                     "posts a week.")
+        rc = max(rc, 1)
+
+    try:
+        cfg = json.load(open(os.path.join(str(HOME), "radar-config.json")))
+        slots = int((cfg.get("quantity") or {}).get("video_slots") or 0)
+    except Exception:
+        slots = 0
+    vids = sum(n(k) for k in VIDEO_LANES)
+    if slots and vids == 0:
+        lines.append(f"warn: radar-config asks for {slots} video slot(s) and the week has 0. "
+                     f"The editor has nothing to cut.")
+        rc = max(rc, 1)
+
+    if not any(l.startswith(("FAIL", "warn")) for l in lines):
+        lines.insert(0, f"completeness: {outliers} outlier(s), {vids} script(s), "
+                        f"{n('ammo')} ammo round(s)")
+    return rc, lines
+
+
 def gate_week(wpath, skip, allow_unvalidated, strict_cadence, verbose):
     d = json.load(open(wpath))
     rows, results, skipped = [], {}, []
@@ -253,6 +333,19 @@ def gate_week(wpath, skip, allow_unvalidated, strict_cadence, verbose):
             skipped.append("visual_lint")
             rows.append(("visual_lint", "-", "no render paths in the week file, skipped"))
 
+    if "completeness" in skip:
+        skipped.append("completeness")
+        rows.append(("completeness", "-", "skipped"))
+    else:
+        rc, lines = completeness(d)
+        n_f = sum(1 for l in lines if l.startswith("FAIL"))
+        n_w = sum(1 for l in lines if l.startswith("warn"))
+        record("completeness", rc, lines[0][:110] if not (n_f or n_w) else
+               f"{n_f} fail, {n_w} warn: " + lines[0][:80])
+        if verbose or n_f or n_w:
+            for l in lines:
+                print(f"  completeness: {l}")
+
     if "weeks" in skip:
         skipped.append("weeks")
         rows.append(("weeks", "-", "skipped"))
@@ -302,7 +395,7 @@ def main():
     ap.add_argument("--week", help="week file (absolute, cwd-relative, or workspace-relative)")
     ap.add_argument("--all", action="store_true", help="gate and stamp every week in weeks/")
     ap.add_argument("--dir", help="workspace (consumed by yapcut_home when given)")
-    ap.add_argument("--skip", default="", help="comma list: source,visual,hook,spoken,fidelity,weeks")
+    ap.add_argument("--skip", default="", help="comma list: source,visual,hook,spoken,fidelity,complete,weeks")
     ap.add_argument("--allow-unvalidated", action="store_true",
                     help="grade cadence against the defaults when targets.json is missing")
     ap.add_argument("--strict-cadence", action="store_true",

@@ -161,7 +161,10 @@ it AND; when they do, the gate FLAGS in the item's `note` and never rewrites the
    (URL in `sources`).
 6. **GATE.** One command: `python3 radar_gate.py --week weeks/<date>.json`. It runs
    `check_fidelity.py` (schema, fidelity, cadence, LinkedIn laws, ownership split),
-   `hook_lint.py`, `spoken_lint.py`, `source_check.py` and `visual_lint.py` on any renders,
+   `hook_lint.py`, `spoken_lint.py`, `source_check.py`, `visual_lint.py` on any renders,
+   and a `completeness` check that fails a week which shipped items with an empty
+   `inspiration[]`, because that is step 1 skipped and every other gate grades only HOW
+   a week is written, never whether the research behind it happened. It
    prints one table, exits 2 on any fail, and stamps `weeks/<date>.gate.json`. Exit codes
    everywhere: 0 pass, 1 warnings, 2 fail. Cadence distribution rules warn by default
    (`--strict-cadence` fails them); categorical rules fail. Then the human half: the
