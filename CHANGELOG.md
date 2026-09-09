@@ -2,6 +2,68 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.5.0 (outlier-radar) and 3.1.0 (tiktok-yap-editor)
+
+**The audit release.** A 13-lens audit of the repo and its live install on 2026-09-09 found that
+the engine optimised the one stage that was never the constraint: 157 scripts written, 22
+posted, every video row a placeholder, the loop run once. This release changes what the engine
+optimises for.
+
+**Outlier Radar 3.5.0**
+- **Audience first.** Discovery asks who should recognise the creator and for what before it
+  asks about niche (`audience` in the config), and runs a proof-extraction interview instead of
+  collecting adjectives about the voice. The corpus is harvested from where the creator already
+  talks, with a `register:` header per capture, before any batch is written.
+- **Filming slots, not a script bar.** `quantity` in the config replaces "about 10 per lane";
+  the spare budget goes to variations of the last measured winner. The secondary lane starts off.
+- **A gate that gates.** `check_fidelity.py` had no exit call in 713 lines. Every gate now
+  returns 0, 1 or 2; `radar_gate.py` runs the five in one command and stamps the week; the
+  schema is versioned and validated (`references/week-schema.md`); cadence distribution rules
+  are warnings by default and `--strict-cadence` restores them; the ownership split (`proof.kind`)
+  is printed for every batch.
+- **The loop closes on disk.** `performance/tracking.jsonl` (filmed, posted), `people.jsonl` (who
+  answered), `learned.json` (weights past n=4, read by the selector), `last-report.md`, a
+  pre-registered `experiment` per week, TikTok Studio and people pastes in `ingest_feed.py`,
+  and video rows that carry watch-through. The dashboard seeds from tracking and renders an
+  Ammo tab, reply blocks, proof chips, the week's question and the show's promises.
+- **Distribution is shipped doctrine** (`references/distribution.md`): the daily block with
+  `ammo[]` and `held[]`, the people ledger, callback and promise, day-0, tag guardrails.
+- **One resolver** (`yapcut_home.py`), no skill-folder fallback: from the wrong directory the
+  scripts used to grade the bundled example inside the plugin cache and exit 0.
+- **A law.md overlay.** The playbook reads `<workspace>/law.md` after itself and a workspace
+  `references/<name>.md` over its own, so a creator's rulings ride on top instead of forking.
+- **LinkedIn craft moved in** from a private skill (save-mechanics, format-library, the
+  spec-driven `carousel.py`, Shape 5 in linkedin-visuals). The public engine no longer cites
+  private files. The `dashboard/` split (template, CSS, JS) makes the 3.4.1 class of bug lintable.
+- **SKILL.md 545 to about 260 lines** with a routing table; the receipts law and trend
+  creation moved to references shared by both plugins.
+
+**TikTok Yap Editor 3.1.0**
+- **One gate ladder** (`scripts/gates.sh`) for Mode A and Mode B, one exit contract, every
+  result recorded; Mode B previously ran none of the eight gates.
+- **Frame zero.** The first hook line is static at 0.00 (the typewriter used to show one letter
+  and a cursor to the muted feed); a frame-zero gate enforces it. A hook word gate (9 words),
+  `hook_variant.sh` for A/B hooks, `YAP_PLATFORM` for per-platform re-composes.
+- **The edit record.** `finalize.sh` writes `<name>.edit.json` with the Radar id, hook, gates and
+  platform, and no longer deletes the working directory by default. `log_perf.py --edits` joins
+  it to the outcome.
+- **`retention_check.py --keeps`** discards the cutter's own joins, which were 69 to 86 percent
+  of the "visual events" on shipped files.
+- **`scripts/yaplib/`**: one brand resolver (workspace, never the skill root), one font finder,
+  one media wrapper; `library.py` ships with `reconcile`. `requirements.txt` and a synthetic
+  fixture (`tests/`) drive the pipeline end to end in seconds.
+- SKILL.md 865 to about 330 lines; Part 1 (editorial) unchanged.
+
+**Repo**
+- `release.sh` is the one release command; the pre-commit gate gained `--history` (scans every
+  commit, not the staged diff) and a doc-to-code link check; README install route 2 is gone.
+
+## What's new in 3.4.6
+
+`voice_brief.py` stopped printing its own section headings into the corpus statistics (the
+brief's headings were being counted as the creator's sentences). No changelog entry shipped
+with it at the time; recorded here 2026-09-09.
+
 ## What's new in 3.4.5
 
 **The tracked doctrine no longer names a creator.** 101 references to one person by name

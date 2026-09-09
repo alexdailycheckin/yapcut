@@ -32,19 +32,23 @@ import html as _html
 e = _html.escape
 
 # ---------------------------------------------------------------- workspace
+# One resolver for the whole plugin (Contract 2, 2026-09-09): yapcut_home.py in the sibling
+# outlier-radar skill. realpath locates THIS file through any symlink and ../outlier-radar is
+# the Radar skill inside the same plugin. The workspace itself is never located by resolving
+# a symlink (that is the 2026-08 bug) and there is no skill-folder fallback.
+_HERE = os.path.dirname(os.path.realpath(__file__))
+_RADAR_SKILL = os.path.normpath(os.path.join(_HERE, "..", "outlier-radar"))
+if not os.path.exists(os.path.join(_RADAR_SKILL, "yapcut_home.py")):
+    sys.exit(f"yapcut_home.py not found at {_RADAR_SKILL}. lead-magnet-report ships beside "
+             "outlier-radar in the same plugin; do not copy this skill out on its own.")
+sys.path.insert(0, _RADAR_SKILL)
+from yapcut_home import radar_home  # noqa: E402
 
 
 def resolve_workspace(cli: str | None) -> pathlib.Path:
-    """Same resolution order as the rest of the plugin, so one workspace serves all."""
-    if cli:
-        return pathlib.Path(cli).expanduser().resolve()
-    env = os.environ.get("LEAD_MAGNET_HOME") or os.environ.get("OUTLIER_RADAR_HOME")
-    if env:
-        return pathlib.Path(env).expanduser().resolve()
-    here = pathlib.Path.cwd()
-    if (here / "brand.json").exists() or (here / "radar-config.json").exists():
-        return here
-    return pathlib.Path.home() / "outlier-radar"
+    """--dir when given, else yapcut_home's order: $YAPCUT_HOME, the legacy env keys, the cwd
+    with a marker (brand.json counts), ~/outlier-radar. Exits 2 naming the places looked."""
+    return radar_home(["--dir", cli] if cli else [])
 
 
 # ---------------------------------------------------------------- palette

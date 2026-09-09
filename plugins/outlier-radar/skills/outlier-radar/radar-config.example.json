@@ -1,20 +1,37 @@
 {
   "creator": "Your Name",
   "site": "yoursite.com",
+  "audience": {
+    "who": "one sentence: the role and situation of the people you want to be recognised by (e.g. 'heads of marketing at Series B software companies who own pipeline')",
+    "known_for": "the one sentence you want them to say about you",
+    "proof": [
+      "1 to 3 results or stories you own that a competitor cannot claim (number and date)"
+    ],
+    "channel": "the one surface you show up on every week",
+    "icp_regex": "growth|marketing|gtm|cmo|revenue|demand",
+    "_comment": "Asked at step 2 of discovery, before niche. Relevance is a relation between you and a specific group; every gate, the selector and the north star read this block. icp_regex marks a person in the people ledger as in-audience from their headline."
+  },
   "niche": "one line: the subject you want to be known for (e.g. 'restaurant marketing', 'indie game dev', 'personal finance for freelancers')",
   "facets": [
     "sub-angle 1 to rotate and test",
     "sub-angle 2",
     "sub-angle 3"
   ],
-  "voice": "how your scripts should sound (e.g. premise-first, blunt, contrarian-but-grounded, no em dashes)",
+  "voice": {
+    "note": "the voice is MEASURED from voice-corpus/, never described; this block holds only the corpus settings",
+    "work_title_regex": "customer|prospect|client|pipeline|growth|sales|marketing",
+    "_comment": "A harvested call whose title matches this regex is filed as on-subject speech (the register the targets are derived from). Everything else is banter and does not feed the targets."
+  },
   "primary_lane": {
     "label": "Industry",
     "definition": "your core niche: teach real, concrete value in your subject (educational / insight led)"
   },
   "secondary_lane": {
     "label": "Viral videos",
-    "definition": "reach plays adjacent to your niche: borrow a proven viral mechanic to go viral. Lighter, less educational, optional."
+    "definition": "reach plays adjacent to your niche: borrow a proven viral mechanic to go viral. Lighter, less educational, optional.",
+    "enabled": false,
+    "enable_after_weeks": 4,
+    "_comment": "Off for a new creator's first weeks: a viral-lane hit fills the follower count with people who came for the bit, and a stranger's first win should be in the lane they want to be known for. Turn it on when the primary lane has posted items."
   },
   "leaders_header": "From leaders you study",
   "methods_file": "methods.md",
@@ -61,5 +78,13 @@
     "wildcard_taste": "",
     "receipts_strict": true,
     "_comment": "All empty fields are written by the show-mode JOURNEY in references/the-show-template.md. Never prefill a name, turn line, or takeaway lines: the creator's own wording locks only when they pick it."
-  }
+  },
+  "quantity": {
+    "video_slots": 3,
+    "spares": 2,
+    "linkedin_slots": 5,
+    "_comment": "Slots are FILMING slots the creator has confirmed for the week, not scripts. Write slots plus spares, then spend the remaining budget on 3 to 4 variations of the last measured winner. Defaults for the first 4 weeks; raise once 8 items are marked Posted. Unfilmed scripts carry no information back into the loop."
+  },
+  "experiment_per_week": true,
+  "_comment_v2": "2026-09-09: audience, voice (as a block), quantity and secondary_lane.enabled added. The weekly run reads quantity instead of the old 'about 10 per lane' bar."
 }

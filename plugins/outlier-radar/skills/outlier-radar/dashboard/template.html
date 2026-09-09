@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YapCut</title>
+<style>
+__STYLE__
+</style>
+</head>
+<body>
+
+<div class="masthead"><div class="in">
+  <div class="brand">
+    __LOGOMARK__
+    <div class="byline">__BYLINE__</div>
+  </div>
+  __PARTNER__
+</div></div>
+
+<div class="toolbar" id="toolbar"><div class="in">
+  <div class="minibrand">__LOGOMINI__<span>YapCut</span></div>
+  <select id="weekSel" onchange="render()" aria-label="Pick a week"></select>
+  <details class="menu" id="exportMenu">
+    <summary><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Export</summary>
+    <div class="menupanel">
+      <button onclick="closeMenu();exportFilmed()"><b>Filmed scripts</b><span>Copy every script marked Filmed, with its edit spec, for the editor session.</span></button>
+      <button onclick="closeMenu();exportForBlog()"><b>Week for blog</b><span>Save Filmed and Posted scripts to a JSON the weekly routine turns into an AEO post.</span></button>
+      <button onclick="closeMenu();exportCarousels()"><b>Carousel queue</b><span>Save scripts flagged Carousel, then run build_carousels.py to render the PDFs.</span></button>
+      <button onclick="closeMenu();exportPerformance()"><b>Performance</b><span>Save the merged tracking (what tracking.jsonl seeded plus your edits here), then run log_perf.py --import on the file.</span></button>
+    </div>
+  </details>
+  <button class="iconbtn" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">&#9790;</button>
+</div></div>
+
+<div class="wrap">
+  <div class="hero">
+    <div style="min-width:0">
+      <div class="eyebrow"><span class="dot"></span><span id="eyebrowTxt">Weekly slate</span></div>
+      <h1>This week <em>to film</em>.</h1>
+      <div class="brief" id="brief"></div>
+    </div>
+    <div class="ring" id="ring"></div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="tabs">
+    <button class="tab on" data-t="dist" onclick="setTab('dist')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"></rect><path d="m22 8-6 4 6 4V8Z"></path></svg>__PRIMARY_LABEL__ <span class="cnt" data-c="dist"></span></button>
+    <button class="tab" data-t="office" onclick="setTab('office')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>__SECONDARY_LABEL__ <span class="cnt" data-c="office"></span></button>
+    <button class="tab" data-t="filmed" onclick="setTab('filmed')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M8 17v-4"></path><path d="M13 17V8"></path><path d="M18 17v-7"></path></svg>Filmed &amp; metrics <span class="cnt" data-c="filmed"></span></button>
+    <button class="tab" data-t="linkedin" onclick="setTab('linkedin')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>LinkedIn <span class="cnt" data-c="linkedin"></span></button>
+    <button class="tab" data-t="insp" onclick="setTab('insp')"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"></path></svg>Inspiration <span class="cnt" data-c="insp"></span></button>
+  </div>
+  <div class="viewhead"><div id="ignrow" style="display:none"><label class="ignlab"><input type="checkbox" id="showIgnored" onchange="render()"> Show ignored scripts</label></div></div>
+  <div id="view"></div>
+</div>
+
+<div class="film" id="film" role="dialog" aria-modal="true">
+  <div class="filmbar"><span class="lab">Film mode</span><span class="filmtitle" id="filmTitle"></span><button class="filmclose" onclick="closeFilm()">Close &nbsp;esc</button></div>
+  <div class="filmbody"><div class="in" id="filmBody"></div></div>
+  <div class="filmfoot" id="filmFoot"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="application/json" id="weeks-data">__WEEKS_JSON__</script>
+<script type="application/json" id="campaigns-data">__CAMPAIGNS_JSON__</script>
+<script type="application/json" id="tracking-seed">__TRACKING_JSON__</script>
+<script type="application/json" id="ui-config">__UI_JSON__</script>
+<script>
+__SCRIPT__
+</script>
+</body>
+</html>

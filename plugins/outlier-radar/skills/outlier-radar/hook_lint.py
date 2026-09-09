@@ -20,9 +20,18 @@ closings never were, so the same closing mold landed on two adjacent episodes in
 08-02 batch and nothing caught it. First line and last line are the same class of
 problem, so they get checked in the same pass.
 
-Usage: python3 hook_lint.py --week weeks/<date>.json  (exit 1 on any FAIL)
+Usage: python3 hook_lint.py --week weeks/<date>.json [--dir <workspace>]
+
+Exit codes (Contract 1, 2026-09-09): 0 pass, 1 warnings only, 2 any FAIL. --dir is
+accepted so every gate takes the same argv; a relative --week that is not found from
+the cwd is looked up under the workspace.
 """
-import argparse, json, re, sys
+import argparse, json, os, re, sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yapcut_home import radar_home  # noqa: E402
+
+HOME = radar_home(required=False)   # consumes --dir; the lint needs no workspace itself
 
 BANNED = {"leverage", "utilize", "delve", "seamless", "unlock", "empower",
           "game-changer", "revolutionize", "guys"}
@@ -93,17 +102,27 @@ def lint_item(item, batch_first_words):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--week", required=True)
+    ap.add_argument("--dir", help="workspace (consumed by yapcut_home when given first)")
     args = ap.parse_args()
-    week = json.load(open(args.week))
+    path = args.week
+    if not os.path.exists(path) and HOME is not None and not os.path.isabs(path):
+        alt = os.path.join(str(HOME), path)
+        if os.path.exists(alt):
+            path = alt
+    if not os.path.exists(path):
+        print(f"no week file at {path}")
+        sys.exit(2)
+    week = json.load(open(path))
     items = week.get("distribution", []) + week.get("office", [])
     firsts = [(it.get("text_hook", "").split() or [""])[0].lower().strip(".,!?")
               for it in items]
 
-    any_fail = False
+    n_fail = n_warn = 0
     for it in items:
         fails, warns = lint_item(it, firsts)
         status = "FAIL" if fails else ("warn" if warns else "pass")
-        any_fail |= bool(fails)
+        n_fail += len(fails)
+        n_warn += len(warns)
         print(f"[{status}] {it['id']}: \"{it.get('text_hook','')}\"")
         for f in fails:
             print(f"        FAIL {f}")
@@ -118,7 +137,9 @@ def main():
         print(f"  {it['id']:16} {close[-88:]}")
 
     print("\nREMINDER: the ruling gate is the human VACUUM TEST (the-show.md).")
-    sys.exit(1 if any_fail else 0)
+    rc = 2 if n_fail else (1 if n_warn else 0)
+    print(f"hook_lint: {n_fail} fail, {n_warn} warn -> rc {rc}")
+    sys.exit(rc)
 
 
 if __name__ == "__main__":

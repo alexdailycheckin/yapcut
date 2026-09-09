@@ -22,11 +22,22 @@ Both compete for the same five slots on score, and at most TWIN_CAP of them may 
 so a five-company show week can no longer force five company posts onto LinkedIn.
 
 Usage:
-  python3 scripts/select_linkedin.py                          latest week
-  python3 scripts/select_linkedin.py --week weeks/2026-08-10.json
-  python3 scripts/select_linkedin.py --weights               show the scoring weights
-  python3 scripts/select_linkedin.py --twin-cap 2            override the twin ceiling
-  python3 scripts/select_linkedin.py --no-write              report only, do not write
+  python3 select_linkedin.py [--dir <workspace>]           latest week
+  python3 select_linkedin.py --week weeks/2026-08-10.json
+  python3 select_linkedin.py --weights                      prior vs learned weights, with n
+  python3 select_linkedin.py --twin-cap 2                   override the twin ceiling
+  python3 select_linkedin.py --no-write                     report only, do not write
+
+LEARNED WEIGHTS (2026-09-09, audit Q1 item 14). The WEIGHTS below are research priors. When
+performance/learned.json exists (written by log_perf.py --weights-out) every feature it has
+measured past MIN_N scales its prior by the measured ratio, so the selector reads the
+creator's own numbers instead of carrying the priors forever. --weights prints both.
+
+JOBS individual AND operator (references/week-schema.md). Two jobs the body cannot reveal: a
+post written at one named person (`job: individual`, needs `target_person`) and a post built
+from a named piece of intel (`job: operator`, needs `intel_ref`). Honoured when declared
+with the field present; they take slots only when radar-config.json selector.target_mix asks
+for them. The default mix does not.
 
 It writes shape, job, post_day, post_slot and post_why back onto each selected
 post, and twin_cut: true onto the video twins that did not earn a slot. Set
@@ -42,30 +53,15 @@ import re
 import sys
 import textwrap
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+# realpath locates the sibling module through the workspace symlink; the workspace itself is
+# resolved by yapcut_home and never by following a symlink (see yapcut_home.py).
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yapcut_home import radar_home  # noqa: E402
 
+RADAR = str(radar_home())      # consumes --dir; exits 2 with the places looked when none found
+LEARNED_PATH = os.path.join(RADAR, "performance", "learned.json")
 
-def _resolve_home():
-    """Workspace resolution, same order as the rest of the skill:
-    --dir <path> | $OUTLIER_RADAR_HOME | cwd with weeks/ | skill root | ~/outlier-radar."""
-    if "--dir" in sys.argv:
-        i = sys.argv.index("--dir")
-        home = os.path.expanduser(sys.argv[i + 1])
-        del sys.argv[i:i + 2]
-        return home
-    env = os.environ.get("OUTLIER_RADAR_HOME")
-    if env:
-        return os.path.expanduser(env)
-    if os.path.isdir(os.path.join(os.getcwd(), "weeks")):
-        return os.getcwd()
-    if os.path.isdir(os.path.join(HERE, "weeks")):
-        return HERE
-    return os.path.expanduser("~/outlier-radar")
-
-
-RADAR = _resolve_home()
-
-# Reach band from the platform research; see linkedin-engine save-mechanics.md.
+# Reach band from the platform research; see references/save-mechanics.md.
 BAND_LO, BAND_HI, HARD_STOP, SHORT_MAX, DEAD_LO, DEAD_HI = 1300, 1900, 2500, 300, 600, 1000
 
 # Target mix per 5-post week. Not a taste ratio: a portfolio.
@@ -90,13 +86,12 @@ BAND_LO, BAND_HI, HARD_STOP, SHORT_MAX, DEAD_LO, DEAD_HI = 1300, 1900, 2500, 300
 #   "selector": {"target_mix": {"reach": 2, "playbook": 2, "authority": 1},
 #                "lane": "your subject, one line"}
 def _selector_cfg():
-    for p in (os.path.join(RADAR, "radar-config.json"),
-              os.path.join(HERE, "radar-config.json")):
-        if os.path.exists(p):
-            try:
-                return json.load(open(p)).get("selector") or {}
-            except Exception:
-                pass
+    p = os.path.join(RADAR, "radar-config.json")
+    if os.path.exists(p):
+        try:
+            return json.load(open(p)).get("selector") or {}
+        except Exception:
+            pass
     return {}
 
 
@@ -132,6 +127,62 @@ WEIGHTS = {
     "dead_zone_length": -20,
     "no_proof": -30,
 }
+PRIOR_WEIGHTS = dict(WEIGHTS)
+
+# One measured week cannot move a weight more than this in either direction. learned.json
+# already refuses to write a value under MIN_N rows; the clamp is the second guard, for the
+# week one lucky post drags a four-row bucket to a ratio of 9.
+RATIO_LO, RATIO_HI = 0.25, 4.0
+
+
+def _load_learned():
+    """Scale each prior by the measured ratio for the feature being TRUE.
+
+    learned.json: {dims: {<feature>: {"true": {ratio, n}, "false": {...}}}} where ratio is
+    the median metric for posts carrying the feature over the mature median. A positive
+    prior multiplies by the ratio (a feature that measurably helps gets heavier). A negative
+    prior, a penalty, DIVIDES by it: posts penalised for no_proof that measurably outperform
+    the median earn a lighter penalty, not a heavier one. Returns (raw file, applied)."""
+    if not os.path.exists(LEARNED_PATH):
+        return {}, {}
+    try:
+        data = json.load(open(LEARNED_PATH))
+    except Exception:
+        return {}, {}
+    dims = data.get("dims") or {}
+    applied = {}
+    for key in list(WEIGHTS):
+        cell = (dims.get(key) or {}).get("true")
+        if not isinstance(cell, dict) or cell.get("ratio") in (None, 0):
+            continue
+        ratio = min(RATIO_HI, max(RATIO_LO, float(cell["ratio"])))
+        prior = PRIOR_WEIGHTS[key]
+        learned = prior * ratio if prior >= 0 else prior / ratio
+        WEIGHTS[key] = int(round(learned))
+        applied[key] = {"prior": prior, "learned": WEIGHTS[key], "ratio": round(ratio, 3),
+                        "n": int(cell.get("n") or 0)}
+    return data, applied
+
+
+LEARNED, LEARNED_APPLIED = _load_learned()
+
+# The two jobs the 3 I's layer adds above the format legs (references/week-schema.md).
+# Neither is inferable from a body, so neither is guessed: honoured only when declared on
+# the post with the field it needs. select_linkedin never writes these two itself.
+DECLARED_JOBS = {"individual": "target_person", "operator": "intel_ref"}
+
+
+def declared_job(item):
+    """(job, note). job is individual or operator when declared AND complete; otherwise
+    None and, when the declaration was incomplete, a note saying what was missing."""
+    tw = item.get("linkedin") or {}
+    job = tw.get("job") or item.get("job")
+    if job not in DECLARED_JOBS:
+        return None, None
+    need = DECLARED_JOBS[job]
+    if tw.get(need) or item.get(need):
+        return job, None
+    return None, f"declares job {job} without {need}; scored by format instead"
 
 # The peg decays with SATURATION IN THE ICP'S FEED, not with clock time, and B2B
 # LinkedIn saturates slower than consumer media. A Friday earnings story posted Monday
@@ -160,6 +211,8 @@ JOB_WHY_SHORT = {
     "playbook": "Nothing the reader can run, so the week teaches without helping.",
     "authority": "Nothing farms saves, and a save is worth about 5x a like in reach.",
     "relatability": "Nothing human, so new visitors have no reason to follow rather than read.",
+    "individual": "No post aimed at one named person, so nobody with a network of their own is pulled in.",
+    "operator": "No post built from a named piece of intel, so the week reads as opinion.",
 }
 
 # Where each leg's substance comes from. Written down because getting this wrong is what
@@ -195,6 +248,11 @@ JOB_SOURCE = {
                   "factual claim and stays evergreen."),
     "relatability": ("the creator themselves, and nothing else can supply it. Targeted at zero for "
                      "that reason. Do not mine the work journal for one."),
+    "individual": ("one named person the creator wants a relationship with, written AT them and "
+                   "declared with target_person. The post is the introduction; nothing about "
+                   "it can be inferred from a body, so it is declared or it does not exist."),
+    "operator": ("a named piece of intel (intel_ref, pointing at weeks/<date>-intel.md): a "
+                 "number, a filing, a changelog the creator read that the reader has not."),
 }
 
 
@@ -658,20 +716,36 @@ def schedule(rows, anchor):
 
 def main():
     if "--weights" in sys.argv:
-        print(json.dumps({"weights": WEIGHTS, "target_mix": TARGET_MIX,
+        print(json.dumps({"weights": WEIGHTS, "prior_weights": PRIOR_WEIGHTS,
+                          "target_mix": TARGET_MIX,
                           "bands": {"short_max": SHORT_MAX, "dead": [DEAD_LO, DEAD_HI],
                                     "reach": [BAND_LO, BAND_HI], "hard_stop": HARD_STOP}}, indent=2))
-        return
+        print()
+        if LEARNED_APPLIED:
+            print(f"learned from {LEARNED_PATH} (generated {LEARNED.get('generated', '?')}):")
+            print(f"  {'feature':<22}{'prior':>7}{'learned':>9}{'ratio':>8}     n")
+            for k, v in LEARNED_APPLIED.items():
+                print(f"  {k:<22}{v['prior']:>7}{v['learned']:>9}{v['ratio']:>8.3f}  n={v['n']}")
+            untouched = [k for k in WEIGHTS if k not in LEARNED_APPLIED]
+            if untouched:
+                print(f"  priors stand for: {', '.join(untouched)}")
+        elif LEARNED:
+            print(f"{LEARNED_PATH} present (generated {LEARNED.get('generated', '?')}) but no "
+                  f"scored feature has cleared n={LEARNED.get('min_n', 4)} yet. Priors stand.")
+        else:
+            print("no performance/learned.json, so every weight is a prior. Write it once the "
+                  "ledger has mature rows:  python3 log_perf.py --weights-out")
+        return 0
 
     wk = None
     if "--week" in sys.argv:
         wk = sys.argv[sys.argv.index("--week") + 1]
-        if not os.path.isabs(wk):
+        if not os.path.isabs(wk) and not os.path.exists(wk):
             wk = os.path.join(RADAR, wk)
     wk = wk or latest_week()
     if not wk or not os.path.exists(wk):
-        print("no week file found")
-        return
+        print(f"no week file found under {os.path.join(RADAR, 'weeks')}")
+        return 2
 
     twin_cap = TWIN_CAP
     if "--twin-cap" in sys.argv:
@@ -688,13 +762,21 @@ def main():
           f"twin cap {twin_cap}\n")
     if not items:
         print("no LinkedIn posts in this week file.")
-        return
+        return 0
+    if LEARNED_APPLIED:
+        print(f"weights: {len(LEARNED_APPLIED)} learned from performance/learned.json, "
+              f"{len(WEIGHTS) - len(LEARNED_APPLIED)} prior  (--weights for the table)\n")
 
-    rows, undeclared_any = [], False
+    rows, undeclared_any, job_notes = [], False, []
     for it in items:
         f, body, _ = features(it)
         fmt, conf = propose_format(it, f)
         job = FORMATS[fmt]
+        declared, note = declared_job(it)
+        if declared:
+            job = declared
+        if note:
+            job_notes.append(f"{it.get('id')}: {note}")
         s, why = score(f, fmt)
         if f["undeclared"]:
             undeclared_any = True
@@ -710,6 +792,12 @@ def main():
             print(f"        score: {', '.join(why)}")
         if f["undeclared"]:
             print(f"        UNDECLARED (not guessed): {', '.join(f['undeclared'])}")
+        print()
+
+    if job_notes:
+        print("declared jobs not honoured (incomplete):")
+        for n in job_notes:
+            print(f"  {n}")
         print()
 
     selected, cut = allocate(rows, twin_cap)
@@ -833,9 +921,9 @@ def main():
         print(f"  LATENT: {', '.join(latent)} carries a sequence argument written as prose.")
         print(f"  One slide per step would make the ordering visible and unlock the 3x.")
         print(f"  the creator's call: that is a rewrite of live creative, not a mechanical fix.")
-        print(f"  If yes, the tooling exists: linkedin-engine references/carousel-cards.md for")
-        print(f"  the style, scripts/carousel.py to render from a spec. Depth cards must come")
-        print(f"  from this item's own beats, never a fresh writing session.")
+        print(f"  If yes, the tooling exists: references/linkedin-visuals.md (Shape 5) for the")
+        print(f"  style, carousel.py to render from a spec. Depth cards must come from this")
+        print(f"  item's own beats, never a fresh writing session.")
     if not missed and not latent:
         print(f"  Nothing in this week's substance is carousel-shaped. That is a BRIEF-stage")
         print(f"  gap, not a twin-stage one: no playbook or reorder was commissioned.")
@@ -909,7 +997,8 @@ def main():
         print("  ordering_claim  true if the argument is the SEQUENCE, not the items")
         print("  friction_story  true if a testimony piece carries real failure")
         print("  linkedin_format overrides the proposal entirely")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

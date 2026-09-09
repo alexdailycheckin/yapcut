@@ -1,7 +1,7 @@
 # LinkedIn visuals: the single-image shapes
 
 What ships alongside the words when the post is not a carousel. `linkedin-selector.md`
-picks the FEED shape from substance and `linkedin-craft.md` owns the written register.
+picks the FEED shape from substance and the copywriting layer owns the written register.
 This file owns the picture.
 
 ## The gap this closes
@@ -47,7 +47,7 @@ the expensive shapes have to earn their day.
 4. **Does the post enumerate a whole category, twelve or more named line items?**
    Category map.
 5. **Does the post carry three or more headed units of your own argument?** Carousel,
-   per the asset step in `linkedin-craft.md`. Unchanged.
+   per the asset step in the creator's own craft notes. Unchanged.
 6. **None of the above.** Text only. A card that repeats the hook in bigger type adds
    nothing and costs a slot in the reader's attention. Shipping no image is a result,
    not a gap.
@@ -246,6 +246,87 @@ Its builder is a throwaway script in the creator's own workspace, and the one de
 worth carrying over is that it rebuilds from the API every time rather than storing a
 base image.
 
+## Shape 5: the carousel (document post)
+
+**What it is for.** A sequence argument: three or more headed units the reader executes
+from. Document posts report around 6.60 percent engagement against roughly 2.00 for text,
+the largest single lever in the stack, so a post that is already a run of headed units
+defaults to this treatment rather than shipping as prose.
+
+**What it requires on the table.** The units themselves, already written and sourced in the
+post or the episode script. Card copy comes from the source, never from a fresh writing
+session: the teardown does the thinking, the carousel is a second surface for it. Inventing a
+claim at card-design time is how a carousel carries a fact the video never verified.
+
+**The one move that makes it work.** The cover NAMES THE DOCUMENT, in the reference set's own
+grammar: "Here's how you get 6M views", "Here's how you end the attribution fight". Never
+the post's hook or tension line: a hook works in a post because the next line resolves it,
+and dies on a standalone object where there is no next line. The first sets built after the
+reference used signature closers as cover titles and read as random words on a page.
+
+**The shape.** Four slides is the working shape: a cover that lists the moves, then one depth
+card per move, the depth headline repeating the cover's step text verbatim. The cover is the
+whole asset for most of the audience, exactly like the fold on a text post.
+
+**The field is ink, measured.** Card 1 is the feed surface and LinkedIn's feed page is
+`#F4F2EE`. Edge delta against it, with the floor at 25 percent: cream `#FFFFFB` 4.9 (fails by
+5x), ink `#232323` 81.2, burnt orange `#FF5A2A` 42.5. A cream cover is the same colour as the
+page and reads as no image at all. A muted grey picked against cream (`#8A8478`, 1.84:1)
+made the footer, table headers and axis labels invisible in every cream set ever shipped;
+on ink, `#B8B0A4` scores 3.97:1. A slideshow runs inverted end to end; a palette change
+mid-sequence reads as broken. `visual_lint.py` measures exactly this on a render.
+
+**Every card carries the author and the mark.** Unbranded cards read as anyone's. Three
+spec elements in `carousel.py`, all defaulting to null so the public kit ships neutral:
+`brand_header` (a wordmark chip, top centre), `brand_author` (name and org, bottom left,
+optionally a photo cover-cropped into the block, never resized), `brand_mark` (the site,
+bottom right). Values come from the config's `carousel` block and are copied into every spec.
+
+**The vacuum test applies to every card.** Column heads, matrix labels and body first lines
+read with zero post context. "The one page" means nothing cold; "Write on one page" means
+the same thing and reads alone.
+
+**Figure cards.** Two types sit alongside the object photo: `matrix` for a 2x2 and `table`
+for a comparison, both drawn INTO the photo region so every card's eyebrow lands on the
+cover's title baseline. Reach for a figure when the idea is a comparison or a position rather
+than a physical metaphor; the table is the strongest dwell card because reading it IS the
+value.
+
+**Type is set for thumb distance.** Bigger type caps copy per card, which is the constraint
+working: the overflow gate then forces a cut, and the cut is almost always an improvement.
+Copy on a card is still copy and runs the sentence layer with no short-form exemption;
+card design pulls toward the verbless noun-phrase fragment because fragments fit, and a card
+is not an exception. One accent per card.
+
+**The object photo recipe.** One deadpan object shot per slide, locked off, the object
+filling most of the frame against a hard near-black field, hard clean studio light, high
+contrast, the lower third of the frame empty field (the renderer extends the photo's own
+bottom edge behind the type, so anything low in frame smears into a band). Prompt skeleton:
+
+> Locked-off studio shot on a near-black surface, edge to edge: [the object], [the deadpan
+> action, stated as a finished state], filling most of the frame and shot close. Deadpan
+> comedy, played completely straight. Hard clean studio light, high contrast. The lower third
+> of the frame is empty near-black surface. No text, no lettering, no numbers, no labels
+> anywhere in the image. No watermark, no glowing circuits, no robots, no lens flare.
+
+Seven lessons that each cost a render: state the finished state, never the motion; naming a
+real brand trips the trademark filter and charges anyway, so composite the mark in post;
+never put hex codes in a model that prints them as text; ask for a flag on a toothpick, not a
+paper flag; keep the bottom third empty; do not name the accent colour unless an accent
+object belongs in the shot; the negative prompt is a preference, not a filter, so check the
+render.
+
+**How it fails.** An abstract idea forced into a studio object becomes a private metaphor.
+A cover that teases. A palette that changes mid-set. Type shrunk to fit copy that should have
+been cut. A card set that links out for the payoff, which earns a like and never a save.
+
+**Build.** `python3 carousel.py <spec.json>` (spec shape and the overflow gate documented in
+the script; exits non-zero when bottom slack is under 100px). `build_carousels.py` derives a
+deck from a script's own fields when there is no hand spec. Ship checks: every card through
+the sentence layer; the last card's last line read alone; every claim traced to the source;
+one accent per card; slack over 100px; the cover read alone and asked whether it earns a
+swipe with nothing behind it.
+
 ## The few things that are actually rules
 
 Everything above is a way of thinking. These five are not, because they are either
@@ -317,10 +398,8 @@ looks like the card or like a bad screenshot of it.
   weaker than it looked: the quote card is the only real candidate, because its input is
   four fields and a cropped panel.
 - **The sighting card's display face is unrecorded**, per Shape 2.
-- **Nothing here is committed.** This file is untracked in the yapcut clone and the
-  plugin cache has no copy, so a session loading outlier-radar from the cache cannot
-  see it yet. It ships on a deliberate push plus a cache refresh.
-- **Measurement is n=0 on all four.** The claims about what each shape is FOR are
+- **Shipped since 3.4.3**, and Shape 5 added 2026-09-09 when the carousel doctrine moved here from the private LinkedIn skill.
+- **Measurement is n=0 on all five.** `log_perf.py` carries a `shape` dimension for exactly this; it fills as posts ship. The claims about what each shape is FOR are
   arguments, not measurements. `log_perf.py` should carry a shape field before any of
   this hardens into a weight.
 - **The meme is the one shape where a miss is visible.** A map that does not land gets

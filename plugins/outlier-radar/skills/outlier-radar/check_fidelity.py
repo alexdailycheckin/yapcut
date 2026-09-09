@@ -2,7 +2,10 @@
 """
 The objective half of QA. Replaces "the model grades its own read-aloud test".
 
-Three checks:
+Five checks:
+  0. SCHEMA    the week file itself: version, lanes, ids, qa values, proof ownership,
+               the experiment block. Contract 3 (2026-09-09). `--schema-only` runs this
+               alone.
   1. FIDELITY  what share of the finished script's words came from the capture.
                Below 0.90 the model started ghostwriting again.
   2. FINGERPRINT  does the script move like the creator talks, per references/voice-fingerprint.md.
@@ -15,9 +18,28 @@ Three checks:
                the writer adapted. See the SPOKEN GATE block below for the delivery
                evidence behind each threshold.
 
+EXIT CODES (Contract 1, 2026-09-09): 0 pass, 1 warnings only, 2 any FAIL. Before this the
+file had no exit call at all: it printed FAIL and returned 0, so nothing downstream could
+gate on it.
+
+WHAT FAILS AND WHAT WARNS. Categorical, ledger-backed or provable checks FAIL: fidelity and
+trigram floors on testimony, a testimony script with no capture, the antithesis epigram on
+a closing slot, the numeral law, the source law, duplicate ids, illegal qa values, schema
+errors. The DISTRIBUTION rules (mean band, stdev floor, over-20 share, p90 reach, the
+under-5 line) WARN by default. They are a proxy the writer learned to satisfy: the 08-31
+batch carried 9 sentences over 45 words while its speech markers stayed at the rejected
+level, and the two cadence tools disagreed on the same batch. `--strict-cadence` makes them
+FAIL again; the flip is the creator's call.
+
+UNVALIDATED DEFAULTS. When voice-corpus/targets.json is missing and the week holds
+testimony or research scripts, the cadence bands are guesses that once broke 8 scripts. The
+gate prints the banner and exits 2 unless `--allow-unvalidated`.
+
 Usage:
   python3 check_fidelity.py capture.md script.txt
   python3 check_fidelity.py --week weeks/2026-08-02.json     # whole batch, incl. cadence clash
+  python3 check_fidelity.py --week weeks/2026-08-02.json --schema-only
+  python3 check_fidelity.py --week ... --dir <workspace> [--strict-cadence] [--allow-unvalidated]
 """
 
 import json
@@ -27,28 +49,26 @@ import statistics
 import sys
 from collections import Counter
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yapcut_home import radar_home  # noqa: E402
 
 
-def _resolve_home():
-    """Workspace resolution, same order as the rest of the skill:
-    --dir <path> | $OUTLIER_RADAR_HOME | cwd with weeks/ | skill root | ~/outlier-radar."""
-    if "--dir" in sys.argv:
-        i = sys.argv.index("--dir")
-        home = os.path.expanduser(sys.argv[i + 1])
-        del sys.argv[i:i + 2]
-        return home
-    env = os.environ.get("OUTLIER_RADAR_HOME")
-    if env:
-        return os.path.expanduser(env)
-    if os.path.isdir(os.path.join(os.getcwd(), "weeks")):
-        return os.getcwd()
-    if os.path.isdir(os.path.join(HERE, "weeks")):
-        return HERE
-    return os.path.expanduser("~/outlier-radar")
+def _flag(name):
+    """Consume a bare flag from argv so positional parsing below never sees it."""
+    if name in sys.argv:
+        sys.argv.remove(name)
+        return True
+    return False
 
 
-RADAR = _resolve_home()
+STRICT_CADENCE = _flag("--strict-cadence")
+ALLOW_UNVALIDATED = _flag("--allow-unvalidated")
+SCHEMA_ONLY = _flag("--schema-only")
+
+# The two-file mode (capture + script) needs no workspace, so the resolver is asked
+# politely here and insisted on in --week mode.
+_HOME = radar_home(required=False)
+RADAR = str(_HOME) if _HOME else None
 
 FILLER = {
     "like", "you", "know", "sort", "of", "kind", "i", "mean", "um", "uh", "yeah",
@@ -142,7 +162,7 @@ FLOORS_OLD = {"stdev": 6.0, "over20_pct": 0.0}
 
 
 def load_targets():
-    """voice-corpus/targets.json, written by scripts/derive_voice_targets.py from the
+    """voice-corpus/targets.json, written by derive_voice_targets.py from the
     creator's REAL unscripted speech in the target register. Added 2026-08-30.
 
     Until this existed every band in this file was a guess, and one of them was doing
@@ -152,6 +172,8 @@ def load_targets():
     length of how he actually talks about business, every batch was written to satisfy
     it, and he kept reporting that the results read as written prose with weird
     structure. He was right and the gate was the cause."""
+    if not RADAR:
+        return None
     p = os.path.join(RADAR, "voice-corpus", "targets.json")
     if not os.path.exists(p):
         return None
@@ -186,35 +208,40 @@ def floors_for(week_date):
 
 
 def verdict(fp, fid=None, tri=None, floors=None):
-    """Gates from references/voice-fingerprint.md. Returns a list of failures."""
+    """Gates from references/voice-fingerprint.md. Returns (fails, warns).
+
+    Fidelity, trigram and an empty script are categorical and FAIL. The distribution
+    rules WARN unless --strict-cadence, see the module docstring for why."""
     floors = floors or FLOORS_NEW
-    fails = []
+    fails, cadence = [], []
     if fid is not None and fid < 0.90:
         fails.append(f"FIDELITY {fid:.2f} below 0.90, the model is ghostwriting")
     if tri is not None and tri < 0.50:
         fails.append(f"TRIGRAM {tri:.2f} below 0.50, sentences are not the creator's")
     if not fp:
-        return ["empty script"]
+        return ["empty script"], []
     p90 = floors.get("p90", 25)
     if fp["max"] < p90:
-        fails.append(f"longest sentence {fp['max']}w, below the p90 of his own speech "
-                     f"({p90}w). The old rule asked for 25, which a 26-word sentence "
-                     f"satisfied, and that is how 8 homogenised scripts passed on 08-30.")
+        cadence.append(f"longest sentence {fp['max']}w, below the p90 of his own speech "
+                       f"({p90}w). The old rule asked for 25, which a 26-word sentence "
+                       f"satisfied, and that is how 8 homogenised scripts passed on 08-30.")
     if fp.get("over20_pct", 0) < floors["over20_pct"]:
-        fails.append(f"only {fp.get('over20_pct', 0):.0f}% of sentences over 20 words "
-                     f"(target {floors['over20_pct']:.0f}%), the long causal run is missing")
+        cadence.append(f"only {fp.get('over20_pct', 0):.0f}% of sentences over 20 words "
+                       f"(target {floors['over20_pct']:.0f}%), the long causal run is missing")
     if fp["min"] > 5:
-        fails.append(f"no sentence under 5 words (shortest {fp['min']}), no variance")
+        cadence.append(f"no sentence under 5 words (shortest {fp['min']}), no variance")
     if fp["stdev"] < floors["stdev"]:
-        fails.append(f"stdev {fp['stdev']} below {floors['stdev']:.0f}, cadence is flat")
+        cadence.append(f"stdev {fp['stdev']} below {floors['stdev']:.0f}, cadence is flat")
     lo = floors.get("mean_lo", 9)
     hi = floors.get("mean_hi", 13)
     if not lo <= fp["mean"] <= hi:
         src = ("his measured work-speech mean of "
                f"{TARGETS['sentence_words']['mean']}" if floors.get("_measured")
                else "the pre-2026-08-30 guess")
-        fails.append(f"mean {fp['mean']} outside {lo} to {hi} (band from {src})")
-    return fails
+        cadence.append(f"mean {fp['mean']} outside {lo} to {hi} (band from {src})")
+    if STRICT_CADENCE:
+        return fails + ["cadence: " + c for c in cadence], []
+    return fails, ["cadence: " + c for c in cadence]
 
 
 # ---- the SPOKEN gate (warn only) -------------------------------------------
@@ -355,9 +382,13 @@ def slots(text):
 
 
 def spoken_report(text, script_class="testimony"):
-    """Position-weighted warnings. Never fails a batch."""
+    """Position-weighted findings. Returns (fails, warns).
+
+    Only the antithesis epigram on a closing slot FAILS (banned outright by voice-card.md
+    and the shape the creator skipped on camera). Everything else is a warning about what
+    will fight the mouth on the day."""
     sl = slots(text)
-    warns = []
+    fails, warns = [], []
 
     rate, phrases = contraction_rate(text)
     if rate is not None and rate < CONTRACTION_FLOOR_WHOLE:
@@ -373,7 +404,8 @@ def spoken_report(text, script_class="testimony"):
 
     button = sl["button"]
     if button:
-        why = list(epigram_hits(button))
+        fails += ["button: " + e for e in epigram_hits(button)]
+        why = []
         brate, bph = contraction_rate(button)
         if brate is not None and brate < CONTRACTION_FLOOR:
             why.append("button %.0f%% contracted (%s)"
@@ -387,7 +419,7 @@ def spoken_report(text, script_class="testimony"):
                          "took 5 takes on Atlassian and got skipped on Disney")
 
     for p in sl["takeaway"]:
-        warns += ["takeaway: " + e for e in epigram_hits(p)]
+        fails += ["takeaway: " + e for e in epigram_hits(p)]
         for s in symmetric_pairs(p)[:1]:
             warns.append("takeaway is symmetrical: \"%s\"" % s[:70])
 
@@ -412,7 +444,7 @@ def spoken_report(text, script_class="testimony"):
     if not re.search(r"\b(I|I'm|I've|I'd|I'll|me|my|mine)\b", text):
         warns.append("no first person anywhere: reserved for receipts, mistakes and "
                      "ownership does not mean absent")
-    return warns
+    return fails, warns
 
 
 def batch_spoken(scripts_in_order):
@@ -536,7 +568,7 @@ def source_law(body, sources):
 
 
 def run_linkedin(d):
-    """The linkedin[] lane plus every embedded twin body."""
+    """The linkedin[] lane plus every embedded twin body. Returns (n_fail, n_warn)."""
     rows = [(p.get("id"), p, p.get("sources"), "lane")
             for p in d.get("linkedin", [])]
     for it in d.get("distribution", []):
@@ -546,16 +578,18 @@ def run_linkedin(d):
             rows.append((tw.get("id"), tw, it.get("sources"), "twin"))
 
     if not rows:
-        return 0
+        return 0, 0
     print(f"\n--- LinkedIn gate: {len(rows)} posts ---")
 
+    n_fail = n_warn = 0
     # tracking is keyed by id in both the dashboard's localStorage and
     # performance.jsonl ("latest measured per id wins"), so a duplicate id means
     # one post silently overwrites the other's numbers. Twins and the lane were
     # numbered independently and collided the first week both were populated.
     dupes = [i for i, n in Counter(r[0] for r in rows).items() if n > 1]
     if dupes:
-        print(f"!! DUPLICATE IDS: {sorted(dupes)}")
+        n_fail += len(dupes)
+        print(f"!! FAIL DUPLICATE IDS: {sorted(dupes)}")
         print("   each points at two different posts; measurement keyed on id "
               "will overwrite one with the other")
 
@@ -571,6 +605,8 @@ def run_linkedin(d):
         flag = "PASS" if not fails else "FAIL"
         if fails:
             bad += 1
+        n_fail += len(fails)
+        n_warn += len(warns)
         print(f"[{flag}] {pid}  ({kind}, {len(words(body))} words, qa={qa})")
         for f in fails:
             print(f"        {f}")
@@ -578,11 +614,251 @@ def run_linkedin(d):
             print(f"        warn: {w}")
     print(f"{bad}/{len(rows)} failed the LinkedIn gate")
     print("two-question gate (insider-entertaining AND usable, creator's call 2026-08-19) is still a human read")
-    return bad
+    return n_fail, n_warn
+
+
+# ---- the SCHEMA pass (Contract 3, 2026-09-09) -------------------------------
+# Week files had no schema version, no validation, and 17 top-level keys against 6
+# documented. This pass names what is wrong without failing history: legacy keys and
+# legacy id shapes WARN because 17 real weeks carry them; a duplicate id, an illegal qa
+# value, a malformed experiment block or a non-string week FAIL because the dashboard
+# and the performance store key on them.
+
+SCHEMA_VERSION = 2
+TOP_KNOWN = {"schema_version", "week", "positioning", "supersedes", "distribution",
+             "office", "linkedin", "gtm_linkedin", "inspiration", "experiment", "ammo",
+             "promised"}
+VIDEO_LANES = ("distribution", "office")
+POST_LANES = ("linkedin", "gtm_linkedin")
+ID_PREFERRED = re.compile(r"^(d|o|li|li-tw)-\d{8}-\d+$")
+# d-2026-06-23-9, d-2026-06-23b-8, li-2026-09-07-A1: the dashed shape real weeks use.
+ID_LEGACY = re.compile(r"^(d|o|li|li-tw|x)-\d{4}-\d{2}-\d{2}[a-z]?-[A-Za-z0-9]+$")
+PROOF_KINDS = {"own", "reach", "public"}
+
+
+def _check_id(pid, where, fails, warns):
+    if not pid or not isinstance(pid, str):
+        fails.append(f"{where}: missing id")
+        return
+    if ID_PREFERRED.match(pid):
+        return
+    if ID_LEGACY.match(pid):
+        warns.append(f"{where}: legacy id shape {pid!r} (preferred d-YYYYMMDD-n)")
+    else:
+        warns.append(f"{where}: id {pid!r} matches neither the preferred nor the legacy shape")
+
+
+def _check_post(post, where, fails, warns):
+    """linkedin[] posts and embedded twins share one shape."""
+    if not isinstance(post, dict):
+        fails.append(f"{where}: post is not an object")
+        return
+    pid = post.get("id")
+    _check_id(pid, where, fails, warns)
+    if not post.get("body"):
+        warns.append(f"{where}: no body")
+    qa = post.get("qa")
+    if qa not in ALLOWED_QA:
+        fails.append(f"{where}: qa={qa!r} not in {sorted(ALLOWED_QA)}")
+    for k in ("sources",):
+        if k in post and post[k] is not None and not isinstance(post[k], list):
+            fails.append(f"{where}: {k} must be a list")
+    job = post.get("job")
+    if job == "individual" and not post.get("target_person"):
+        warns.append(f"{where}: job individual without target_person")
+    if job == "operator" and not post.get("intel_ref"):
+        warns.append(f"{where}: job operator without intel_ref")
+    held = post.get("held")
+    if held is not None:
+        if not isinstance(held, list):
+            fails.append(f"{where}: held must be a list")
+        else:
+            for i, h in enumerate(held):
+                if not isinstance(h, dict) or not h.get("fact"):
+                    warns.append(f"{where}: held[{i}] has no fact")
+
+
+def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
+    if not isinstance(it, dict):
+        fails.append(f"{where}: item is not an object")
+        return
+    _check_id(it.get("id"), where, fails, warns)
+    cls = it.get("script_class", "testimony")
+    if not it.get("title"):
+        warns.append(f"{where}: no title")
+    if cls != "format" and not (it.get("script") or it.get("beats")):
+        warns.append(f"{where}: no script and no beats")
+    qa = it.get("qa")
+    if qa is None:
+        warns.append(f"{where}: no qa value")
+    elif qa not in ALLOWED_QA:
+        fails.append(f"{where}: qa={qa!r} not in {sorted(ALLOWED_QA)}")
+    src = it.get("sources")
+    if src is not None:
+        if not isinstance(src, list):
+            fails.append(f"{where}: sources must be a list")
+        else:
+            for i, s in enumerate(src):
+                if not isinstance(s, dict) or not s.get("url"):
+                    warns.append(f"{where}: sources[{i}] has no url")
+    for k in ("hook_styles", "shot_list", "beats"):
+        if k in it and it[k] is not None and not isinstance(it[k], list):
+            fails.append(f"{where}: {k} must be a list")
+    if "capture" in it and it["capture"] is not None and not isinstance(it["capture"], dict):
+        fails.append(f"{where}: capture must be an object")
+    pc = it.get("post_copy")
+    if pc is not None and not isinstance(pc, dict):
+        fails.append(f"{where}: post_copy must be an object")
+    # proof ownership: who can say this. Warn-only, but counted so the week prints its
+    # split, because ownership had two rules in prose and no field until now.
+    proof = it.get("proof")
+    if isinstance(proof, dict) and proof.get("kind") in PROOF_KINDS:
+        proof_counts[proof["kind"]] += 1
+    elif proof is not None:
+        kind = proof.get("kind") if isinstance(proof, dict) else proof
+        fails.append(f"{where}: proof.kind={kind!r} not in {sorted(PROOF_KINDS)}")
+    else:
+        proof_counts["missing"] += 1
+        if cls == "research" or it.get("intent") == "educational":
+            proof_missing.append(it.get("id") or where)
+    tw = it.get("linkedin")
+    if tw is not None:
+        _check_post(tw, f"{where}.linkedin", fails, warns)
+
+
+def schema_check(d, path):
+    """Validate one week file against Contract 3. Returns (fails, warns) and prints."""
+    fails, warns = [], []
+    name = os.path.basename(path)
+    if not isinstance(d, dict):
+        print(f"schema: FAIL {name} is not a JSON object")
+        return [f"{name}: not an object"], []
+
+    sv = d.get("schema_version")
+    if sv is None:
+        warns.append("no schema_version: legacy file, add \"schema_version\": 2")
+    elif not isinstance(sv, int) or isinstance(sv, bool):
+        fails.append(f"schema_version={sv!r} is not an integer")
+    elif sv != SCHEMA_VERSION:
+        warns.append(f"schema_version {sv}, this engine validates {SCHEMA_VERSION}")
+
+    wk = d.get("week")
+    if not isinstance(wk, str) or not wk.strip():
+        fails.append(f"week={wk!r} must be a non-empty string")
+    if not isinstance(d.get("positioning", ""), str):
+        fails.append("positioning must be a string")
+    elif not d.get("positioning"):
+        warns.append("no positioning line")
+    if "supersedes" in d and not isinstance(d["supersedes"], str):
+        fails.append("supersedes must be the `week` string this file replaces")
+
+    for k in sorted(set(d) - TOP_KNOWN):
+        warns.append(f"unknown top-level key {k!r}")
+
+    for lane in VIDEO_LANES + POST_LANES + ("inspiration",):
+        v = d.get(lane)
+        if v is not None and not isinstance(v, list):
+            fails.append(f"{lane} must be a list")
+
+    proof_counts = Counter()
+    proof_missing = []
+    ids = Counter()
+
+    def _collect_ids(o, where):
+        if isinstance(o, dict) and o.get("id"):
+            ids[o["id"]] += 1
+
+    for lane in VIDEO_LANES:
+        for i, it in enumerate(d.get(lane) or []):
+            where = f"{lane}[{i}]"
+            _check_video_item(it, where, fails, warns, proof_counts, proof_missing)
+            _collect_ids(it, where)
+            if isinstance(it, dict) and isinstance(it.get("linkedin"), dict):
+                _collect_ids(it["linkedin"], where + ".linkedin")
+    for lane in POST_LANES:
+        for i, p in enumerate(d.get(lane) or []):
+            where = f"{lane}[{i}]"
+            if lane == "linkedin":
+                _check_post(p, where, fails, warns)
+            elif isinstance(p, dict):
+                _check_id(p.get("id"), where, fails, warns)
+            _collect_ids(p, where)
+    for i, ins in enumerate(d.get("inspiration") or []):
+        if not isinstance(ins, dict):
+            fails.append(f"inspiration[{i}] is not an object")
+
+    for pid, n in sorted(ids.items()):
+        if n > 1:
+            fails.append(f"duplicate id {pid!r} appears {n} times in this file")
+
+    ex = d.get("experiment")
+    if ex is not None:
+        if not isinstance(ex, dict):
+            fails.append("experiment must be an object {dim, arms:{a,b}, metric, question}")
+        else:
+            for k in ("dim", "metric", "question"):
+                if not isinstance(ex.get(k), str) or not ex.get(k):
+                    fails.append(f"experiment.{k} missing or not a string")
+            arms = ex.get("arms")
+            if not isinstance(arms, dict) or not all(isinstance(arms.get(a), list) for a in ("a", "b")):
+                fails.append("experiment.arms must be {a: [ids], b: [ids]}")
+            else:
+                for a in ("a", "b"):
+                    for pid in arms[a]:
+                        if pid not in ids:
+                            warns.append(f"experiment.arms.{a}: id {pid!r} is not in this file")
+    for key, need in (("ammo", ("fact",)), ("promised", ("text", "due_week"))):
+        v = d.get(key)
+        if v is None:
+            continue
+        if not isinstance(v, list):
+            fails.append(f"{key} must be a list")
+            continue
+        for i, row in enumerate(v):
+            if not isinstance(row, dict):
+                fails.append(f"{key}[{i}] is not an object")
+                continue
+            for k in need:
+                if not row.get(k):
+                    warns.append(f"{key}[{i}] has no {k}")
+
+    n_video = sum(len(d.get(l) or []) for l in VIDEO_LANES)
+    if n_video:
+        print(f"proof: {proof_counts['own']} own / {proof_counts['reach']} reach / "
+              f"{proof_counts['public']} public / {proof_counts['missing']} missing")
+        if proof_missing:
+            shown = ", ".join(proof_missing[:8]) + (" ..." if len(proof_missing) > 8 else "")
+            warns.append(f"proof missing on {len(proof_missing)} research/educational item(s): {shown}")
+
+    if not fails and not warns:
+        print("schema: ok")
+    else:
+        print(f"schema: {len(fails)} FAIL, {len(warns)} warn")
+        for f in fails:
+            print(f"        FAIL {f}")
+        for w in warns:
+            print(f"        warn {w}")
+    return fails, warns
+
+
+def _week_path(p):
+    """A week path given relative to the cwd, else relative to the workspace."""
+    if os.path.exists(p) or os.path.isabs(p) or not RADAR:
+        return p
+    alt = os.path.join(RADAR, p)
+    return alt if os.path.exists(alt) else p
 
 
 def run_week(path):
+    """Grade one week file. Returns (n_fail, n_warn)."""
     d = json.load(open(path))
+    n_fail = n_warn = 0
+    sf, sw = schema_check(d, path)
+    n_fail += len(sf)
+    n_warn += len(sw)
+    if SCHEMA_ONLY:
+        return n_fail, n_warn
+
     items = d.get("distribution", []) + d.get("office", [])
     shapes = Counter()
     classes = Counter()
@@ -592,8 +868,11 @@ def run_week(path):
     note = "" if floors is FLOORS_NEW else (
         f"  (cadence floors: pre-{FLOORS_FROM}, stdev {floors['stdev']:.0f}, long-run rule off. "
         f"This week was written before the 2026-08-24 recalibration.)")
-    print(f"{len(items)} scripts in {os.path.basename(path)}{note}\n")
-    if TARGETS is None:
+    mode = "FAIL" if STRICT_CADENCE else "warn"
+    print(f"\n{len(items)} scripts in {os.path.basename(path)}{note}  (cadence rules {mode})\n")
+    graded = [it for it in items
+              if it.get("script_class", "testimony") in ("testimony", "research")]
+    if TARGETS is None and graded:
         # PRODUCTION SAFETY, added 2026-08-30. Falling back silently to the pre-2026-08-30
         # constants would hand every new creator the exact defect that broke 8 of the creator's
         # scripts: a mean band of 9 to 13 when his real work speech measures 17.8. The
@@ -605,7 +884,14 @@ def run_week(path):
         print("!! the length of real unscripted speech about work).")
         print("!! Fix, once, about 30 minutes: record yourself talking through 4-5 subjects")
         print("!! in your niche unscripted, drop the transcripts in capture/, then run")
-        print("!!   python3 scripts/segment_corpus.py && python3 scripts/derive_voice_targets.py")
+        print("!!   python3 segment_corpus.py && python3 derive_voice_targets.py")
+        if ALLOW_UNVALIDATED:
+            print("!! --allow-unvalidated: graded against the defaults anyway (WARN).")
+            n_warn += 1
+        else:
+            print(f"!! FAIL: {len(graded)} testimony/research script(s) graded against unvalidated "
+                  "bands. Pass --allow-unvalidated to grade anyway.")
+            n_fail += 1
         print()
     for it in items:
         # FIDELITY is testimony-only: it compares a script against a capture on disk, and
@@ -631,39 +917,42 @@ def run_week(path):
         cap = (it.get("capture") or {})
         fid = tri = None
         src = cap.get("source")
-        if src and os.path.exists(os.path.join(RADAR, src)):
+        if src and RADAR and os.path.exists(os.path.join(RADAR, src)):
             captext = open(os.path.join(RADAR, src)).read()
             fixes = cap.get("fact_fixes", [])
             fid = fidelity(captext, script, fixes)
             tri = trigram_share(captext, script, fixes)
-        fails = verdict(fp, fid, tri, floors)
+        fails, warns = verdict(fp, fid, tri, floors)
         if fid is None and cls == "testimony":
             # a testimony script with no resolvable capture is not measurable, and
             # unmeasurable means unfilmable (audit 2026-07-26): never print n/a as a pass
             fails.append("NO CAPTURE SOURCE on disk; testimony without a capture is not filmable")
+        sfails, swarns = spoken_report(script, cls)
+        fails += sfails
+        warns += swarns
         shapes[opening_shape(script)] += 1
-        flag = "PASS" if not fails else "FAIL"
+        flag = "FAIL" if fails else ("warn" if warns else "PASS")
         if fails:
             bad += 1
+        n_fail += len(fails)
+        n_warn += len(warns)
         shown = f"{fid:.2f}" if fid is not None else "n/a"
         print(f"[{flag}] {it.get('id')}  mean {fp.get('mean')} max {fp.get('max')} "
               f"stdev {fp.get('stdev')} quoted {fp.get('quoted_dialogue')} "
               f"fidelity {shown}")
         for f in fails:
-            print(f"        {f}")
-        # the spoken gate never fails a batch, it only tells you what will fight the
-        # mouth on the day. Collected here so it prints next to the cadence numbers
-        # it is meant to qualify.
-        spoken[it.get("id")] = script
-        for w in spoken_report(script, cls):
+            print(f"        FAIL {f}")
+        for w in warns:
             print(f"        warn: {w}")
+        spoken[it.get("id")] = script
     clash = [(s, n) for s, n in shapes.most_common() if n > 1]
     print(f"\nclass distribution: {dict(classes)}  (watch for drift toward convenient format/research tagging)")
     print(f"{bad}/{len(items)} failed the fingerprint gate")
     if clash:
-        print("cadence clash, these openings repeat:")
+        print("cadence clash, these openings repeat (warn):")
         for s, n in clash:
             print(f"   {n}x  '{s}...'")
+        n_warn += len(clash)
     else:
         print("no cadence clash")
 
@@ -676,19 +965,36 @@ def run_week(path):
         print("\nspoken gate, batch level (warn only):")
         for b in batch:
             print(f"   {b}")
+        n_warn += len(batch)
     else:
         print("\nspoken gate, batch level: no shared seams")
 
-    run_linkedin(d)
+    lf, lw = run_linkedin(d)
+    return n_fail + lf, n_warn + lw
+
+
+def _rc(n_fail, n_warn):
+    return 2 if n_fail else (1 if n_warn else 0)
 
 
 def main():
     if "--week" in sys.argv:
-        run_week(sys.argv[sys.argv.index("--week") + 1])
-        return
+        if RADAR is None:
+            radar_home()          # prints where it looked and exits 2
+        path = _week_path(sys.argv[sys.argv.index("--week") + 1])
+        if not os.path.exists(path):
+            print(f"no week file at {path}")
+            sys.exit(2)
+        n_fail, n_warn = run_week(path)
+        rc = _rc(n_fail, n_warn)
+        print(f"\ncheck_fidelity: {n_fail} fail, {n_warn} warn -> rc {rc}")
+        sys.exit(rc)
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(__doc__)
+        sys.exit(0)
     if len(sys.argv) < 3:
         print(__doc__)
-        return
+        sys.exit(1)
     capture = open(sys.argv[1]).read()
     script = open(sys.argv[2]).read()
     fixes = []
@@ -703,10 +1009,18 @@ def main():
           f"min {fp['min']}  max {fp['max']}  stdev {fp['stdev']}")
     print(f"quoted dialogue {fp['quoted_dialogue']}")
     print(f"spoken words    {fp['words']}  (~110 for 34s, ~170 for 55s)")
-    fails = verdict(fp, fid, tri)
+    fails, warns = verdict(fp, fid, tri)
+    sfails, swarns = spoken_report(script)
+    fails += sfails
+    warns += swarns
     print("\nPASS" if not fails else "\nFAIL")
     for f in fails:
-        print(f"  {f}")
+        print(f"  FAIL {f}")
+    for w in warns:
+        print(f"  warn {w}")
+    rc = _rc(len(fails), len(warns))
+    print(f"\ncheck_fidelity: {len(fails)} fail, {len(warns)} warn -> rc {rc}")
+    sys.exit(rc)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,8 @@ Template per term:
 - **The feeling it labels:** what your audience already experiences but cannot name.
 - **Planted in:** video ids, post ids, article URLs.
 - **Pickup evidence:** comments/posts where someone else used it.
+- **Pickup check (YYYY-MM-DD):** none | <url>. One exact-phrase search across web, LinkedIn and Reddit per weekly run (the pickup step in `trend-creation.md`); retire after about four weeks of `none`.
+- **Site page:** URL, or TODO. The definition beat in a script is conditional on a live page.
 
 ## Graduated
 

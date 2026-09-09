@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 # YapCut privacy gate. Refuses, never warns, same stance as prose-gate.
 #
-# This repo is PUBLIC and it is also the single source for Alex's live install:
-# his private config and data sit inside this tree, fenced by .gitignore. The
-# one habit that defeats a .gitignore is `git add -f` or a force-add sweep, and
-# the one habit that leaks without any force is committing generic-looking
-# files that carry private strings. This hook closes both.
+# This repo is PUBLIC. Since 2026-09-09 the live install CONSUMES the installed plugin
+# (the workspace's engine/ symlink points at the plugin cache), so private config and
+# data live outside this tree. The gate still refuses private paths and strings because
+# prose has no .gitignore: two leaks reached the public remote before it existed
+# (CHANGELOG 3.4.4, 3.4.5). Modes: no argument = staged diff (the commit hook);
+# --history = scan every reachable commit (release.sh runs it).
 #
 # Install once per clone:  git config core.hooksPath .githooks
 
 set -euo pipefail
+MODE="${1:-}"
 
 fail() { echo "PRE-COMMIT GATE: $1" >&2; exit 1; }
 
 STAGED=$(git diff --cached --name-only --diff-filter=ACM)
-[ -z "$STAGED" ] && exit 0
+[ -z "$STAGED" ] && [ "$MODE" != "--history" ] && exit 0
 
 # 1. Private files must never be staged, even force-added.
 #    weeks/*.json except the bundled example; filled configs; performance data;
@@ -49,6 +51,41 @@ PATTERNS="$PATTERNS"'|Reach (sells|pipeline|brand|block|wordmark|customer)|Reach
 # Named Reach customers. Add to this list when a new one is discussed anywhere
 # near this repo; naming one alongside its numbers is the worst case here.
 PATTERNS="$PATTERNS"'|[redacted customer]|[redacted customer]|[redacted customer]|[redacted customer]'
+# --history: scan every reachable commit for the same patterns (the 3.4.4 scrub cleaned HEAD and
+# left a customer's figures in commit 15838a7; a staged-diff gate can never see that).
+if [ "$MODE" = "--history" ]; then
+  HITS=$(git grep -nE "$PATTERNS" $(git rev-list --all) -- . ':(exclude).githooks/*' 2>/dev/null | head -20 || true)
+  if [ -n "$HITS" ]; then
+    echo "$HITS" >&2
+    fail "private markers are reachable in git history ($(echo "$HITS" | wc -l | tr -d ' ') hits shown). Rewrite with git filter-repo --replace-text before releasing."
+  fi
+  echo "history clean"; exit 0
+fi
+
+# 3. Doc-to-code links: every python3 <name>.py / bash scripts/<name>.sh / references/<name>.md
+#    token in a staged SKILL.md must exist under that plugin (four live defects on 2026-09-09:
+#    scripts/segment_corpus.py named where no scripts/ dir exists, a qa value the gate rejects,
+#    a never-skip library.py that did not ship, inverted lane semantics).
+while IFS= read -r f; do
+  case "$f" in plugins/*/skills/*/SKILL.md)
+    SKILLDIR="$(dirname "$f")"
+    MISSING=$(python3 - "$f" "$SKILLDIR" <<'PY'
+import re, sys, os
+f, d = sys.argv[1:3]; t = open(f).read(); miss = []
+for m in re.finditer(r"python3\s+([A-Za-z0-9_./-]+\.py)|bash\s+([A-Za-z0-9_./-]+\.sh)|`(references/[A-Za-z0-9_.-]+\.md)`|`([a-z_]+\.py)`|`(scripts/[A-Za-z0-9_./-]+\.(?:py|sh))`", t):
+    tok = next(x for x in m.groups() if x)
+    tok = tok.replace("<workdir>/", "")
+    cands = [os.path.join(d, tok), os.path.join(d, "scripts", os.path.basename(tok)), os.path.join(d, os.path.basename(tok)),
+             os.path.join(os.path.dirname(d), "outlier-radar", tok), os.path.join(os.path.dirname(d), "lead-magnet-report", tok)]
+    if not any(os.path.exists(c) for c in cands):
+        miss.append(tok)
+print("\n".join(sorted(set(miss))))
+PY
+)
+    [ -z "$MISSING" ] || { echo "$MISSING" >&2; fail "$f names files that do not ship (above)"; } ;;
+  esac
+done <<< "$STAGED"
+
 # The creator as an actor in tracked doctrine. This tree IS the public repo AND
 # the live install, single-sourced, so prose has no .gitignore to hide behind:
 # 101 references to Alex by name had accumulated in the skill files. The rule is

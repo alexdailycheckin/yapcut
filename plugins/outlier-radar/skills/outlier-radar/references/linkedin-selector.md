@@ -115,9 +115,9 @@ Allocation fills the five slots against the target mix, then scores candidates w
 
 The one thing worth stating in prose: **the carousel weight is the largest by design.** Document posts run around 6.60% engagement against roughly 2.00% for text-only, so the shape decision dominates every other lever in the file. Tuning a hook on a text post that should have been a carousel is optimising the wrong variable.
 
-And it is executable. linkedin-engine's `references/carousel-cards.md` owns the approved editorial-object style plus the Higgsfield prompt recipe, and its `scripts/carousel.py` renders a set from a JSON spec. Radar's own contribution is upstream of that: the depth cards must come from the source script's beats, which is exactly what a Radar teardown already produces, so the carousel is a second surface for verified work rather than a fresh writing session.
+And it is executable. `references/linkedin-visuals.md` (Shape 5) owns the carousel style, `carousel.py` renders a spec, and the Higgsfield prompt recipe, and its `scripts/carousel.py` renders a set from a JSON spec. Radar's own contribution is upstream of that: the depth cards must come from the source script's beats, which is exactly what a Radar teardown already produces, so the carousel is a second surface for verified work rather than a fresh writing session.
 
-**Length is a constraint, not a score.** The reach band is 1,300 to 1,900 characters, the dead zone is roughly 600 to 1,000, and the hard stop is 2,500. Being in the band earns nothing; being in the dead zone is penalised. Never pad to reach the band. Full derivation in linkedin-engine `references/save-mechanics.md`.
+**Length is a constraint, not a score.** The reach band is 1,300 to 1,900 characters, the dead zone is roughly 600 to 1,000, and the hard stop is 2,500. Being in the band earns nothing; being in the dead zone is penalised. Never pad to reach the band. Full derivation in `references/save-mechanics.md`.
 
 ## Posting order: urgency, not score
 
@@ -162,5 +162,5 @@ So the sequence is: measure first, converge second. `log_perf.py --report` ranks
 - `scripts/select_linkedin.py` the mechanics, weights, and the week verdict
 - `scripts/log_perf.py` the loop: `--linkedin` for twins, `--followers` for the north star, `--report` for what has cleared n
 - `references/post-types.md` the video-side equivalent, screen shape rather than feed shape
-- linkedin-engine `references/save-mechanics.md` the length band, the format lever, the CTA gate, and the sourcing for every figure quoted here
-- linkedin-engine `references/format-library.md` FORMAT 1 to 4, the shapes this selector assigns
+- `references/save-mechanics.md` the length band, the format lever, the CTA gate, and the sourcing for every figure quoted here
+- `references/format-library.md` FORMAT 1 to 4, the shapes this selector assigns

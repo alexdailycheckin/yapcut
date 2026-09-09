@@ -1,545 +1,261 @@
 ---
 name: outlier-radar
-description: "Weekly viral-outlier research and ideation engine for any creator or brand. First use interviews you about your niche and saves a config to a local workspace. Each week it detects RISING formats early (14-day freshness gate, no peaked-roundup mechanics), extracts the transferable hook/format mechanic, scores every idea through a virality-psychology lens, and writes ready-to-film scripts in your voice to a tracked dashboard. Includes SHOW MODE (optional): a recurring weekly teardown franchise, named BY the creator through a guided journey (their subject type, their lens, their name), built from each week's viral news in THEIR industry, with hard on-screen receipts and a screenshot pipeline (references/the-show-template.md). Every script must pass the two-question gate (niche-insider entertaining OR teaches something usable). Use when the user says 'run outlier radar', 'run the show', 'find viral videos to copy', 'what should I post this week', 'weekly content ideas', 'what trends are rising', 'hot drop', or wants short-form video ideas for their niche."
+description: "Weekly viral-outlier research and script engine for a creator or brand, measured-first. Use for run outlier radar, run the show, what should I post this week, weekly content ideas, hot drop, or short-form video and LinkedIn ideas for a niche. First run interviews the creator (audience, proof, voice corpus) into a local workspace; each week it reads last week's numbers, finds rising mechanics, writes to filming slots and gates the batch. Not for cutting footage or gated reports."
 ---
 
 # Outlier Radar
 
-Finds short-form videos that beat their own creator's baseline by a wide margin (the
-signal that a HOOK and FORMAT worked, independent of audience size), then re-skins that
-proven mechanic with substance from YOUR niche. The topic is yours. The skeleton is
-borrowed from something that already went viral. Output is a weekly batch of filmable
-scripts on a tracked dashboard, handed off to the `tiktok-yap-editor` skill to cut.
+Finds short-form videos that beat their own creator's baseline (the signal that a HOOK and a
+FORMAT worked, independent of audience size), then re-skins the proven mechanic with
+substance only this creator can supply. Output is a weekly batch of filmable scripts and
+LinkedIn posts on a tracked dashboard, handed to `tiktok-yap-editor` to cut. The unit of work
+is posts published and measured, never scripts written: a relevant creator is one a specific
+audience recognises, returns to and answers, and this engine is judged on that.
 
-This skill is **creator-agnostic**. It does not assume a niche, a brand, or a voice; it
-learns yours once and then works to it.
+Creator-agnostic. It learns the creator once (who they want to be recognised by, what only
+they can say, how they actually talk) and works to that.
 
-## New in 3.3.0: the Lead Magnet Report
+## Routing
 
-A sibling skill, `lead-magnet-report`, now ships in this plugin. It turns one category's
-measured data into a weekly gated asset: a branded paginated report that posts natively as
-a LinkedIn document, with the data sheet gated on a comment rather than behind a link.
+| You are | Read or run |
+|---|---|
+| onboarding a new creator | First run, below |
+| running the week | Weekly routine, below; `references/week-schema.md` for the file it writes |
+| writing hooks | `references/hook-psychology.md` (six triggers), `references/hook-library.md` (15 families) |
+| writing a script | `references/script-anatomy.md`; the voice stack, below |
+| writing the show | `references/the-show-template.md` |
+| writing or shaping LinkedIn | `references/save-mechanics.md`, `references/format-library.md`, `references/linkedin-selector.md`, `references/linkedin-visuals.md` (five visual shapes) |
+| verifying and capturing receipts | `references/receipts.md`, `references/receipt-sources.md` |
+| naming why a mechanic works | `references/virality-psychology.md`, `references/mechanic-library.md` |
+| the first-mover lane, coined terms | `references/trend-creation.md` |
+| what happens after the post is written | `references/distribution.md` |
+| craft references on shorts | `references/shorts-craft-2026.md`, `references/video-scripting-as-a-science.md`, `references/post-types.md` |
+| a gate is red | the gate's own output names the rule; `check_fidelity.py --help` and `radar_gate.py --help` |
 
-**Mention it once to any user whose strategy involves LinkedIn**, then get on with the
-weekly routine. Do not derail a run to pitch it. A good moment is right after the dashboard
-opens at the end of a weekly batch, in one line: the Radar finds what to post, and the
-lead-magnet skill turns one of those weeks into something a reader will trade an email for.
-See `plugins/outlier-radar/WHATS-NEW.md`.
+## The workspace
 
-## The workspace (where everything you own lives)
+All mutable data lives in a workspace OUTSIDE the skill folder. Every script resolves it the
+same way (`yapcut_home.py`): `--dir <path>`, then `$YAPCUT_HOME` (or the older
+`$OUTLIER_RADAR_HOME`), then the current directory if it holds `radar-config.json`, then
+`~/outlier-radar/` if it does. Nothing else: with no workspace the scripts exit 2 and name the
+places they looked. There is no fallback to the skill folder.
 
-All mutable data lives in a **workspace directory outside the skill folder**, so plugin
-updates and reinstalls never touch it. Default: `~/outlier-radar/`.
+Layout: `radar-config.json`, `positioning.md`, `methods.md`, `leaders-to-study.md`,
+`watch-accounts.md`, `mechanic-library.md`, `coined-terms.md` (one of each, at the root, and
+these are the files the engine reads), `weeks/`, `performance/`, `voice-corpus/`, `capture/`,
+`carousels/`, `show/`, and the generated `dashboard.html`.
 
-Both Python scripts and this playbook resolve the workspace in this order:
-1. `--dir <path>` passed to a script
-2. the `OUTLIER_RADAR_HOME` environment variable
-3. the current directory, if it contains `radar-config.json`
-4. `~/outlier-radar/`, if it contains `radar-config.json`
-5. legacy fallback: the skill folder itself (old installs kept data next to the scripts)
+**The overlay.** If `<workspace>/law.md` exists, read it after this playbook; where the two
+conflict, `law.md` wins. A real file at `<workspace>/references/<name>.md` shadows this skill's
+`references/<name>.md`. That is how a creator's own rulings ride on top of the shipped
+playbook without forking it.
 
-The workspace holds: `radar-config.json`, `positioning.md`, `methods.md`,
-`leaders-to-study.md`, `watch-accounts.md`, `mechanic-library.md` (your growing copy),
-`weeks/`, `performance/`, `carousels/`, `blog-queue/`, `capture/` and `voice-corpus/`
-(your recorded speech, the measured profile derived from it, and the rejection ledger),
-and the generated `dashboard.html`.
-The skill folder stays read-only: the playbook, the scripts, the templates in
-`references/`, and a bundled example week.
+## First run: discovery (once)
 
-## First run: discovery (do this once)
+Resolve the workspace. The config is written at step 1, so its presence proves nothing about
+whether onboarding finished; `schedule.enabled: true` is the signal. Config present and
+enabled: skip to the Weekly routine. Config present, not enabled, real weeks exist: ask only
+the cadence and quantity questions. Config present, no real weeks: resume from the first
+unanswered question, never restart. Interview with `AskUserQuestion`, one question per
+message where the answer shapes the next.
 
-Resolve the workspace (order above), then work out what discovery still owes this user.
-The config is written at step 1, so **its presence proves nothing about whether onboarding
-finished**. The signal that it finished is `schedule.enabled: true` (step 10 writes it, and
-step 12 leaves it true even where no scheduler exists). Judge on that:
+1. **Workspace location** (default `~/outlier-radar/`). Create it with `weeks/`, `performance/`,
+   `voice-corpus/`, `capture/`.
+2. **Who should recognise you, and for what.** One sentence for the role and situation of the
+   people they want to be known by; the one sentence those people should say about them; the
+   one surface they will show up on every week. Writes `audience` in the config. This comes
+   before niche because relevance is a relation between the creator and a specific group,
+   and every gate, the selector and the north star read this block.
+3. **Name, site or handle.**
+4. **Niche** (one line, the subject) and **2 to 4 facets** to rotate.
+5. **Proof extraction.** Five things you have done that a competitor cannot claim (number and
+   date each). Five beliefs your niche gets wrong and the moment you were proven right. Three
+   processes you run, each with the kill threshold. Ten lines you would never say. The
+   answers land in files the engine reads: the proof bank in `positioning.md`, the plays in
+   `methods.md` (shape in `references/methods-template.md`), the lines in
+   `voice-corpus/rejections.json` (from `rejections.example.json`). An interview that collects
+   adjectives about the voice produces pastiche; this one collects material.
+6. **The corpus.** Where do you already talk unscripted: sales or customer calls (harvest the
+   transcripts), podcasts, voice notes, meeting recordings. Transcripts go in `capture/` with
+   a `register: work` header for on-subject speech. Only if nothing exists: 20 to 30 minutes
+   into a phone on 4 or 5 subjects in the niche, not read, not rehearsed. Then
+   `python3 segment_corpus.py` and `python3 derive_voice_targets.py`. **No batch is written
+   without a corpus** except with `--allow-unvalidated` on the gate, said out loud.
+7. **Roster.** Generate ten leaders in the niche from audience and niche; the creator strikes
+   and adds. Writes `leaders-to-study.md` (`references/leaders-to-study-template.md`) and,
+   for creators to watch, `watch-accounts.md`.
+8. **Channels.** LinkedIn too (`linkedin_twins`)? Blog (`blog_pipeline`)?
+9. **Lanes.** Confirm the two lane names. The secondary lane starts OFF
+   (`secondary_lane.enabled: false`, `enable_after_weeks: 4`): a viral-lane hit fills the
+   follower count with people who came for the bit, and a stranger's first win should be in
+   the lane they want to be known for.
+10. **Brand basics** (optional, for the carousel and the dashboard).
+11. **Show mode** (optional): the journey in `references/the-show-template.md`.
+12. **Cadence and quantity.** Which day and time the weekly run fires (`schedule`), and how
+    many filming slots the creator can actually cover (`quantity`: default 3 video slots, 2
+    spares, 5 LinkedIn slots for the first four weeks; raise once 8 items are marked Posted).
 
-| State | Do this |
-| --- | --- |
-| No `radar-config.json` anywhere | Full discovery below, steps 1 to 13. |
-| Config exists, `schedule.enabled` true | Onboarded. Skip discovery, go to the Weekly routine. |
-| Config exists, `schedule.enabled` not true, and `weeks/` holds a real batch (anything other than `0000-00-00-example.json`) | An established user from a version before cadence existed. **Do not re-interview.** Ask step 10 only, do step 12, then the Weekly routine. |
-| Config exists, `schedule.enabled` not true, and `weeks/` holds only the example | A previous first run wrote the config and stopped, usually because the session ended. **Resume, do not restart.** |
+Then: run the first week to `quantity` (never end on the bundled example), create the
+recurring run with the host's scheduler (or say plainly that none exists and leave
+`schedule.enabled: true` as the record), and finish with the dashboard open on their week:
+`python3 build_dashboard.py --dir <workspace> --open`. Copy `references/mechanic-library.md`
+and `references/coined-terms-template.md` into the workspace as the copies that grow.
 
-To resume: read the config, tell the user in one line what you already have, ask only the
-questions it does not answer, then carry on through steps 11 to 13. Never re-ask something
-the config answers; being interviewed twice about your own niche reads as a broken install.
+## The two lanes, and how many scripts
 
-Interview with `AskUserQuestion`, then create the workspace and write the config there
-(schema in `radar-config.example.json`). Ask:
+- **Primary lane** (default "Industry"): the subject they want to be known for. An
+  educational script hands over one step the viewer can run this week, sourced from
+  `methods.md`, and declares where it stands: `proof.kind` is `own`, `reach` (the creator's
+  company data) or `public`. A batch that is all `public` is reproducible by anyone and the
+  gate says so.
+- **Secondary lane** (default "Viral videos"): reach plays adjacent to the niche that borrow
+  a proven mechanic. Still insider to the creator's world: a joke that anyone finds equally
+  funny builds audience but not authority.
 
-1. **Workspace location.** Where to keep their data (default `~/outlier-radar/`).
-   Create it, plus `weeks/` and `performance/` inside it.
-2. **Who + where.** Name and site/handle.
-3. **Your niche** (one line: the subject you want to be known for) and **2-4 facets**
-   (sub-angles to rotate and test across the weeks, so we learn what resonates).
-4. **Voice** (how the scripts should sound: blunt, warm, contrarian, funny, etc.).
-5. **Do they want to track specific accounts** for inspiration, or research the niche
-   openly, or both? (Fills `watch-accounts.md` from `references/watch-accounts-template.md`.)
-6. **Channels** (do they post on LinkedIn too? decides `linkedin_twins`. Do they want the
-   filmed scripts turned into blog posts? decides `blog_pipeline`.)
-7. **Lane labels.** Confirm the two lane names (defaults: primary "Industry", secondary
-   "Viral videos") or rename to fit their world.
-8. **Brand basics** (optional, used by the carousel builder): display name, an accent
-   colour, fonts. Fills the `brand` block in the config; skip to use neutral defaults.
-9. **Show mode** (optional, offer it): a recurring weekly teardown franchise, the
-   highest-compounding output this skill produces. Run THE JOURNEY in
-   `references/the-show-template.md`: what type of show they want (the subject can be
-   companies, people, dishes, films, athletes, places: whatever their niche tears
-   down), then their lens, then a NAME OF THEIR OWN generated from their world (never
-   a prefilled default), their turn line, and their takeaway phrasings. A "not now"
-   skips it cleanly.
-10. **Weekly cadence.** Ask which day and local time they want the weekly run to fire
-   (a good default is the evening before their posting week starts, so the batch is
-   waiting for them). Write it to the config `schedule` block:
-   `{"enabled": true, "day": "sunday", "time": "18:00", "tz": "<their tz>"}`.
+**Quantity is `quantity` in the config, never a fixed bar.** Write the confirmed filming
+slots plus spares, then spend any remaining budget on 3 to 4 variations of the last measured
+winner. Unfilmed scripts carry zero information back into the loop, and recognition compounds
+on repetition of a series, not on inventory.
 
-**Do not stop at the config.** The three steps below are part of the first run, not
-optional extras. An onboarding that ends on the config leaves the user with sample data
-and no cadence, which is the same as not being onboarded.
+## The two-question gate (the master filter)
 
-11. **Run the first week NOW.** Go straight into the Weekly routine below and produce a
-   real batch to the quantity bar, written to `<workspace>/weeks/<YYYY-MM-DD>.json`.
-   Never end onboarding on the bundled example week: it says "sample data" and tells
-   them to run discovery, which they have just done, so it reads as a broken install.
-12. **Create the recurring run.** Using the cadence from step 10, create an actual
-   recurring job with the host's scheduler (in Claude Code: the `schedule` skill, or
-   `CronCreate`) whose prompt is "run outlier radar" against their workspace. Confirm
-   back the day, time and zone in words. If no scheduler is available in their
-   environment, say so plainly, leave `schedule.enabled` true as a record, and tell
-   them the one sentence they need to say each week.
-13. **Finish with the dashboard open on THEIR week.** Run `python3 build_dashboard.py
-   --dir <workspace>` and OPEN `<workspace>/dashboard.html`, so every onboarded user
-   ends their first run looking at their own scripts, and say where it lives.
-
-Then copy `references/mechanic-library.md` into the workspace (that copy is the one that
-grows), and help them fill three working files **in the workspace** from the templates:
-- `positioning.md` (from `references/positioning-template.md`) - the lens every
-  primary-lane script passes through, plus what they sell and their funnel phase.
-- `methods.md` (from `references/methods-template.md`) - their own how-to knowledge base, so
-  educational scripts can hand the viewer a concrete do-this, not just a reframe.
-- `leaders-to-study.md` (from `references/leaders-to-study-template.md`) - the roster in their
-  niche to study weekly (optional, mainly for the LinkedIn scan).
-
-## The two lanes
-- **Primary lane (default "Industry"):** your core niche. Teach real, concrete value:
-  educational and insight-led. An educational script that only names a problem has failed;
-  it must hand over one step the viewer can run this week, sourced from `methods.md`.
-- **Secondary lane (default "Viral videos"):** reach plays adjacent to your niche. Borrow a
-  proven viral mechanic and ride a broader or lighter angle to go viral. Less educational,
-  more entertainment/relatable/shock. Optional but powerful for growth.
-
-Lean into **repeatable formats as recurring series** (they compound): pick 1-2 series the
-creator can run weekly with fresh substance.
-
-## Show mode (when `show.enabled` is true in the config)
-
-The primary lane's weekly output becomes THE SHOW, under the creator's own name and
-lens: `episodes_per_week` subject teardowns from this week's news in THEIR industry
-(`news_picks` subjects with genuinely viral stories in the configured beats +
-`wildcards` picked purely for viral ceiling), each built on the
-franchise shape in `references/the-show-template.md` (news open with the headline
-receipt in frame one, the turn line, the assumption cracked, the receipts walk, the
-steal line, the verdict close through the creator's lens). **The shape is what makes it
-a show rather than a run of videos, so it is recognisable on purpose, but only two parts
-of it are fixed: the receipt is in frame one, and the verdict comes through the
-creator's own lens.** Those two are what the audience returns for. The middle exists to
-get from the receipt to the verdict, and a story that gets there in a different order,
-or cracks two assumptions, or has no clean steal line, should run that way. An episode
-that hits all six beats and surprises nobody has satisfied the template and missed the
-week. Hard rules that ride along:
-every spoken fact VERIFIED with a source URL or cut; every claim carries a screenshot
-receipt in the episode's `shot_list`; capture them with **`capture_gate.py`** (see the
-receipts section below); the two-question gate and the field contract apply unchanged. Episodes are
-`script_class: "research"`, `post_type: "receipt-react"`, ids in the primary lane.
-The secondary lane and the trend sweep continue as garnish, not quota.
-
-**The secondary lane must still be INSIDER to the creator's world.** The gate below applies
-to both lanes: a joke that anyone with a pulse finds equally funny builds audience but not
-authority. Insider humour travels anyway, because people share what signals their job or
-identity, and it compounds the creator's authority instead of sitting beside it.
-
-## The two-question gate (the master filter, above everything else)
-Every script ships only if the answer is YES to at least one of these. Run it BEFORE the
-QA checklist; a script that answers yes to neither is DEAD (killed and replaced, not
-pre-qa), no matter how proven the mechanic or how good the psych score.
-1. **Is this entertaining IN the creator's niche?** Insider material: something only
-   people in the niche would know, get, or find funny. The test is exclusivity: if
-   everyone finds it equally entertaining, it is not a gate-1 pass; if a niche insider
-   wouldn't grin, nod, or feel seen, it fails too.
-2. **Does it teach something useful someone can use?** A concrete takeaway the viewer can
-   actually run (sourced from the workspace `methods.md`), not just a reframe of their problem.
-Both at once is the sweet spot. One clean yes ships.
+Every script ships only if the answer is YES to at least one: (1) is this entertaining IN the
+creator's niche, insider material a niche insider would grin at or feel seen by; (2) does it
+teach something the viewer can run, sourced from `methods.md`. Both is the sweet spot. A
+script with neither is dead and replaced. For research-class scripts the creator may rule
+it AND; when they do, the gate FLAGS in the item's `note` and never rewrites the copy.
 
 ## Weekly routine
-0. **Feedback, two modes (zero-admin default).** The default loop is the **outlier flag**:
-   the creator will KNOW when a video clearly pops (an outlier is unmissable), and says so.
-   That flag triggers the deep work: autopsy the winner (hook, mechanic, which psychology
-   principles fired, per `references/virality-psychology.md`), mark its mechanic PROVEN in
-   the workspace `mechanic-library.md`, write 3-4 variations attacking the same belief
-   through different doors into the next batch, and consider promoting it into a named
-   recurring series. Never require scheduled metric logging. OPT-IN mode: if the creator
-   uses the dashboard's **Export performance** button and a `performance/performance-*.json`
-   exists in the workspace, read the newest one silently and bias the batch toward what won;
-   if none exists, do not nag.
-1. **Early-signal sweep (predict by detecting early).** Nobody predicts trends, they detect
-   them before saturation. Web-research ~12 short-form videos/formats/mechanics that are
-   RISING RIGHT NOW, with a hard **freshness gate: the mechanic must have started rising in
-   the last ~14 days**. BAN "best viral videos of the month" roundups as a source: anything
-   already in a roundup has peaked and is wallpaper (habituation, see
-   `references/virality-psychology.md`). Sources that run ahead of roundups: TikTok Creative
-   Center trending (public, no login), Google Trends breakout queries, rising Reddit threads,
-   platform-change news, breakout small accounts. For each candidate also capture: when it
-   started rising, and the evidence it is rising not peaked (small accounts overperforming
-   with it, "new format?" comments, no brand accounts on it yet). The call per candidate is
-   binary: **ride it in the first wave, or skip it**. Demand MECHANIC variety, and include a
-   few contrarian/controversial ones (high-arousal, they travel). If `watch-accounts.md` is
-   filled, prioritise those creators. **Signals are SHELLS, never topics**: never pitch "how
-   to post" or "how to go viral" as the SUBJECT of a script unless that literally is the
-   creator's niche; present every signal WITH the transferred version ("the shell: X. Your
-   version: Y about Z").
-   **The DATE LAW (added 2026-08-31, after it was broken).** Every source carries a
-   `published` date, and every figure is spoken with its date attached when the date
-   changes what the figure means. `source_check.py` now reads each page's own
-   machine-readable publication date and fails the batch on two things: a `published`
-   declaration the page contradicts from a trustworthy field, and any script asserting
-   freshness ("of the year", "this week", "just launched", "the latest") whose newest
-   dated source is more than 45 days old. **Age on its own is never a failure**: a
-   wildcard tears down an old subject on purpose. Asserting recency you do not have is
-   the failure. This exists because a batch shipped calling a February 2025 campaign
-   "the most copied campaign of the year", and because the same batch ran a head-to-head
-   between two experiments 18 months apart that straddled a ranking-model replacement,
-   which made the comparison meaningless. Both passed every gate that existed, including
-   32 verified source claims, because proving a string is ON a page proves nothing about
-   WHEN the page was written. Two dates make a comparison; check both before you draw one.
 
-   **Verification rules (non-negotiable):** every outlier must be a real post you actually
-   found at a real URL. Never invent a creator, a video, a metric, or a link. Tag every
-   metric with `metric_confidence`: `"verified"` (you fetched the post or a primary source),
-   `"reported"` (a credible article or aggregator states it), or `"estimated"` (inferred;
-   say from what). If you cannot source a candidate, DROP it rather than guess. Fewer real
-   outliers beat twelve with one fake: one invented link poisons trust in the whole board.
-2. **Scour for teachable substance (be first to teach it).** In parallel, gather the freshest
-   real material the creator can TEACH before anyone else: new studies, fresh platform
-   changes, new data, hot takes, "everyone is wrong about X" angles from the last 2-3 weeks
-   in the creator's subject. Priority order: (a) things nobody has explained simply yet
-   (first-mover teach), (b) things everyone is getting wrong (correction teach), (c)
-   evergreen how-to with a fresh number. Every substance item arrives with its do-this step
-   attached (pull from the workspace `methods.md`), not just the headline.
-3. **Extract the mechanic, then name its psychology.** For each rising video capture the
-   exact HOOK (first line / first 3s), the STRUCTURE (2-4 beats), and WHY it works, named as
-   principles from `references/virality-psychology.md` (which attention trigger, which open
-   loop, which sharing lever). This is what makes prediction possible: a mechanic whose
-   psychology you can name transfers to a new topic; one you can only describe ("it's
-   funny") does not. Grow the workspace copy of `mechanic-library.md`, tagging each entry
-   with its principles.
-4. **Marry mechanic + premise.** Each script = one proven mechanic applied to one current
-   premise/data point from the niche, in the creator's voice. **Then run every hook through
-   `references/hook-psychology.md` (the six psychological hook styles: Crystal Ball, Insider,
-   Lab Rat, Expert, Mirror, Sledgehammer).** Every `text_hook`/`spoken_hook` must fire at
-   least one of the six; stack two where natural; spread the styles across the batch so one
-   doesn't dominate. Tag each item with a `hook_styles` array.
-5. **Write ~10 primary-lane scripts and ~10 secondary-lane scripts** in the labelled anatomy.
-   Read `references/script-anatomy.md` and follow it exactly. Secondary-lane scripts must
-   borrow the hook + structure from a REAL viral video (put the URL in `sources`).
-6. **QA GATE.** The machine half first: `python3 check_fidelity.py --week
-   weeks/<date>.json` runs the voice fingerprint on testimony scripts AND a
-   LinkedIn pass over the `linkedin[]` lane plus every embedded twin (numeral
-   law, source law, duplicate ids, legal qa values). `python3 hook_lint.py
-   --week weeks/<date>.json` gates the batch's first and last lines (hook
-   molds, the banned two-sentence antithesis closer). Any rendered feed image
-   goes through `python3 visual_lint.py <render.png>`: a field too close to
-   the feed's own background reads as no image at all. Then the human half:
-   the two-question gate (top of this file) on every script, neither yes =
-   the script dies here, silently, and is replaced; then the checklist in
-   `references/script-anatomy.md`. The one thing that always fails is no
-   payoff (a hot take with nothing under it). **Fail any script whose `psych`
-   field is empty or generic** (it must name real principles from
-   `references/virality-psychology.md`; "it's relatable" is not a mechanism).
-   **A CTA is OPTIONAL:** default is to end on the payoff/button, because
-   watch-through is the metric and a CTA that runs past the payoff makes
-   people drop. `qa` takes exactly two values: `"passed"` (shippable today:
-   filmable for a video, postable for a written post) or
-   `"pending-approval"` (clean, waiting on the creator's yes). A third state
-   is a post nothing can promote; the gate fails on any other string.
-7. **Persist + hand off.** Write the run to `<workspace>/weeks/<YYYY-MM-DD>.json`, rebuild the
-   dashboard, then route picked scripts to `tiktok-yap-editor` to cut (see Handoff).
+0. **MEASURE (blocking, five minutes).** Measured-first is the default; the outlier flag is an
+   addition. The creator pastes their platform's analytics table once a week:
+   `python3 ingest_feed.py` (LinkedIn activity feed), `--tiktok` (TikTok Studio content table),
+   dry by default, `--commit` writes. Commenters and new connections go into the people ledger
+   with `ingest_feed.py --people --kind comment_by --post <id>`. Filmed and posted state:
+   `log_perf.py --filmed <id>`, `--posted <id> <url>`, or `--import <export.json>` from the
+   dashboard. Then `python3 log_perf.py --report`: it opens with the relevance line (returning
+   versus new engagers, audience share), answers this week's question, and writes
+   `performance/last-report.md`. Skip a week and the digest opens with "nothing posted,
+   nothing measured" and the batch still ships. Pre-register ONE two-arm question for the
+   coming week in the week file's `experiment` block; passive bucketing across six dimensions
+   learns nothing at five posts a week.
+1. **Early-signal sweep.** Web-research about a dozen formats and mechanics RISING RIGHT NOW,
+   with a hard 14-day freshness gate; roundups are banned as a source because anything in one
+   has peaked. Sources that run ahead: TikTok Creative Center, Google Trends breakouts, rising
+   Reddit threads, platform-change news, breakout small accounts, the `watch-accounts.md`
+   roster. Per candidate the call is binary: ride the first wave or skip. Signals are shells,
+   never topics. Every outlier is a real post at a real URL with `metric_confidence`
+   (`verified`, `reported`, `estimated`); drop what you cannot source. The receipts law and
+   the date law are in `references/receipts.md`.
+2. **Substance.** The freshest material the creator can teach before anyone else: new
+   studies, platform changes, "everyone is wrong about X", each arriving with its do-this step
+   from `methods.md` and its `proof.kind`.
+3. **Mechanic, then psychology.** Per rising video: the exact hook, the 2 to 4 beat structure,
+   and WHY, named from `references/virality-psychology.md`. Grow the workspace
+   `mechanic-library.md`.
+4. **Marry mechanic and premise.** One proven mechanic, one current premise, the creator's
+   voice. Every hook fires at least one of the six triggers in `references/hook-psychology.md`;
+   tag `hook_styles`.
+5. **Write to quantity** in the anatomy of `references/script-anatomy.md`, AFTER the voice
+   stack below. Secondary-lane scripts borrow hook and structure from a real viral video
+   (URL in `sources`).
+6. **GATE.** One command: `python3 radar_gate.py --week weeks/<date>.json`. It runs
+   `check_fidelity.py` (schema, fidelity, cadence, LinkedIn laws, ownership split),
+   `hook_lint.py`, `spoken_lint.py`, `source_check.py` and `visual_lint.py` on any renders,
+   prints one table, exits 2 on any fail, and stamps `weeks/<date>.gate.json`. Exit codes
+   everywhere: 0 pass, 1 warnings, 2 fail. Cadence distribution rules warn by default
+   (`--strict-cadence` fails them); categorical rules fail. Then the human half: the
+   two-question gate, the checklist in `references/script-anatomy.md`, a `psych` field that
+   names real principles, and a CTA that is OPTIONAL (end on the payoff). `qa` is exactly
+   `passed` or `pending-approval`.
+7. **PUBLISH.** What happens after the writing, `references/distribution.md`: the week's
+   `ammo[]` (10 to 15 receipt-bearing rounds from the sweep, on the dashboard's Ammo tab),
+   `held[]` receipts and a `reply_stance` on every LinkedIn post for the reply block, the
+   day-0 post for a live peg with `post_day_locked`, the callback and promise lines in the
+   show (tracked in `promised[]`), the tag pass with its guardrails. When `linkedin_twins`
+   is on, `python3 select_linkedin.py` assigns each post its feed shape, job and posting
+   day, and reads `performance/learned.json` when it exists.
+8. **PERSIST.** Write `weeks/<date>.json` (`references/week-schema.md`, `schema_version: 2`),
+   run the gate, then `python3 build_dashboard.py --dir <workspace> --open`. The dashboard is
+   the product surface: open it every run and say where it lives.
 
-## The voice stack: SHOW the voice, never describe it (run this BEFORE writing)
+## The voice stack: show the voice, never describe it (before any spoken script)
 
-The single most expensive lesson this skill has learned. A 64-agent rewrite of one week's
-episodes, at considerable cost, failed to change the creator's verdict: "they still are
-written in the same voice that you always write." The cause was not scale, model, or prompt
-length. Every writer had been handed ADJECTIVES about the creator's voice while thousands of
-words of that creator actually talking sat unused on disk. **A model given a description of
-a voice produces an imitation of the description.** That is the generic-confident-operator
-register creators reject on sight.
+A model given a description of a voice produces an imitation of the description, which is the
+generic confident-operator register creators reject on sight (why: CHANGELOG 3.4.0). So
+grounding is mechanical:
 
-So grounding is mechanical, not advice, because advice is what failed. Before writing any
-spoken script:
+    python3 segment_corpus.py          # only when the corpus changed; routes by register header
+    python3 derive_voice_targets.py    # only when the corpus changed; reads on-subject speech only
+    python3 voice_brief.py --week <date>
 
-    python3 scripts/segment_corpus.py         # only when the corpus has changed
-    python3 scripts/derive_voice_targets.py   # only when the corpus has changed
-    python3 scripts/voice_brief.py --week <date>
+Four rules. Write against the verbatim passages `voice_brief.py` prints; the passages are the
+specification. Register is not optional: on-subject speech, casual speech and anything TYPED
+are three voices, and only on-subject speech feeds the targets. Never feed teleprompter reads
+of scripts this engine wrote back into the corpus; that measures the model. The rejection
+ledger (`voice-corpus/rejections.json`) is the only thing that accumulates taste: when the
+creator kills a line, append it in the same session with their reason, tagged with the
+creator's name in `attribution`, and never add one on a session's own judgement.
+`turing_check.py --week <date>` shuffles matched windows of corpus and script for a blind
+read, the honest test of whether a batch sounds like the person.
 
-`voice_brief.py` prints the measured profile plus VERBATIM passages of the creator talking.
-**Write against those passages. Do not paraphrase the brief into guidance.** The passages
-are the specification.
+The supply of speech caps everything downstream. Thirty-five sentences cannot ground a voice;
+a corpus grows by harvesting calls, not by recalibrating floors.
 
-**Register is not optional, and pooling destroys it.** A corpus is usually several different
-voices: casual conversation, on-subject talk, and anything the creator TYPED rather than
-said. In the reference deployment the pool was 76% off-topic small talk at median 7 words
-per sentence, while the same creator's on-subject speech ran median 17. Pooled, the numbers
-looked fine and the gate ended up demanding sentences roughly half the creator's natural
-length, which every batch was then written to satisfy. `segment_corpus.py` splits by
-register and mode; `derive_voice_targets.py` reads only the on-subject SPOKEN segment.
-A typed segment is writing, not speech: in that deployment its filler rate was 2.3 per 1000
-words against 35.3 for actual speech, which is proof enough that the two cannot be mixed.
+## The performance loop
 
-**Exclude teleprompter reads from the corpus, always.** If the creator is reading scripts
-this skill wrote, measuring them measures the model, not the creator. An audit in the
-reference deployment found 71 of 71 records were exactly that, so the "voice" being
-measured was the AI's own. This is a trap that closes silently.
+Written into the loop, not opt-in: step 0 above. `log_perf.py` is the ledger
+(`performance/performance.jsonl`, append-only, latest measured per id wins, nothing under 48
+hours old is ranked); `tracking.jsonl` holds filmed and posted state; `people.jsonl` holds who
+answered; `--weights-out` writes `performance/learned.json` for any dimension past n=4, which
+`select_linkedin.py` multiplies into its priors and prints as prior versus learned. Video rows
+carry `full_watch_pct`, `avg_watch_s`, `follows` and the source split when the paste has them,
+and the report ranks video by full-watch percentage when present, because a hook problem and
+a distribution problem look identical in views. The outlier flag still works: when the
+creator says a post popped, autopsy it, mark the mechanic PROVEN, brief 3 to 4 variations.
 
-**The rejection ledger is the only thing that accumulates taste.** `voice-corpus/
-rejections.json` (start from `rejections.example.json`, empty the array) records every line
-the creator kills, with the date and their reason. `spoken_lint.py` FAILS on recurrence.
-Model weights do not change between sessions and no conversation survives itself, so a
-correction is lost by the next batch unless it lands here. **When the creator kills a line,
-append it. Never add one on your own judgement.**
+## Show mode
 
-**With no corpus, the stack degrades loudly and on purpose.** `voice_brief.py` and
-`derive_voice_targets.py` exit with the command that fixes them, `spoken_lint.py` reports
-`no_targets`, and `check_fidelity.py` prints a banner saying its cadence bands are
-UNVALIDATED DEFAULTS. Do not quietly write a batch against those defaults: in the reference
-deployment they were the direct cause of eight rejected scripts.
+When `show.enabled` is true the primary lane becomes THE SHOW under the creator's own name
+and lens: `episodes_per_week` teardowns from the week's news in their industry, on the shape
+in `references/the-show-template.md`. Two parts are fixed (the receipt in frame one, the
+verdict through the creator's lens); the middle exists to get from one to the other. Every
+spoken fact verified with a URL or cut; every claim a screenshot receipt captured with
+`capture_gate.py`; a callback to last week and a promise for next week. The secondary lane and
+the trend sweep continue as garnish.
 
-**Onboarding owes the creator this ask, once:** 20 to 30 minutes of them talking through 4
-or 5 subjects in their niche, unscripted, into a phone. Not read, not rehearsed. Transcripts
-go in `capture/` with a `mode:` line (`granola`/`voice` for spoken, `typed` for written), then
-run the two build commands above. Everything the voice stack can do is capped by that
-supply, and no amount of compute substitutes for it.
+## Hot drop, the day-0 pass
 
-## Script anatomy (summary; full spec in references/script-anatomy.md)
-Each script is written in labelled parts: `title`, `borrows`, `carries`, `text_hook`
-(~6-word on-screen overlay, NOT spoken, and it must NOT restate the spoken hook: burned text
-and spoken words are two channels, so a viewer who reads the overlay while hearing the same
-words has been given one hook twice and no reason to stay. Screen carries the consequence or
-the tension; the mouth carries the claim. Strip stopwords from both and any shared content
-word is an echo to rewrite. Pick a family from `references/hook-library.md`),
-`visual_hook` (what to show), `spoken_hook` (the opening 1-2 lines said, the dashboard
-renders this BOLD as the HOOK section), `script` (verbatim spoken body, starting AFTER
-the spoken hook: never repeat the hook inside `script`, it renders twice), `directions`
-(NOT spoken), `value` (the payoff + its type), `cta` (OPTIONAL ending). Never mash spoken
-words and stage directions together. The dashboard renders the read as **HOOK (bold) /
-SCRIPT / CTA (optional)**, one sentence per line.
+When something breaks in the niche mid-week and the creator asks, or when the sweep finds a
+peg under a day old: one same-day text post in the reach band (or under 300 characters), the
+ammo rounds for that story, `post_day_locked: true`, no video. Freshness over polish; skip if
+it is already everywhere. The filmed episode lands day 2 or 3 referencing it.
 
-Additional per-item fields the dashboard uses (set them all):
-- `id`: STABLE, format `<lane letter>-<week>-<n>`, e.g. `d-2026-06-23-9` (d = primary
-  lane, o = secondary). Browser-side tracking is keyed by id, so never renumber or reuse
-  an id once a week has shipped.
-- `intent`: `"educational"` or `"storytelling"` (primary lane; drives the stats bar).
-- `facet`: which config facet the script tests (also the carousel cover kicker).
-- `sources`: array of `{label, url}`, shown on the card as "check before posting".
-- `psych`: 1-3 principle names from `references/virality-psychology.md` + one line on why
-  this will work, written by answering the 5-question scoring checklist at the end of that
-  file; the "argued about" answer doubles as the pinned-comment plan.
-- `format` + `beats[]`: only for day-in-the-life VO scripts (see script-anatomy.md);
-  the dashboard renders `beats[]` as a film-this table.
-- `qa`: `"passed"` or `"pre-qa"`.
+## Handoff to the editor
 
-## Persist to the dashboard (every run)
-Write `<workspace>/weeks/<YYYY-MM-DD>.json` then run `python3 build_dashboard.py`
-(from the skill folder; it finds the workspace, or pass `--dir <workspace>`). It writes
-`<workspace>/dashboard.html`. **Open it for the user at the end of EVERY run, and say
-where it lives**: the dashboard is the product surface, and a user who forgets they
-have one is using half the tool. Week schema:
-`{ week, positioning, distribution[], office[], linkedin[], inspiration[] }`. The two script
-arrays keep the historical keys `distribution` (your PRIMARY / "Industry" lane) and `office`
-(your SECONDARY / "Viral videos" lane); the tab LABELS come from `radar-config.json`
-(`primary_lane.label` / `secondary_lane.label`), so users only ever see their own names.
-`linkedin[]` holds the leaders-scan posts (the legacy key `gtm_linkedin` is still read).
-Primary-lane items may carry an embedded `linkedin` twin
-`{id,type,hook_arch,body,qa,source,visual}` when `linkedin_twins` is on, where `visual` is
-`{format,model,aspect,why,prompt}` (see "Twin visuals"). `inspiration[]` items:
-`{creator, platform, metric, metric_confidence, mechanic, link}`. Tracking (filmed / posted
-/ views / ignore) lives in the browser's localStorage keyed by item id, so new weeks never
-wipe past logs. Dashboard tabs: **[primary] (to film)**, **[secondary] (to film)**, **Filmed
-& metrics**, **LinkedIn posts**, **Viral inspiration**.
+Route picked scripts to `tiktok-yap-editor`. Mode A (talking head) is the default; a
+`day-in-life-vo` script with `beats[]` routes to Mode B. Write `post_copy` on the item
+(caption, description, `search_query` verbatim, pinned comment) so the editor's finalize
+step ships the video with its words. The editor writes an edit record carrying the item id, so
+`log_perf.py --edits <output dir>` joins the cut to the outcome.
 
-A bundled example week ships with the skill and renders automatically until the first real
-week exists, so a fresh install can open the dashboard and see the product immediately.
+## Optional layers (config-gated)
 
-## The performance loop (opt-in; the outlier flag is the default)
-The zero-admin default is the **outlier flag** (step 0): the creator tells you when a video
-pops, and that triggers the autopsy + variations. For creators who WANT data, the
-dashboard's **Export performance** button writes `performance-<week>.json` with every
-tracked item (status, views, link, notes, plus its mechanic, facet, intent, and value type)
-across all weeks; saved into `<workspace>/performance/`, step 0 reads the newest export
-silently and biases the next batch toward what actually worked. Mention the button once
-during discovery, then never nag about it: unsustainable tracking is worse than none.
+- **LinkedIn twins** (`linkedin_twins`): each primary item gets a written twin embedded as
+  `item.linkedin`; `select_linkedin.py` picks the shape and the order (`references/linkedin-selector.md`);
+  every twin ships a visual chosen from `references/linkedin-visuals.md`.
+- **Leaders scan** (a filled `leaders-to-study.md`): study what is working from the roster,
+  results in `gtm_linkedin[]`.
+- **Blog pipeline** (`blog_pipeline`): text-first. A posted LinkedIn text plus its sources is
+  an article draft; the export reads posted posts and twins, not filmed videos.
+- **Carousels**: doctrine in `references/linkedin-visuals.md` Shape 5; `carousel.py <spec>`
+  renders a spec, `build_carousels.py` derives a deck from a script.
+- **Lead magnet**: the sibling skill `lead-magnet-report` turns one category's measured data
+  into a comment-gated document post. Mention it once to a LinkedIn creator, then get on
+  with the week.
 
-For the full data path, `log_perf.py` is the ledger: `--paste` logs video views
-in one paste, `--linkedin` logs the twins (impressions, reactions, comments),
-`--followers` logs the weekly follower delta, `--due` says what was logged too
-early and has now settled, `--report` reads back what is working by mechanic,
-shape and job. It writes `<workspace>/performance/performance.jsonl`,
-append-only, latest measured-per-id wins; anything under 48h old is stored but
-never ranked, because early numbers are age, not quality. `ingest_feed.py`
-turns a pasted feed table into the same rows in one pass (dry by default,
-`--commit` writes), because one input() prompt per post is how a performance
-folder stays empty for ten weeks. The selector's starting weights are priors;
-these logs are what replace them with your own numbers.
+## Hard rules
 
-## Trend creation (the first-mover lane, every run)
-Riding trends is defence; creating them is the lean. A trend is a template other people can
-perform: it needs a copyable skeleton, low effort + high identity fit, and a NAME (the full
-theory is section 5 of `references/virality-psychology.md`). Two pipelines, both live in
-every weekly run:
-1. **Named formats.** Each lane keeps 1-2 named recurring series with a fixed skeleton and
-   a signature line. If a lane has none, propose ONE candidate per run (skeleton + signature
-   line + episode 1 script) until the creator locks one. A format graduates to "trend" when
-   a stranger makes their own episode.
-2. **Coined terms.** Copy `references/coined-terms-template.md` into the workspace as
-   `coined-terms.md` (the ledger). Keep 1-2 candidate terms in play at any time: each names
-   a problem or dynamic the audience already FEELS but has no word for (label the feeling,
-   own the feeling). Rules: every mention uses the EXACT same term (repetition is the
-   planting); the term gets its own definition beat in at least one script per week while in
-   play ("I call this X: it's when..."); publish the term's page on the creator's site early
-   (AI engines cite the coiner). A term graduates when someone else uses it unprompted;
-   retire candidates with no pickup after ~4 weeks.
-Open every weekly digest with a **"3 rising signals"** block: the sharpest early-detection
-calls from step 1, each as a one-line prediction with its transferred version. Being on
-record early is the credibility play even when a call misses.
-
-## Receipts: capturing them (REJECT, NEVER REPAIR)
-
-`capture_gate.py` turns a `shot_list` URL into a receipt or refuses and says why. Chrome
-over CDP (`cdp.py`, stdlib only, no playwright needed) removes consent and promo
-overlays, nulls the consent-vendor hosts at the resolver, reads the DOM, and clips the
-screenshot to the headline's own bounding box.
-
-```bash
-python3 capture_gate.py --week weeks/2026-08-02.json --out show/receipts/2026-08-02
-python3 capture_gate.py --url https://example.com/story --out /tmp/one   # one-off
-```
-
-**Never repair a bad capture.** The predecessors (`receipts_build.py`,
-`cards_from_raws.py`, both deprecated, kept only so old installs keep running) cropped
-above the cookie modal and undimmed the wash. That manufactured plausible-looking cards
-from pages that never rendered, and it shipped 21 junk receipts across one 7-video
-batch: 10 cookie walls, a 404 page, a bot challenge, a discount popup, and nav lists
-cropped in place of headlines. Nothing downstream could tell, because they looked fine.
-
-The verdict reads page TEXT, not pixels, because a consent wall is the most text-dense
-thing on a news page: any "find the texty region" rule walks straight into it. Named
-refusals: `consent_wall`, `bot_challenge`, `not_found`, `paywall`, `promo_modal`,
-`headline_mismatch` (slug versus headline, which catches soft 404s and homepage
-redirects that still return HTTP 200), `flat_capture`, `dark_capture`.
-
-A refusal is not a dead beat. Ladder, in order:
-1. The overlay remover usually turns a walled page into a clean capture with no swap.
-2. Swap to a capturable source (`references/receipt-sources.md`).
-3. Typeset the headline the gate returned anyway:
-   `evidence_card.py quote --headline "..." --domain forbes.com`.
-4. For a number or comparison beat, a built card beats any screenshot for phone
-   legibility: `evidence_card.py stat|bars|timeline|chips`. Half the claims in a typical
-   episode are numbers, and a news screenshot of a number is unreadable small grey type.
-
-`evidence_card.py` ships with `tiktok-yap-editor` and writes transparent PNGs at the
-locked receipt width, so its output drops straight into an `_overlays.json` pip entry.
-
-**Every figure on a built card must be VERBATIM from the source named in its pill.**
-Reformatting a number is fine; sourcing one from the script alone is not. If a spoken
-stat has no reachable source, it gets no card and the gap is flagged, per the receipts
-law: a claim that cannot be sourced gets cut, never softened.
-
-Verify cards by eye before burning. The gate proves a page rendered, not that the
-headline is the one the beat needs.
-
-## Hot drop (mid-week trigger, outside the weekly cadence)
-The weekly cadence cannot catch waves. When something breaks in the creator's niche and they
-say "hot drop" or ask for a take, write ONE same-day script: normal anatomy, freshness above
-polish, first credible take beats best take. The test for whether a story qualifies: will
-everyone in the niche be talking about this in 3 days? If yes, ship today; if it is already
-everywhere, skip (peaked).
-
-## Handoff to the editor (tiktok-yap-editor)
-For any script the user picks, route to the `tiktok-yap-editor` skill to cut the video. That
-skill has TWO modes; pick by what the footage is:
-- **Mode A: talking-head yap.** The creator talks to camera. Transcript-first cut, zero
-  dead-air, burned brand captions, the burned `text_hook`, optional spoken-outro CTA. This is
-  the default for most scripts.
-- **Mode B: VO-to-picture storytelling / day-in-the-life.** The creator films loose b-roll
-  and records a voiceover to a guide. A storytelling script written as a `day-in-life-vo`
-  format (a `beats[]` array of `{role, text, b_roll, target_dur}`) routes here: the beats
-  become the picture-lock + a record-to-picture guide. Write at least one storytelling script
-  per week in this format when it suits the idea.
-
-## Optional layers (gated by radar-config.json)
-- **LinkedIn twins** (`linkedin_twins: true`): each primary-lane script gets a written LinkedIn
-  version of the same core idea, embedded as `item.linkedin`. LinkedIn is the authority lane:
-  lean educational and expertise-forward, one job per post, a specific-claim hook, one CTA.
-  Every twin also ships a generated visual, see "Twin visuals" below.
-  Then run `python3 select_linkedin.py` before publishing. It picks each twin's FEED shape
-  from the substance, because a twin that inherits the video's `post_type` produces a week of
-  identical shapes, and it reports the week's job mix, character bands, carousel opportunities
-  and the posting ORDER. Order follows urgency, not quality: a news peg decays, so a great
-  post whose peg died is worth less than a good post published while the peg is alive. Declare
-  `news_peg_days`, `evergreen`, `arguable`, `executable`, `ordering_claim` and `friction_story`
-  on the twin so the selector is deterministic instead of conservative. Full reasoning, the
-  character bands and the sourcing caveats in `references/linkedin-selector.md`.
-- **Leaders scan** (gated by `leaders-to-study.md` existing and filled in the workspace):
-  each run, study what is working from the leaders in that roster, capture hook + structure +
-  why-it-worked with citations, and turn the sharpest mechanics into that week's scripts.
-  Results go in the week's `linkedin[]` array. See `references/leaders-to-study-template.md`.
-- **Blog pipeline** (`blog_pipeline: true`): the dashboard's "Export week for blog" button saves
-  everything marked Filmed/Posted so a downstream routine can turn films into articles. Wire
-  this to your own site build; it is off by default.
-- **Carousels:** flag any script "Carousel" on the dashboard, click "Export carousel queue",
-  save the file into `<workspace>/carousels/`, then run `python3 build_carousels.py`. Branding
-  (name, accent colour, fonts) comes from the `brand` block in `radar-config.json`.
-
-## Twin visuals (the image-generation prompt step)
-
-A written twin competes in a feed against images, so every twin ships with one. Write the
-prompt at the same time you write the post, never afterwards, because the format is a
-consequence of what the post is doing and you only know that while you are writing it.
-
-**Pick the format from the post, not from habit.**
-
-- **Image** when one object or one scale contrast carries the whole idea.
-- **Loop** when the joke is motion: something landing on something, a before becoming an after.
-- **Slideshow** when the teach has layers, or when it is a data post. Three to five slides
-  beat one crowded chart, and carousels earn saves, which is the twin's job.
-
-**Every prompt carries the brand verbatim.** Read the `brand` block from `radar-config.json`
-(the same one the carousel pipeline uses) and paste its palette and type rules into the prompt
-body. Generators keep no memory of your brand between calls, so a prompt that leaves it out
-returns a stock-looking image that happens to be on topic.
-
-The shape that works:
-
-> [subject doing one thing], [setting], [one concrete detail that carries the claim], [mood].
-> Editorial-minimal, generous negative space, soft flat studio light. Palette: [background hex],
-> [ink hex], [accent hex] as the single accent. Any on-image text in [the brand display face],
-> 1-4 words max. No logos or trademarks, no watermark, no glowing circuits, no robots, no
-> lens flare.
-
-**Models.** Use a current top-tier image model for stills and a current top-tier video model
-for loops. That roster turns over every few months, so check what is live rather than trusting
-a name written in a skill file. Two rules outlast the roster: the model that wins on aesthetics
-is rarely the one that wins at replicating a real product or UI, so pick per job; and a
-slideshow that needs exact typography goes through the carousel HTML pipeline instead, because
-generators still cannot set type reliably.
-
-**The anti-slop list is not optional.** Ban glowing circuits, robots, floating holograms, neon
-grids, handshakes, lightbulbs, chess pieces and lens flare in every prompt. They read as "AI
-made this" in well under a second, which is the same one-second test the video hook has to
-pass. One absurd real object photographed plainly beats every one of them.
-
-**Write down why.** Each visual carries a one-line `why this format` next to the prompt. If you
-cannot say what the image does that the words do not, the post does not need an image. It needs
-a better first line.
-
-## Quantity bar
-At least ~10 scripts per lane per run. Give the creator volume to choose from, not a curated 3.
+No invented creators, videos, metrics or links. No em or en dashes anywhere. No third-party
+LinkedIn automation. A claim that cannot be sourced is cut, never softened. Tracked doctrine
+names no creator; creator specifics live in the workspace.

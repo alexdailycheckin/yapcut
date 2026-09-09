@@ -2,211 +2,131 @@
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
 
-**A two-part short-form content engine for Claude Code.** It takes you from "I don't know
-what to post" all the way to a finished vertical video, and it is **creator-agnostic**: on
-first use each part interviews you about your niche and brand, then works to yours.
+**A measured-first short-form content engine for Claude Code.** Its job is to make you the
+person your audience thinks of for one subject, and it is judged on what gets posted and
+answered, never on how many scripts it writes. Creator-agnostic: on first use it interviews you
+about who should recognise you and for what, what only you can say, and how you actually talk,
+then works to that.
 
-1. **Outlier Radar** researches your niche every week. It finds short-form videos that went
-   viral (specifically, ones that beat their own creator's baseline by 5x or more, so you
-   are copying a proven *mechanic*, not chasing follower counts), extracts the hook and
-   format that made them work, pours in fresh substance from *your* subject, and writes ~10
-   ready-to-film scripts per lane to a self-contained tracked dashboard.
-2. **TikTok Yap Editor** turns your raw phone clips into a finished, captioned, feed-ready
-   vertical video, either a talking-head cut or a day-in-the-life storytelling montage.
+1. **Outlier Radar** researches your niche every week: it finds short-form videos that beat
+   their own creator's baseline by 5x or more (a proven *mechanic*, not a follower count),
+   extracts the hook and format, pours in substance from *your* subject and *your* proof, and
+   writes scripts and LinkedIn posts to the filming slots you actually have, on a tracked
+   dashboard. Each week starts by reading last week's numbers.
+2. **Lead Magnet Report** turns one category's measured data into a comment-gated document
+   post: the finding free in the feed, the raw sheet behind a comment.
+3. **TikTok Yap Editor** turns your raw phone clips into a finished, captioned, gated vertical
+   video, talking-head or day-in-the-life, with an edit record that joins the cut to the post.
 
-Pick a script on the dashboard, shoot it, drop the clips on the editor. That is the loop.
+Pick a script, shoot it, drop the clips on the editor, paste your numbers back. That is the loop.
 
-## Install it on your own computer
-
-You need [Claude Code](https://claude.com/claude-code). Two routes.
-
-**Route 1, the plugin marketplace.** Type these three commands inside Claude Code:
+## Install (Claude Code)
 
 ```
 /plugin marketplace add alexdailycheckin/yapcut
-/plugin install outlier-radar
-/plugin install tiktok-yap-editor
+/plugin install outlier-radar@yapcut
+/plugin install tiktok-yap-editor@yapcut
 ```
 
-**Route 2, from git, with Claude doing the setup.** Copy the prompt below, paste it into
-Claude Code, and it clones the repo, installs both skills, pulls the video dependencies,
-and verifies the install before telling you it is done.
+Then say **`run outlier radar`** to start onboarding. Loading a skill does not start it. There
+is one install route on purpose: a copy under `~/.claude/skills/` shadows any plugin install
+silently and never updates, so this README no longer offers it.
+
+**Or paste this into Claude Code** and let it do the setup and verify it:
 
 ```text
-Install YapCut (Alex Mureșan's short-form content engine) from git into my Claude Code
-setup, then verify it actually runs. Do the work, don't just print instructions.
+Install YapCut (Alex Mureșan's short-form content engine) into my Claude Code setup and
+verify it runs. Do the work, don't just print instructions.
 
-1. Clone and copy the two skills to user level so they load in every project:
-   git clone https://github.com/alexdailycheckin/yapcut.git ~/yapcut
-   mkdir -p ~/.claude/skills
-   cp -R ~/yapcut/plugins/outlier-radar/skills/outlier-radar ~/.claude/skills/
-   cp -R ~/yapcut/plugins/tiktok-yap-editor/skills/tiktok-yap-editor ~/.claude/skills/
+1. Add the marketplace and install both plugins:
+   /plugin marketplace add alexdailycheckin/yapcut
+   /plugin install outlier-radar@yapcut
+   /plugin install tiktok-yap-editor@yapcut
+   Find the installed editor's path in ~/.claude/plugins/installed_plugins.json.
 
-2. Install the video editor dependencies (macOS + Homebrew required):
-   bash ~/.claude/skills/tiktok-yap-editor/scripts/setup_fonts.sh
-   brew install whisper-cpp
-   mkdir -p ~/.whisper-models
-   curl -L -o ~/.whisper-models/ggml-small.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
-   pip3 install Pillow fonttools
+2. Install the editor's dependencies (macOS + Homebrew): run its scripts/setup_fonts.sh,
+   then: brew install whisper-cpp; mkdir -p ~/.whisper-models; download
+   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin into it;
+   pip3 install -r <repo>/requirements.txt (Pillow).
 
-   setup_fonts.sh installs a libass-enabled ffmpeg (ffmpeg-full) plus the caption fonts
-   (Montserrat Black/ExtraBold, Anton, Bricolage Grotesque ExtraBold, Space Mono). It is
-   idempotent. If a later `brew upgrade` relinks the minimal ffmpeg and captions break,
-   re-run: brew link --overwrite --force ffmpeg-full
+3. Verify: python3 <editor>/scripts/preflight.py must print ALL GOOD. Apply its fix hints and
+   re-run until green. If something cannot be fixed, say which check failed and what still
+   works without it.
 
-3. Verify before you tell me anything is done:
-   python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py
-   It must print ALL GOOD. Every failed check prints its own fix hint. Apply the hints and
-   re-run until it is green. If something cannot be fixed, say exactly which check failed
-   and what still works without it.
-
-4. Load the new skills without killing the session: tell me to run /reload-skills myself
-   (you cannot run slash commands for me). Confirm both outlier-radar and tiktok-yap-editor
-   are loaded before moving on.
-
-5. Then report the preflight output, what got installed, and end your message with the
-   exact sentence I should type next, on its own line, which is:
+4. Tell me to run /reload-plugins myself, then end with the exact sentence I type next:
 
    run outlier radar
 
-   That is what starts onboarding. Reloading the skills only makes them available, it does
-   not begin anything, so nothing happens until I say it. First run interviews me about my
-   niche, creates the workspace at ~/outlier-radar/, asks which day and time I want the
-   weekly run, writes the first real batch, and opens the dashboard on my own scripts.
-
-   Also tell me the editor entry point: drop a folder of .MOV/.mp4 clips and say either
-   "make a tiktok from these" (Mode A, talking head) or "script my voiceover and cut my day
-   clips" (Mode B, day in the life). First run asks brand questions, saves brand-config.json.
-
-Notes:
-- If onboarding gets interrupted before it finishes, say "run outlier radar" again and it
-  resumes from the first unanswered question rather than starting over.
-- Outlier Radar itself needs nothing but Claude Code with web access. Everything in step 2
-  is for the editor only, so if I only want the research engine, stop after step 1.
-- My data (config, weekly batches, dashboard, exports) lives in ~/outlier-radar/, outside
-  the skill folder, so reinstalls never touch it. Override with OUTLIER_RADAR_HOME or --dir.
-- License is CC BY-NC 4.0: free to use, modify and share for noncommercial purposes, must
-  credit "Alex Mureșan (https://alexmuresan.com)". Commercial use needs a separate license
-  via alex@alexmuresan.com.
+   First run interviews me (who should recognise me and for what, what only I can say, where
+   I already talk unscripted), creates the workspace at ~/outlier-radar/, writes the first
+   real batch to my filming slots, sets up the weekly run, and opens the dashboard.
 ```
 
-Either route, the research side works anywhere Claude Code runs. **The editor side is
-macOS + Homebrew**: the font setup script targets `~/Library/Fonts` and preflight looks for
-a macOS system font, so on Linux or Windows you get Outlier Radar and the editor will not
-pass preflight. Step-by-step detail is in [Install details](#install-details) below.
+The research side works anywhere Claude Code runs. **The editor is macOS + Homebrew** (fonts,
+libass ffmpeg, whisper.cpp); on Linux or Windows you get Outlier Radar and the editor will not
+pass preflight.
 
-## What you get, end to end
+## What you get, honestly, by day 7
 
-- **Discovery, once.** Both parts walk you through setup the first time (your niche, the
-  accounts you want to track, your voice, your brand fonts/colours/handle) and save a config,
-  so everything after is in your world, not a template's.
-- **Weekly research on tap.** Say "run outlier radar" and it does the scan, the mechanic
-  extraction, and the writing, then rebuilds your dashboard.
-- **Two content lanes**, which you can rename:
-  - **Industry** (your primary lane): teach real, concrete value in your niche.
-  - **Viral videos** (your secondary lane): lighter reach plays that borrow a proven viral
-    mechanic to travel beyond your niche. Optional, but this is where growth comes from.
-- **A tracked dashboard** (`dashboard.html`): every script is a card with a bold **HOOK**,
-  the **SCRIPT** laid out one sentence per line like a teleprompter, and an optional **CTA**.
-  Mark things Filmed / Posted, log views, ignore what you won't use. Your tracking lives in
-  the browser, so regenerating each week never wipes it.
-- **Two editor modes:**
-  - **Mode A, talking-head:** transcript-first cut, zero dead air, word-by-word captions in
-    your brand, and a burned on-screen hook.
-  - **Mode B, day-in-the-life:** you film loose b-roll, it scripts the voiceover beat by beat,
-    locks the picture to it, and burns a record-to-picture guide so you record the VO in sync.
-- **A LinkedIn layer, if you want it** (optional, `linkedin_twins` in your config): every
-  primary-lane script also gets a written LinkedIn post. `select_linkedin.py` then picks each
-  one's shape from its substance, checks the week has a working mix rather than five of the
-  same thing, flags the posts that should be carousels, and tells you what order to publish
-  in so the perishable ones go first.
+- **A workspace** (`~/outlier-radar/`) that is yours: `radar-config.json` with your audience,
+  proof, quantity and voice settings, `positioning.md`, `methods.md`, `leaders-to-study.md`,
+  your voice corpus, your weeks, your performance ledger. Plugin updates never touch it.
+- **One batch written to your filming slots** (default 3 video slots plus 2 spares and 5
+  LinkedIn slots for a new creator), each script gated by machine (`radar_gate.py`: schema,
+  voice, hooks, sources, visuals) before you see it, on a dashboard with an Ammo tab for your
+  daily comments, a proof chip on every card, and this week's one measured question.
+- **A weekly rhythm** that starts by pasting your analytics table (five minutes) and reads the
+  result before writing anything. Skip the paste and the digest says so and the batch ships.
+- **Not yet, by design:** your voice will be thin until you have harvested 20 to 30 minutes of
+  yourself talking unscripted (calls, voice notes, a podcast); `methods.md` holds the plays
+  only you can supply; the secondary "viral" lane is off for the first four weeks.
+
+## What it needs from you in week one
+
+| Ask | Time | Why |
+|---|---|---|
+| One sentence: who should recognise you, and for what | 2 min | every gate, the selector and the north star read it |
+| Five things you have done a competitor cannot claim, three plays you run, ten lines you would never say | 20 min | the un-copyable material; adjectives about your voice produce pastiche |
+| Transcripts of you talking unscripted (or a 20 to 30 minute phone recording) | 0 to 30 min | the voice is measured, never described |
+| How many videos you will actually film this week | 1 min | scripts you do not film teach the loop nothing |
+| Paste your analytics table once a week | 5 min | the loop |
 
 ## Use
 
-- **Ideas:** in Claude Code say "run outlier radar". First time, it interviews you, creates
-  your workspace (default `~/outlier-radar/`) with `radar-config.json` inside, asks which day
-  and time you want the weekly run, then **writes your first real batch, sets up the recurring
-  run, and opens the dashboard on it** before it finishes. After that it fires on your schedule,
-  or say "run outlier radar" any time. Fill `positioning.md`,
-  `methods.md` (your own how-to knowledge, so educational scripts teach a real step), and
-  optionally `leaders-to-study.md` and `watch-accounts.md` in the workspace from the provided
-  templates.
-- **LinkedIn (optional):** before you publish the week's LinkedIn posts, run
-  `python3 select_linkedin.py`. It prints each post's shape and score, the week's verdict (job
-  mix, character bands, carousel opportunities) and a dated publishing order with the reason
-  for each slot. Declare `news_peg_days`, `evergreen`, `arguable`, `executable`,
-  `ordering_claim` and `friction_story` on a twin and it stops guessing.
-- **Close the loop:** after posting, log views on the dashboard and click "Export performance",
-  saving the file into `<workspace>/performance/`. The next weekly run reads it and doubles down
-  on what worked.
-- **Edit:** drop a folder of `.MOV`/`.mp4` clips and say "make a tiktok from these" (Mode A) or
-  "script my voiceover and cut my day clips" (Mode B). First run asks the brand questions and
-  saves `brand-config.json`.
-
-## Install details
-
-<a id="install-details"></a>
-The paste-in prompt at the top does all of this for you. Here it is by hand.
-
-**1. Copy the skills** (or use the `/plugin` route at the top, which keeps them updated
-with the marketplace):
-
-```
-git clone https://github.com/alexdailycheckin/yapcut.git
-cp -R yapcut/plugins/outlier-radar/skills/outlier-radar        ~/.claude/skills/
-cp -R yapcut/plugins/tiktok-yap-editor/skills/tiktok-yap-editor ~/.claude/skills/
-```
-
-Then run `/reload-skills` in Claude Code so both are picked up without restarting the
-session (`/reload-plugins` if you took the marketplace route instead). Outlier Radar is
-ready at this point: say **`run outlier radar`** to start onboarding. Loading a skill does
-not start it, so nothing happens until you say that.
-
-**2. One-time editor setup** (video side only):
-
-```
-bash ~/.claude/skills/tiktok-yap-editor/scripts/setup_fonts.sh   # libass ffmpeg + fonts
-brew install whisper-cpp                                          # transcription
-mkdir -p ~/.whisper-models && curl -L -o ~/.whisper-models/ggml-small.en.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
-pip3 install Pillow fonttools
-```
-
-**3. Verify.** This must print `ALL GOOD`; each failed check prints its own fix:
-
-```
-python3 ~/.claude/skills/tiktok-yap-editor/scripts/preflight.py
-```
-
-## Requirements (editor)
-
-- macOS with Homebrew, Python 3, `ffmpeg`/`ffprobe` with libass (the setup script installs it),
-  `whisper-cli` (whisper.cpp) + a ggml model. Outlier Radar itself just needs Claude Code with
-  web access.
+- **Ideas:** "run outlier radar". Weekly by schedule or on demand. "hot drop" for a same-day
+  post when something breaks in your niche.
+- **Numbers:** paste the LinkedIn activity table or the TikTok Studio table when asked;
+  `ingest_feed.py` turns it into rows, `log_perf.py --report` reads it back and writes
+  `performance/last-report.md`.
+- **LinkedIn:** `select_linkedin.py` picks each post's shape, job and posting day from its
+  substance and from what your own numbers have learned.
+- **Distribution:** the daily block (comments with receipts, connection requests, the reply
+  block), day-0 posts, the people ledger, callback and promise: `references/distribution.md`.
+- **Edit:** drop a folder of clips and say "make a tiktok from these" (Mode A) or "script my
+  voiceover and cut my day clips" (Mode B). `finalize.sh` writes the edit record that joins
+  the cut to the post.
 
 ## What's inside
 
-- `plugins/outlier-radar/skills/outlier-radar/`: the research playbook (`SKILL.md`),
-  `build_dashboard.py`, `build_carousels.py`, `select_linkedin.py` (the LinkedIn shape and
-  order picker), `references/` (templates you fill + the hook library + the mechanic library
-  + `linkedin-selector.md`), `radar-config.example.json`, and a bundled example week.
-- `plugins/tiktok-yap-editor/skills/tiktok-yap-editor/`: the editor playbook + deterministic
-  scripts (`yapcut.py`, `stutter_check.py`, `build_ass.py`, `brollcut.py`, `vo_guide.py`, and
-  the drivers), `brand-config.example.json`.
+- `plugins/outlier-radar/skills/outlier-radar/`: the playbook (`SKILL.md`, about 260 lines
+  with a routing table), the gate runner and gates, the ledger scripts, `build_dashboard.py`
+  plus `dashboard/`, `carousel.py`, `references/` (schema, receipts, distribution, hooks,
+  LinkedIn craft, the show template), `radar-config.example.json`, a bundled example week.
+- `plugins/outlier-radar/skills/lead-magnet-report/`: the report builder, the request ledger,
+  the measurement law.
+- `plugins/tiktok-yap-editor/skills/tiktok-yap-editor/`: the editor playbook, the gate ladder
+  (`scripts/gates.sh`), `scripts/yaplib/`, the drivers, `brand-config.example.json`.
+- `tests/`: a synthetic fixture that drives the editor end to end and the radar gates on the
+  example week. `release.sh` is the one release command.
 
-Your filled-in config, weekly batches, dashboard, and exports live in your workspace (default
-`~/outlier-radar/`), outside the repo and the plugin folder; only templates and the example
-week ship.
+## What's new in 3.5.0
 
-## What's new in 2.6
-
-**Outlier Radar now picks each LinkedIn post's own shape and tells you what order to publish
-in.** A twin used to copy the video's `post_type`, which gave you a week of identical posts.
-`select_linkedin.py` picks the FEED shape from the substance instead, reports the week's job
-mix and character bands, flags posts that should be carousels, and orders the week by how
-fast each item loses value rather than by how good it is.
-
-Full notes for this and every earlier release: **[CHANGELOG.md](CHANGELOG.md)**.
+**The audit release.** The engine used to optimise the one stage that was never the
+constraint: 157 scripts written, 22 posted, the loop run once. 3.5.0 asks who your audience is
+before it asks your niche, writes to filming slots instead of a script bar, ships a gate that
+actually gates, closes the loop on disk (tracking, a people ledger, learned weights, one
+measured question a week), and ships the distribution doctrine. Full notes for this and every
+earlier release: **[CHANGELOG.md](CHANGELOG.md)**.
 
 ## Author
 
@@ -215,13 +135,8 @@ credit and a link back are appreciated.
 
 ## License
 
-Licensed under **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**
-(full text in [LICENSE](LICENSE); attribution in [NOTICE](NOTICE)).
-
-- **Free to use, modify, and share for noncommercial purposes**: personal projects, learning,
-  research, hobby use, nonprofits, schools.
-- **You must give credit.** Any copy, fork, or derivative has to credit
-  "Alex Mureșan (https://alexmuresan.com)" and keep the notice.
-- **No commercial use under this license.** Selling it, building a paid product or service on
-  it, or running it inside a for-profit company's operations needs a separate commercial
-  license. Contact **alex@alexmuresan.com**.
+**Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** (full text in
+[LICENSE](LICENSE); attribution in [NOTICE](NOTICE)). Free to use, modify and share for
+noncommercial purposes with credit to "Alex Mureșan (https://alexmuresan.com)". Commercial use,
+including running it inside a for-profit company's operations, needs a separate license:
+**alex@alexmuresan.com**.

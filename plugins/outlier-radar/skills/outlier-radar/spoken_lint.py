@@ -31,13 +31,26 @@ This tool FLAGS. It does not rewrite. Only findings whose fix is a pure deletion
 touched by --apply-safe; everything else is left for a human, because a rewrite is a
 writing decision and this is a linter.
 
-Usage:
-  python3 scripts/spoken_lint.py --week weeks/<date>.json
-  python3 scripts/spoken_lint.py --week weeks/<date>.json --json out.json
-  python3 scripts/spoken_lint.py --corpus
-  python3 scripts/spoken_lint.py --week weeks/<date>.json --apply-safe
+SEVERITY AND EXIT CODES (Contract 1, 2026-09-09).
+  high    a categorical, provable or ledger-backed defect: a verbless run or list, a
+          rejected phrase, negative parallelism, an absence claim. rc 2.
+  medium  a distribution or arrangement finding that wants a human read: the cadence
+          floors, the flat tail, the speech-marker rate, colon lists, number tables. rc 1.
+  warn    an onboarding state, not a defect: no targets.json yet. rc 1.
+`--strict-cadence` grades the cadence findings high again; that flip is the creator's call.
 
-Exit 1 if anything was flagged, so a build step can gate on it.
+Before 2026-09-09 the cadence floors here were hand-set (STDEV_FLOOR 8.0, OVER20_FLOOR
+15.0) under a comment saying to derive them, and a missing targets.json was a HIGH finding
+on every fresh install. Both are fixed: floors read from targets.json when it exists, and
+the zero-of-five speech-marker test is now a RATE against the corpus, because a batch can
+carry one "like" per script and still run at a tenth of how the creator talks.
+
+Usage:
+  python3 spoken_lint.py --week weeks/<date>.json [--dir <workspace>]
+  python3 spoken_lint.py --week weeks/<date>.json --json out.json
+  python3 spoken_lint.py --corpus
+  python3 spoken_lint.py --week weeks/<date>.json --apply-safe
+  python3 spoken_lint.py --week weeks/<date>.json --strict-cadence
 """
 import argparse
 import json
@@ -46,6 +59,13 @@ import pathlib
 import re
 import statistics
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yapcut_home import radar_home  # noqa: E402
+
+# Consumed here so argparse below never sees --dir. The lint itself can run without a
+# workspace (targets become a WARN); --corpus cannot, and asks again with required=True.
+HOME = radar_home(required=False)
 
 # --- verb detection --------------------------------------------------------
 # No NLP dependency and none wanted. The fragments this has to judge are short and
@@ -128,7 +148,7 @@ def split_chunks(sentence: str):
     return [c.replace("\u0000", ",").strip() for c in safe.split(",") if c.strip()]
 
 
-BULLET = re.compile(r"^\s*(?:[\u21b3\u2192\u2022\-\*]|\d+[.)])\s+")
+BULLET = re.compile(r"^\s*(?:[↳→•\-\*]|\d+[.)])\s+")
 
 
 def sentences(text: str):
@@ -244,22 +264,53 @@ def lint_text(text: str, where: str, spoken: bool):
     return out
 
 
-# --- the recalibrated per-script targets (voice-fingerprint.md, 2026-08-24) ----------
-# Script-level floors. check_fidelity.py carries the same numbers as hard gates from
-# 2026-08-31 onward; these stay here as a warn-only second opinion.
-# Derive these from the creator's corpus with --corpus rather than trusting the numbers.
+# --- the per-script cadence floors --------------------------------------------------
+# Read from targets.json when it exists (stdev and over-20 share at 60% of the measured
+# corpus value, the same derivation check_fidelity.py uses so the two tools agree on a
+# batch). The constants below are the pre-2026-09-09 hand-set fallbacks and only apply
+# when no corpus has been measured yet, which the no_targets WARN already announces.
 FLOORS_FROM = "2026-08-31"   # mirrors check_fidelity.py: never fail work written to the old bar
-STDEV_FLOOR = 8.0        # unscripted speech ran 12.1 on the corpus this was built against
-OVER20_FLOOR = 15.0      # unscripted speech ran 20.3% of sentences over 20 words
+STDEV_FLOOR = 8.0        # fallback: unscripted speech ran 12.1 on the corpus this was built against
+OVER20_FLOOR = 15.0      # fallback: unscripted speech ran 20.3% of sentences over 20 words
 FIRST_PERSON = re.compile(r"\b(I|I'm|I've|I'd|I'll|me|my|mine)\b")
+
+# Findings in this set describe a distribution, not a defect. They grade medium unless
+# --strict-cadence (set in main) says otherwise.
+CADENCE_CHECKS = {"stdev_floor", "long_run_floor", "tail_flat", "batch_no_runaway",
+                  "marker_rate"}
+STRICT_CADENCE = False
+
+# A batch whose speech-marker rate sits under this share of the corpus rate is written
+# prose with a few markers sprinkled on. 25% is generous on purpose: a performed script is
+# tighter than a call, and the point is to catch a tenth of the rate, not two thirds.
+MARKER_RATE_FLOOR = 0.25
+
+# Measured numbers worth printing even when they clear a floor, so a pass is a number
+# and not a silence. Filled by the batch checks, printed once in main.
+INFO = []
+
+
+def _cadence(sev):
+    return "high" if STRICT_CADENCE else sev
+
+
+def _floors(targets):
+    if targets:
+        sw, sh = targets.get("sentence_words", {}), targets.get("shape", {})
+        return (max(4.0, round(float(sw.get("stdev", STDEV_FLOOR / 0.6)) * 0.6, 1)),
+                max(0.0, round(float(sh.get("pct_over_20", OVER20_FLOOR / 0.6)) * 0.6, 1)),
+                "measured")
+    return STDEV_FLOOR, OVER20_FLOOR, "fallback"
 
 
 def load_targets():
     """The measured profile from voice-corpus/targets.json, or None. Written by
-    scripts/derive_voice_targets.py. Added 2026-08-30: before this, every threshold in
+    derive_voice_targets.py. Added 2026-08-30: before this, every threshold in
     this file was a guess, because the --corpus mode meant to replace them could never
-    find the corpus (symlink + Path.resolve, see _radar_home)."""
-    p = _radar_home() / "voice-corpus" / "targets.json"
+    find the corpus (symlink + Path.resolve, see yapcut_home.py)."""
+    if HOME is None:
+        return None
+    p = HOME / "voice-corpus" / "targets.json"
     if not p.exists():
         return None
     try:
@@ -271,7 +322,9 @@ def load_targets():
 def load_rejections():
     """Phrases the creator has explicitly killed. See voice-corpus/rejections.json for why this
     is the only layer that accumulates his taste across sessions."""
-    p = _radar_home() / "voice-corpus" / "rejections.json"
+    if HOME is None:
+        return []
+    p = HOME / "voice-corpus" / "rejections.json"
     if not p.exists():
         return []
     try:
@@ -301,19 +354,15 @@ def check_rejected(it):
 
 
 def check_speech_shape(it, targets):
-    """The two CATEGORICAL failures, the ones a mean and a stdev cannot see.
+    """The flat tail, per script. The creator's real speech runs to 98 words and 1.6% of
+    their sentences pass 45. The 8 scripts of 2026-08-30 held 128 sentences and not one
+    over 45, while passing every old gate, because the old rule asked for `max >= 25`.
+    The runaway sentence is the single most distinctive thing about how he talks.
 
-    Mechanical gates catch absolutes; degree is for the human read and the discrimination
-    test. So these fire only on zero, never on a hand-picked ratio.
-
-    1. NO FAT TAIL. The creator's real speech runs to 98 words and 1.6% of their sentences pass 45.
-       The 8 scripts of 2026-08-30 held 128 sentences and not one over 45, while passing
-       every old gate, because the old rule asked for `max >= 25`. The runaway sentence is
-       the single most distinctive thing about how he talks.
-    2. NO SPEECH MARKERS AT ALL. He says "like" 42.2 times per 1000 words; that batch said
-       it 2.8. A script carrying zero of his top markers is not a stylistic near-miss, it
-       is written prose, and the cause is upstream in the `copywriting` sentence layer,
-       which cuts filler on sight because in written copy filler is waste."""
+    The zero-of-five speech-marker test that used to live here moved to
+    batch_marker_rate(): a rate against the corpus, because zero was the only value it
+    could see and a batch can carry one token per script and still run at a tenth of the
+    creator's rate."""
     out = []
     if not targets:
         return out
@@ -324,31 +373,58 @@ def check_speech_shape(it, targets):
     wc = [len(x.split()) for x in sents]
     p90 = targets["sentence_words"].get("p90", 29)
     if max(wc) < p90:
-        out.append({"check": "tail_flat", "where": f"{it['id']}.script", "severity": "medium",
+        out.append({"check": "tail_flat", "where": f"{it['id']}.script",
+                    "severity": _cadence("medium"),
                     "text": f"longest sentence {max(wc)}w, his p90 is {p90}w",
                     "fix": "needs-words",
                     "why": ("no sentence even reaches the 90th percentile of his own speech. "
                             "Cadence stdev can be bought with choppiness; the long causal "
                             "run cannot be faked by punctuation.")})
-    top = sorted(targets.get("speech_markers_per_1k", {}).items(), key=lambda kv: -kv[1])[:5]
-    low = text.lower()
-    present = [m for m, _ in top if re.search(r"\b" + re.escape(m) + r"\b", low)]
-    if top and not present:
-        out.append({"check": "no_speech_markers", "where": f"{it['id']}.script",
-                    "severity": "high",
-                    "text": "carries none of: " + ", ".join(m for m, _ in top),
-                    "fix": "needs-words",
-                    "why": ("zero discourse markers. He runs these at "
-                            + ", ".join(f"{m} {v}/1k" for m, v in top)
-                            + ". Their absence is the loudest single difference between "
-                              "his transcripts and generated script.")})
     return out
+
+
+def batch_marker_rate(items, targets):
+    """Speech markers per 1000 words across the batch against the corpus rate for the same
+    markers. He runs "like" at 40 per 1000 words; the rejected 08-30 batch ran it at 2.8
+    and the 08-31 batch stayed at that level while clearing every cadence floor. Their
+    absence is the loudest single difference between his transcripts and generated script,
+    and the cause is upstream in the `copywriting` sentence layer, which cuts filler on
+    sight because in written copy filler is waste."""
+    if not targets or not items:
+        return []
+    rates = targets.get("speech_markers_per_1k") or {}
+    top = sorted(rates.items(), key=lambda kv: -kv[1])[:8]
+    if not top:
+        return []
+    corpus_rate = sum(v for _, v in top)
+    text = " ".join((it.get("spoken_hook") or "") + " " + (it.get("script") or "") for it in items)
+    low = text.lower()
+    W = len(re.findall(r"[A-Za-z']+", low))
+    if W < 200:
+        return []
+    hits = sum(len(re.findall(r"\b" + re.escape(m) + r"\b", low)) for m, _ in top)
+    batch_rate = hits / W * 1000.0
+    INFO.append(f"speech markers: batch {batch_rate:.1f}/1k over {W} words, corpus "
+                f"{corpus_rate:.1f}/1k ({100 * batch_rate / corpus_rate:.0f}% of the creator's rate, "
+                f"floor {int(MARKER_RATE_FLOOR * 100)}%)")
+    if batch_rate < MARKER_RATE_FLOOR * corpus_rate:
+        return [{"check": "marker_rate", "where": "batch", "severity": _cadence("medium"),
+                 "text": (f"{batch_rate:.1f} markers per 1k words across {W} words, corpus runs "
+                          f"{corpus_rate:.1f} ({100 * batch_rate / corpus_rate:.0f}% of his rate)"),
+                 "fix": "needs-words",
+                 "why": ("the batch carries his discourse markers at under "
+                         f"{int(MARKER_RATE_FLOOR * 100)}% of the rate he speaks them: "
+                         + ", ".join(f"{m} {v}/1k" for m, v in top[:5])
+                         + ". Written prose with a few markers sprinkled on reads exactly "
+                           "like the batches he rejected.")}]
+    return []
 
 
 def batch_tail(items, targets):
     """Batch-level: 1.6% over 45 words means not every episode needs a runaway sentence,
-    but a whole batch without one is prose. Checked across the batch, not per script."""
-    if not targets:
+    but a whole batch without one is prose. Checked across the batch, not per script.
+    A week with no spoken script at all (a LinkedIn-only week) has no batch to judge."""
+    if not targets or not items:
         return []
     thresh = 45
     longest = 0
@@ -356,7 +432,7 @@ def batch_tail(items, targets):
         for x in sentences(it.get("script") or ""):
             longest = max(longest, len(x.split()))
     if longest < thresh:
-        return [{"check": "batch_no_runaway", "where": "batch", "severity": "high",
+        return [{"check": "batch_no_runaway", "where": "batch", "severity": _cadence("medium"),
                  "text": f"longest sentence in the whole batch is {longest}w",
                  "fix": "needs-words",
                  "why": (f"{targets['shape'].get('pct_over_45', 1.6)}% of his sentences pass "
@@ -367,7 +443,7 @@ def batch_tail(items, targets):
     return []
 
 
-def check_targets(it, week_date=""):
+def check_targets(it, targets, week_date=""):
     """Script-level floors. Separate from the sentence-level checks above because these
     describe the whole distribution, not one line.
 
@@ -376,28 +452,30 @@ def check_targets(it, week_date=""):
     weeks keep the bar they were written under. Added 2026-08-30. Without this the two
     tools disagreed on the same batch, and this one printed [HIGH] on work that was
     written to the old floor and could not be rewritten. Self-expiring; nothing to clean
-    up. no_first_person is NOT grandfathered, because it was never recalibrated.""" 
-    import statistics
+    up. no_first_person is NOT grandfathered, because it was never recalibrated."""
     out = []
     floors_live = (week_date or "") >= FLOORS_FROM
+    sd_floor, over20_floor, origin = _floors(targets)
     sents = sentences(it.get("script") or "")
     if len(sents) < 3:
         return out
     wc = [len(s.split()) for s in sents]
     sd = statistics.pstdev(wc)
     over20 = 100.0 * sum(1 for w in wc if w > 20) / len(wc)
-    if floors_live and sd < STDEV_FLOOR:
-        out.append({"check": "stdev_floor", "where": f"{it['id']}.script", "severity": "high",
+    if floors_live and sd < sd_floor:
+        out.append({"check": "stdev_floor", "where": f"{it['id']}.script",
+                    "severity": _cadence("medium"),
                     "text": f"stdev {sd:.1f}", "fix": "needs-words",
-                    "why": f"below the floor of {STDEV_FLOOR}. Unscripted speech measured 12.1 on the "
-                           f"reference corpus. A floor set at half the corpus gets passed, not failed."})
-    if floors_live and over20 < OVER20_FLOOR:
-        out.append({"check": "long_run_floor", "where": f"{it['id']}.script", "severity": "high",
+                    "why": f"below the {origin} floor of {sd_floor}. A floor set at half the "
+                           f"corpus gets passed, not failed; this one is 60% of the measured stdev."})
+    if floors_live and over20 < over20_floor:
+        out.append({"check": "long_run_floor", "where": f"{it['id']}.script",
+                    "severity": _cadence("medium"),
                     "text": f"{over20:.1f}% of sentences over 20 words", "fix": "needs-words",
-                    "why": f"below {OVER20_FLOOR}%. Unscripted speech measured 20.3%. The long causal "
+                    "why": f"below the {origin} floor of {over20_floor}%. The long causal "
                            f"run is the voice and it is the thing most consistently missing."})
     if not any(FIRST_PERSON.search(s) for s in sents):
-        out.append({"check": "no_first_person", "where": f"{it['id']}.script", "severity": "high",
+        out.append({"check": "no_first_person", "where": f"{it['id']}.script", "severity": "medium",
                     "text": "no first person anywhere in the script", "fix": "needs-words",
                     "why": "a script with no first person reads as an essay rather than a person "
                            "talking, and it is upstream of low contraction density, because "
@@ -408,6 +486,7 @@ def check_targets(it, week_date=""):
 
 FIELDS_SPOKEN = ("spoken_hook", "script")
 FIELDS_WRITTEN = ("body",)
+VIDEO_LANES = ("distribution", "office")
 
 
 def lint_week(path: pathlib.Path):
@@ -432,52 +511,36 @@ def lint_week(path: pathlib.Path):
             if isinstance(tw, dict) and tw.get("body"):
                 findings += lint_text(tw["body"], f"{tw.get('id','twin')}.body", spoken=False)
             findings += check_rejected(it)
-            if lane == "distribution":
-                findings += check_targets(it, d.get("week", ""))
+            # Both video lanes are spoken. Until 2026-09-09 only distribution[] was
+            # measured here while check_fidelity.py measured office[] too, which is one
+            # of the ways the two tools disagreed on the same batch.
+            if lane in VIDEO_LANES and it.get("script"):
+                findings += check_targets(it, targets, d.get("week", ""))
                 findings += check_speech_shape(it, targets)
                 spoken_items.append(it)
     findings += batch_tail(spoken_items, targets)
-    if targets is None:
-        findings.append({"check": "no_targets", "where": "workspace", "severity": "high",
+    findings += batch_marker_rate(spoken_items, targets)
+    if targets is None and spoken_items:
+        findings.append({"check": "no_targets", "where": "workspace", "severity": "warn",
                          "text": "voice-corpus/targets.json missing",
-                         "fix": "run scripts/derive_voice_targets.py",
-                         "why": ("without it the speech-shape checks cannot run and every "
-                                 "remaining threshold is a taste guess.")})
+                         "fix": "run segment_corpus.py then derive_voice_targets.py",
+                         "why": ("an onboarding state, not a defect: without it the speech-shape "
+                                 "checks cannot run and the cadence floors fall back to the "
+                                 "pre-2026-09-09 constants.")})
     return d, findings
 
 
-def _radar_home():
-    """Workspace resolution. MUST NOT use Path.resolve(): this file is a SYMLINK into the
-    yapcut plugin repo, and resolve() follows it out of the workspace to
-    plugins/outlier-radar/skills/, where no voice-corpus/ exists. That is why --corpus
-    printed "no voice-corpus/corpus.txt" and exited on every run from 2026-08-24 to
-    2026-08-30, so the STDEV_FLOOR below was never once derived from the corpus the
-    comment tells you to derive it from. Same order as check_fidelity.py._resolve_home."""
-    if "--dir" in sys.argv:
-        i = sys.argv.index("--dir")
-        home = pathlib.Path(sys.argv[i + 1]).expanduser()
-        del sys.argv[i:i + 2]
-        return home
-    env = os.environ.get("OUTLIER_RADAR_HOME")
-    if env:
-        return pathlib.Path(env).expanduser()
-    if (pathlib.Path.cwd() / "weeks").is_dir():
-        return pathlib.Path.cwd()
-    here = pathlib.Path(os.path.abspath(__file__)).parent          # no resolve()
-    for cand in (here, here.parent):
-        if (cand / "voice-corpus").is_dir() or (cand / "weeks").is_dir():
-            return cand
-    return pathlib.Path("~/outlier-radar").expanduser()
-
-
 def corpus_path():
-    return _radar_home() / "voice-corpus" / "corpus.txt"
+    home = HOME if HOME is not None else radar_home()
+    p = home / "voice-corpus" / "corpus-work-spoken.txt"
+    return p if p.exists() else home / "voice-corpus" / "corpus.txt"
 
 
 def corpus_baseline():
     p = corpus_path()
     if not p.exists():
-        sys.exit(f"no corpus at {p}")
+        print(f"no corpus at {p}")
+        sys.exit(1)
     sents = sentences(p.read_text(encoding="utf-8"))
     wc = [len(s.split()) for s in sents]
     verbless = [(not has_verb(s)) and (not is_speech_act(s)) for s in sents]
@@ -491,7 +554,7 @@ def corpus_baseline():
             cur = 0
     if cur:
         runs.append(cur)
-    print(f"unscripted corpus: {len(sents)} sentences, {sum(wc)} words")
+    print(f"unscripted corpus ({p.name}): {len(sents)} sentences, {sum(wc)} words")
     print(f"  mean {statistics.mean(wc):.1f}  median {statistics.median(wc):.0f}  "
           f"stdev {statistics.pstdev(wc):.1f}  longest {max(wc)}")
     print(f"  verbless NOUN-LABEL fragments (excluding backchannel): {sum(verbless)} ({100*sum(verbless)/len(sents):.1f}%)")
@@ -501,31 +564,46 @@ def corpus_baseline():
     print("Runs of 3+ grade high (no precedent in the corpus at all).")
 
 
+SEV_RC = {"high": 2, "medium": 1, "warn": 1}
+
+
 def main():
+    global STRICT_CADENCE
     ap = argparse.ArgumentParser()
     # --dir is resolution option 1 in the playbook's documented order, and argparse never
     # knew about it: passing it crashed with exit 2 and no output, so anyone following the
-    # documentation hit an argparse error instead of a lint run. _radar_home() consumes it
-    # from sys.argv before this point when present; declaring it here keeps argparse from
+    # documentation hit an argparse error instead of a lint run. radar_home() consumes it
+    # from sys.argv at import when present; declaring it here keeps argparse from
     # rejecting it in the cases where it does not (e.g. --dir after --week).
     ap.add_argument("--dir", help="workspace directory (resolution option 1)")
     ap.add_argument("--week")
     ap.add_argument("--json")
     ap.add_argument("--corpus", action="store_true")
+    ap.add_argument("--strict-cadence", action="store_true",
+                    help="grade the cadence findings high (rc 2) instead of medium")
     ap.add_argument("--apply-safe", action="store_true",
                     help="apply ONLY the pure-deletion fixes, never a rewrite")
     a = ap.parse_args()
+    STRICT_CADENCE = a.strict_cadence
 
     if a.corpus:
         corpus_baseline()
-        return
+        return 0
 
     if not a.week:
-        sys.exit("need --week or --corpus")
+        print("need --week or --corpus")
+        return 2
     path = pathlib.Path(a.week)
+    if not path.exists() and HOME is not None and not path.is_absolute():
+        alt = HOME / a.week
+        if alt.exists():
+            path = alt
+    if not path.exists():
+        print(f"no week file at {path}")
+        return 2
     d, findings = lint_week(path)
 
-    order = {"high": 0, "medium": 1}
+    order = {"high": 0, "medium": 1, "warn": 2}
     findings.sort(key=lambda f: (order.get(f["severity"], 9), f["where"]))
     by_check = {}
     for f in findings:
@@ -537,9 +615,11 @@ def main():
         print(f"  why: {f['why']}")
         print(f"  fix: {f['fix']}")
 
+    for line in INFO:
+        print(f"\n{line}")
     print(f"\n{len(findings)} flagged in {path.name}")
     for k, v in sorted(by_check.items(), key=lambda kv: -len(kv[1])):
-        print(f"  {k:24} {len(v)}")
+        print(f"  {k:24} {len(v)}  [{v[0]['severity']}]")
     safe = [f for f in findings if f["fix"] == "delete"]
     print(f"\n{len(safe)} are a pure deletion. The rest need a human, because a "
           f"rewrite is a writing decision and this is a linter.")
@@ -562,8 +642,12 @@ def main():
         path.write_text(raw, encoding="utf-8")
         print(f"applied {n} deletion(s). backup at {bak.name}. Re-run check_fidelity.py.")
 
-    sys.exit(1 if findings else 0)
+    n_high = sum(1 for f in findings if f["severity"] == "high")
+    n_other = len(findings) - n_high
+    rc = max([SEV_RC.get(f["severity"], 1) for f in findings] or [0])
+    print(f"\nspoken_lint: {n_high} high, {n_other} medium/warn -> rc {rc}")
+    return rc
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -13,7 +13,10 @@ Usage:
     python3 visual_lint.py render.png [more.png ...]
     python3 visual_lint.py --dir path/to/renders
 
-Exit code 1 if any asset fails, so it can gate a build.
+Exit codes (Contract 1, 2026-09-09): 0 every asset clears the floor, 2 any asset fails,
+1 when there was nothing to measure or Pillow is missing (an onboarding state, not a
+defect). NOTE --dir here means a directory OF RENDERS, not the workspace; radar_gate.py
+passes explicit paths.
 """
 import sys
 import os
@@ -81,7 +84,8 @@ def main(argv):
         paths = args
 
     if not paths:
-        sys.exit("no images found")
+        print("no images found")
+        return 1
 
     failed = []
     for path in paths:
@@ -101,9 +105,11 @@ def main(argv):
         print("\nUsual fix: the field is too light. Invert it: run your dark ink or your")
         print("accent as the FIELD and your paper tone as the type. Same brand tokens,")
         print("opposite weighting. A light object on a dark field clears the floor.")
-        return 1
+        print(f"visual_lint: {len(failed)} fail -> rc 2")
+        return 2
 
     print(f"all {len(paths)} assets clear the feed floor")
+    print("visual_lint: 0 fail -> rc 0")
     return 0
 
 

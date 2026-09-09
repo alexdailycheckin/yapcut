@@ -1,5 +1,30 @@
 # What's new
 
+## 3.5.0: the audit release
+
+An audit of the repo and its live install on 2026-09-09 found the engine optimising the one
+stage that was never the constraint: 157 scripts written, 22 posted, every video row a
+placeholder, the feedback loop run once. 3.5.0 changes what it optimises for.
+
+- **Audience first.** Discovery asks who should recognise you and for what before it asks
+  about your niche, and runs a proof-extraction interview (what you have done that a
+  competitor cannot claim, the plays you run, the lines you would never say) instead of
+  collecting adjectives about your voice.
+- **Filming slots, not a script bar.** `quantity` in your config replaces "about 10 per lane".
+  Unfilmed scripts teach the loop nothing.
+- **A gate that gates.** `radar_gate.py` runs every check in one command with one exit
+  contract and stamps the week. The schema is versioned (`references/week-schema.md`).
+- **The loop closes on disk.** Filmed and posted state, a people ledger (who answered),
+  learned weights the selector reads, one pre-registered question a week, watch-through on
+  video rows, and a dashboard that seeds from all of it.
+- **Distribution shipped.** The daily block with ammo and held receipts, day-0, callback and
+  promise, the tag guardrails: `references/distribution.md`, with an Ammo tab on the dashboard.
+- **Your rulings ride on top.** `<workspace>/law.md` and `<workspace>/references/<name>.md`
+  overlay the shipped playbook instead of forking it.
+
+Everything you own still lives in your workspace. Existing week files keep working (legacy
+keys warn, never fail).
+
 ## 3.4.0: the Voice Stack
 
 Scripts are now grounded in recordings of YOU talking, not in adjectives describing how you

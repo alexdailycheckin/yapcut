@@ -81,6 +81,23 @@ real week exists).
 | 5. The takeaway | 45-55s | One mechanism the viewer can copy, in plain words. Opens with the creator's approved takeaway line(s) from config; if a rotating family, never the same one twice in a row. |
 | 6. The verdict close | 55-65s | The creator's POV through their lens, one line, then end on a punchline or a callback. Hard stop on the payoff. No CTA by default. |
 
+## Series memory: callback, promise, follow-up (added 2026-09-09)
+
+A stranger becomes a follower when the episode implies a next one, and a follower becomes
+an advocate when they are named in it. Two lines ride inside the skeleton above:
+
+- **Callback** (inside beat 1 or 2, one sentence): last week's episode or a commenter, by
+  name. "Last week you told me X was the outlier. You were right, and here is the receipt."
+- **Promise** (inside beat 6, one sentence): what next week pays off, including any
+  comment-vote ask. "Next week: the company you voted for in the comments."
+
+Every promise is written into the week file as `promised[] {text, made_in, due_week,
+paid_in}` and `radar_gate.py` warns on a due promise that is neither paid nor retracted.
+A `follow-up` episode type is exempt from the no-repeat rule, one per fortnight, because a
+return audience expects the sequel. The comment-vote format (the audience names next week's
+subject) is the cheapest audience-participation lever the show has; run it as soon as a
+week has comments to choose from.
+
 ## The receipts law (hard)
 
 Every spoken brand, number, or claim carries an on-screen artifact: the article

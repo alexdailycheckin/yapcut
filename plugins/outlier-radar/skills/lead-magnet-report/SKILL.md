@@ -1,6 +1,6 @@
 ---
 name: lead-magnet-report
-description: "Turn one category's measured data into a weekly lead magnet: a branded paginated report that posts natively as a LinkedIn document, an Instagram carousel or a PDF. Creator-agnostic. First use interviews you about the category you sell into, the shape of magnet you want, your data source and your brand, then saves a config to a local workspace. The flagship shape is the INDUSTRY ANSWER REPORT: pick a category, measure which brands AI engines actually name when buyers ask, and publish who wins, who wins nothing, and which pages get cited. Other shapes supported: the benchmark report, the teardown pack, the prompt sheet and the open-questions list. Includes the measurement law (seed exclusion, share of voice, concentration split, segment classification), the locked page design, the comment-gate mechanics, and a self-checking build that refuses to ship an overflowing page. Use when the user says 'make a lead magnet', 'weekly lead magnet', 'gated content', 'build a report', 'industry report', 'category report', 'AI visibility report', 'what should I give away', 'grow my newsletter from LinkedIn', 'document post', or wants a repeatable asset that earns comments and DMs rather than clicks."
+description: "Build a comment-gated lead magnet: a branded, paginated report about the reader's own category that posts natively as a LinkedIn document, Instagram carousel or PDF, with the raw sheet gated on a comment. Use for report to gate, comment-gated report, industry answer report, LinkedIn document post as a lead magnet, weekly lead magnet. Not for customer audits, internal reports or ungated research posts."
 ---
 
 # Lead Magnet Report
@@ -163,6 +163,18 @@ reliably.** Measured across four renders of one title: a dropped word from a thi
 headline, a duplicated line, an unrequested underline, and a stray digit inside a
 three-word subline. **Set type as an HTML overlay, always.** Let the model supply the
 photograph only.
+
+## Requests: the ledger and the DM
+
+A commenter is a self-identified buyer with a named category. `requests.py` keeps the ledger
+(`issues/<slug>/requests.jsonl`) and cross-writes every commenter into the workspace's people
+ledger, so "fulfil the same day" is enforceable and the queue writes itself:
+
+    python3 requests.py add --issue <slug> --commenter "<name>" --url <profile> --category "<asked for>"
+    python3 requests.py dm-sent --issue <slug> --commenter "<name>"
+    python3 requests.py --due
+
+The three-line DM and the queue rule are in `references/distribution.md`.
 
 ## Distribution
 

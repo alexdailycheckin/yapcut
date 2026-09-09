@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """capture_gate.py: capture a page as a receipt, or refuse and say why.
 
-Replaces the capture half of receipts_build.py + cards_from_raws.py (both deprecated). Those tried
+Replaces the capture half of receipts_build.py + cards_from_raws.py (deprecated 2026-08-05,
+deleted 2026-09-09). Those tried
 to REPAIR a broken capture (crop above the consent modal, stretch the dimming
 back out) and so manufactured plausible-looking cards from pages that never
 rendered. On 2026-08-02 that shipped 21 junk receipts across 7 videos: cookie
@@ -28,7 +29,7 @@ Usage:
       --out show/receipts/2026-08-02-v2 [--episode d-20260802-3] [--json verdicts.json]
   python3 capture_gate.py --url https://example.com/story --out /tmp/x
 
-Exit 1 if any shot was rejected, so a build step can gate on it.
+Exit codes (Contract 1, 2026-09-09): 2 if any shot was rejected, else 0.
 """
 import argparse
 import json
@@ -419,7 +420,9 @@ def main():
             print(f"  {k:22} {len(v):2}  {', '.join(v)}")
         print("\nRejected shots need a source swap or a typeset card "
               "(evidence_card.py) built from the headline in verdicts.json.")
-    return 1 if rejected else 0
+    rc = 2 if rejected else 0
+    print(f"capture_gate: {rejected} rejected -> rc {rc}")
+    return rc
 
 
 if __name__ == "__main__":

@@ -49,6 +49,24 @@ and the lead magnet and the production line become the same act.
 Requests land two to three weeks out, because measurement takes run time. That is a
 feature: it creates a visible queue instead of instant gratification.
 
+## The request ledger and the DM (added 2026-09-09)
+
+A commenter is a self-identified buyer with a named category, and "fulfil the same day" is
+unenforceable without a ledger. Every request goes into `issues/<slug>/requests.jsonl` and
+every commenter into the workspace's people ledger:
+
+    python3 requests.py add --issue <slug> --commenter "<name>" --url <profile> --category "<what they asked for>"
+    python3 requests.py dm-sent --issue <slug> --commenter "<name>"
+    python3 requests.py --due          # requests older than 24 hours with no DM sent
+
+The DM, three lines, by hand, never automated:
+
+> Here is the sheet you asked for: [link or attachment].
+> The one line I would look at first for [their category]: [one finding from the report].
+> If you want the version for your own category, say which one and it goes in the queue.
+
+The queue is the requests file read in order; the sector plan below only breaks ties.
+
 ## Sequence the queue by sector, not by shouting
 
 If the series serves a commercial goal, order the issues to match which sector you are

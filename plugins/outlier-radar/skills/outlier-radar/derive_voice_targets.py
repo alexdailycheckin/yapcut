@@ -29,8 +29,17 @@ So the contract is: this script measures, `targets.json` records, and the gates 
 number in this pipeline is allowed to come from taste again. Re-run it whenever the corpus
 grows; the targets move on their own and nothing has to be remembered.
 
-    python3 scripts/derive_voice_targets.py            # write voice-corpus/targets.json
-    python3 scripts/derive_voice_targets.py --print    # show the profile, write nothing
+    python3 derive_voice_targets.py [--dir <workspace>]   # write voice-corpus/targets.json
+    python3 derive_voice_targets.py --print               # show the profile, write nothing
+    python3 derive_voice_targets.py --corpus-file <path>  # measure another file, explicitly
+
+ONE CORPUS. This reads voice-corpus/corpus-work-spoken.txt and nothing else unless
+--corpus-file names another path out loud. The old --pooled switch is gone: it measured the
+banter pool and produced the mean-12.5 target that broke 8 scripts, and a switch that quiet
+is a switch someone flips by accident. Targets from any other register misgrade every batch.
+
+Exit codes (Contract 1): 0 written, 1 when the corpus is missing or too thin to measure (an
+onboarding state, run segment_corpus.py first), 2 when the workspace is missing.
 """
 import json
 import os
@@ -82,13 +91,29 @@ def syllables(word):
     return max(1, n)
 
 
-from voice_home import radar_home  # noqa: E402  (no Path.resolve, see voice_home.py)
+# realpath locates the sibling module through the workspace symlink; the workspace itself is
+# resolved by yapcut_home and never by following a symlink (see yapcut_home.py).
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yapcut_home import radar_home  # noqa: E402
+
+WORK_CORPUS = "corpus-work-spoken.txt"
+MIN_SENTENCES = 30
 
 
-def profile(text):
+def scrub(text):
+    """Comment lines, provenance lines and header keys are not speech. corpus files may carry
+    them (a hand-filed file starts with # lines), and counting them would measure the notes."""
+    text = re.sub(r"^#.*$", "", text, flags=re.M)
+    text = re.sub(r"^_.*_$", "", text, flags=re.M)
+    text = re.sub(r"^(mode|register):.*$", "", text, flags=re.M | re.I)
+    return text
+
+
+def profile(text, derived_from=WORK_CORPUS):
+    text = scrub(text)
     sents = sentences(text)
-    if len(sents) < 30:
-        sys.exit(f"corpus too thin to derive targets from: {len(sents)} sentences, need 30+")
+    if len(sents) < MIN_SENTENCES:
+        return None
     wc = sorted(len(s.split()) for s in sents)
     n = len(wc)
     words = re.findall(r"[A-Za-z']+", text)
@@ -120,7 +145,7 @@ def profile(text):
     top_openers = sorted(openers.items(), key=lambda kv: -kv[1])[:15]
 
     return {
-        "_derived_from": "voice-corpus/corpus-work-spoken.txt",
+        "_derived_from": f"voice-corpus/{derived_from}",
         "_register": ("The creator speaking, unscripted, ABOUT THEIR SUBJECT. Not the pooled corpus: that is "
                       "76% casual banter (median 7) and pooling it hid the fact that on-subject "
                       "speech runs median 17. Not the typed captures either: those are writing, "
@@ -128,7 +153,7 @@ def profile(text):
         "_provisional": ("Derived from a THIN corpus. Treat every number here as directional "
                          "until the on-target corpus passes ~4000 words. The supply fix is "
                          "20-30 minutes of unscripted teardown talk, not more arithmetic."),
-        "_note": ("Measured, never chosen. Regenerate with scripts/derive_voice_targets.py "
+        "_note": ("Measured, never chosen. Regenerate with derive_voice_targets.py "
                   "whenever the corpus grows. Any gate reading a number that is not in "
                   "this file is reading a guess."),
         "corpus": {"sentences": n, "words": W},
@@ -166,16 +191,35 @@ def main():
     # different voices and is 76% casual banter; deriving from it produced a mean of 12.5
     # that appeared to confirm check_fidelity's "mean 9 to 13" band, when their unscripted
     # WORK speech runs 17.8. The show is a performed monologue about companies, so the
-    # target is corpus-work-spoken.txt. Run scripts/segment_corpus.py to build it.
-    src = home / "voice-corpus" / "corpus-work-spoken.txt"
+    # target is corpus-work-spoken.txt. Run segment_corpus.py to build it.
+    src = home / "voice-corpus" / WORK_CORPUS
     if "--pooled" in sys.argv:
-        src = home / "voice-corpus" / "corpus.txt"
+        print("--pooled was removed 2026-09-09: the pooled corpus is the wrong register and "
+              "produced the targets that broke 8 scripts. Use --corpus-file <path> if you "
+              "really mean another file.")
+        return 2
+    if "--corpus-file" in sys.argv:
+        i = sys.argv.index("--corpus-file")
+        if i + 1 >= len(sys.argv):
+            print("--corpus-file needs a path")
+            return 2
+        src = pathlib.Path(os.path.abspath(os.path.expanduser(sys.argv[i + 1])))
+        if src.name != WORK_CORPUS:
+            print(f"WARNING: measuring {src.name}, not {WORK_CORPUS}. Targets from any other "
+                  "register misgrade every batch; only do this to compare, never to ship.")
     if not src.exists():
-        sys.exit(f"no corpus at {src}")
-    prof = profile(src.read_text(encoding="utf-8"))
+        print(f"no corpus at {src}. Run segment_corpus.py first (it files capture/, "
+              "voice-corpus/manual/ and voice-corpus/granola/ by register).")
+        return 1
+    prof = profile(src.read_text(encoding="utf-8"), derived_from=src.name)
+    if prof is None:
+        n = len(sentences(scrub(src.read_text(encoding="utf-8"))))
+        print(f"corpus too thin to derive targets from: {n} sentences in {src.name}, need "
+              f"{MIN_SENTENCES}+. Supply is the fix: on-subject calls filed with register: work.")
+        return 1
     if "--print" in sys.argv:
         print(json.dumps(prof, indent=2))
-        return
+        return 0
     out = home / "voice-corpus" / "targets.json"
     out.write_text(json.dumps(prof, indent=2) + "\n", encoding="utf-8")
     s, w = prof["corpus"]["sentences"], prof["corpus"]["words"]
@@ -190,7 +234,8 @@ def main():
           f"contractions {prof['contraction_rate_pct']}%")
     top = sorted(prof["speech_markers_per_1k"].items(), key=lambda kv: -kv[1])[:8]
     print("  speech markers /1k: " + ", ".join(f"{k} {v}" for k, v in top))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -64,6 +64,7 @@ scaffolding; the truth is the content. And per the storytelling craft rules in
 
 **8. Curiosity gap / cliffhanger**
 - Did you know that this, this, this, and this get you (result)?
+  (Spoken video only. On LinkedIn text an open question or a colon cliffhanger fails the 220-character fold; the linkedin-engine hook deltas ban it there.)
 - Want to find out what's hiding inside (thing)?
 - Apparently, if you (action) ... (don't resolve it in line one).
 - This is kind of gross, but I had to share it.

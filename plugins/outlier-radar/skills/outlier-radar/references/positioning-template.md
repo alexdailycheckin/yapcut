@@ -9,6 +9,13 @@ placeholders are filled; treat this as the skeleton, not the final copy.
 subject they want to be known for. Not a generic guru version of it. This
 specific angle. Everything the engine writes serves that anchor.
 
+## Who you want to be recognised by (from `audience` in the config)
+
+`{{audience.who}}`. The sentence they should say about `{{creator}}`: "`{{audience.known_for}}`".
+The proof only `{{creator}}` owns: `{{audience.proof}}`. The one surface `{{creator}}` shows up on
+every week: `{{audience.channel}}`. Every gate, the selector and the north star read this
+block; a script that would not make one of these people grin, nod or feel seen is not for them.
+
 ## The lens every primary-lane (Industry) script must pass through
 - It is about the CORE IDEA of `{{niche}}`, not tactics-for-tactics-sake.
 - Favourite tensions: rotate the `{{facets}}` (the 2 to 4 sub-angles in the
@@ -38,8 +45,8 @@ credibility. No em dashes or en dashes anywhere in output.
 `{{creator}}` positions as an expert in `{{niche}}`. The commercial ladder,
 in order:
 1. **Authority (primary, now)** build the reputation as THE person for `{{niche}}`.
-2. **Short-term** whatever leads or reach support the creator's current goal
-   (fill from config or discovery).
+2. **Short-term** whatever leads or reach support the creator's current goal, aimed
+   at `{{audience.who}}` and proven with `{{audience.proof}}`.
 3. **Later** the eventual offer (consulting, product, advisory, whatever applies).
 
 Default assumption: the creator is in the **authority plus audience-growth phase**.
@@ -57,7 +64,7 @@ if the config or the creator says they are already in a selling phase.
   Most posts should teach something real about `{{niche}}` (a framework, a
   diagnosis, "here is how it actually works") so a buyer concludes the creator is
   the expert. Keep roughly one pure contrarian post per batch for reach, but the
-  dominant mode is demonstrate-expertise plus buyer-pain. Use the linkedin-engine
+  dominant mode is demonstrate-expertise plus buyer-pain. Use the LinkedIn craft files in this plugin's references (save-mechanics.md, format-library.md)
   skill if `{{linkedin_twins}}` is true, never a throwaway one-liner. CTAs stay
   top-of-funnel while in the authority phase: a follow, a sharp question, or a
   "what's your take" prompt. No pitching, no DM or call asks, no plugging the

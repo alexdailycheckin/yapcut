@@ -43,20 +43,32 @@ WHAT IT CANNOT DO, stated plainly so nobody over-trusts it:
     why quotes should be entered verbatim
 
 Usage:
-  python3 scripts/source_check.py --week weeks/<date>.json
-  python3 scripts/source_check.py --week weeks/<date>.json --json out.json
-  python3 scripts/source_check.py --week weeks/<date>.json --item d-<date>-3
-  python3 scripts/source_check.py --url https://example.com --contains "some words"
+  python3 source_check.py --week weeks/<date>.json [--dir <workspace>]
+  python3 source_check.py --week weeks/<date>.json --json out.json
+  python3 source_check.py --week weeks/<date>.json --item d-<date>-3
+  python3 source_check.py --url https://example.com --contains "some words"
+
+Exit codes (Contract 1, 2026-09-09): 2 on any NOT_FOUND, UNREACHABLE, DATE MISMATCH or
+STALE FRESHNESS (a dead or false receipt); 1 when something is UNCHECKED, undated or only
+weakly dated (proven nothing yet, a warning); 0 when every claim was found. UNREACHABLE
+stays a failure on purpose: the receipt is dead whatever the reason, and the fix is a
+source swap, not a retry.
 """
 import argparse
 import datetime
 import json
+import os
 import pathlib
 import re
 import sys
 
+# realpath here locates SIBLING modules through the workspace symlink; it is never used
+# to locate the workspace itself (see yapcut_home.py for why).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from cdp import Browser  # noqa: E402
+from yapcut_home import radar_home  # noqa: E402
+
+HOME = radar_home(required=False)   # consumes --dir; only used to find a relative --week
 
 PAGE_JS = r"""(() => {
   // The page's OWN machine-readable publication date, in priority order. This is
@@ -319,6 +331,7 @@ def main():
     ap.add_argument("--json")
     ap.add_argument("--fresh-max-age", type=int, default=FRESH_MAX_AGE_DAYS,
                     help="days a freshness claim may sit behind its newest source")
+    ap.add_argument("--dir", help="workspace (consumed by yapcut_home when given first)")
     a = ap.parse_args()
     today = datetime.date.today()
 
@@ -326,7 +339,15 @@ def main():
     if a.url:
         jobs.append(("adhoc", 0, {"url": a.url, "must_contain": a.contains}, {}))
     elif a.week:
-        week = json.loads(pathlib.Path(a.week).read_text(encoding="utf-8"))
+        wpath = pathlib.Path(a.week)
+        if not wpath.exists() and HOME is not None and not wpath.is_absolute():
+            alt = HOME / a.week
+            if alt.exists():
+                wpath = alt
+        if not wpath.exists():
+            print(f"no week file at {wpath}")
+            sys.exit(2)
+        week = json.loads(wpath.read_text(encoding="utf-8"))
         for iid, idx, s, item in iter_sources(week):
             if a.item and iid != a.item:
                 continue
@@ -454,7 +475,11 @@ def main():
         pathlib.Path(a.json).write_text(json.dumps(report, indent=2, ensure_ascii=False),
                                         encoding="utf-8")
         print(f"wrote {a.json}")
-    sys.exit(1 if (notfound or unreachable or date_mismatch or stale_fresh) else 0)
+    n_fail = notfound + unreachable + date_mismatch + len(stale_fresh)
+    n_warn = unchecked + date_unknown + date_weak_conflict
+    rc = 2 if n_fail else (1 if n_warn else 0)
+    print(f"source_check: {n_fail} fail, {n_warn} warn -> rc {rc}")
+    sys.exit(rc)
 
 
 if __name__ == "__main__":
