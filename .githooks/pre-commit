@@ -76,7 +76,9 @@ for m in re.finditer(r"python3\s+([A-Za-z0-9_./-]+\.py)|bash\s+([A-Za-z0-9_./-]+
     tok = next(x for x in m.groups() if x)
     tok = tok.replace("<workdir>/", "")
     cands = [os.path.join(d, tok), os.path.join(d, "scripts", os.path.basename(tok)), os.path.join(d, os.path.basename(tok)),
-             os.path.join(os.path.dirname(d), "outlier-radar", tok), os.path.join(os.path.dirname(d), "lead-magnet-report", tok)]
+             os.path.join(os.path.dirname(d), "outlier-radar", tok), os.path.join(os.path.dirname(d), "lead-magnet-report", tok),
+             os.path.join("plugins", "outlier-radar", "skills", "outlier-radar", tok),
+             os.path.join("plugins", "outlier-radar", "skills", "lead-magnet-report", tok)]
     if not any(os.path.exists(c) for c in cands):
         miss.append(tok)
 print("\n".join(sorted(set(miss))))

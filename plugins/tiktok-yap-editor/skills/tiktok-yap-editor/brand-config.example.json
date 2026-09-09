@@ -15,8 +15,10 @@
     "contact_lines": "extra lines under the handle, e.g. email + site",
     "cta_clip": "OPTIONAL absolute path to a reusable spoken-outro clip; if set, add it as the final clause in each clauses.json",
     "hook_display_font": "OPTIONAL setup face for the 'branded' hook style (hook_styles.py). Default 'Anton' (free, condensed). Thicker options if you have them: 'Gotham Black', 'Montserrat Black', 'Impact'",
-    "hook_anim": "'typewriter' reveals the hook character-by-character with a cursor; 'none' = static",
-    "hook_style": "'outline' = heavy stroked hook; 'minimal' = no outline, soft shadow, smaller second line"
+    "hook_anim": "'none' (default: the full hook is on screen at frame zero, which the muted feed judges) or 'typewriter' (a second line after | types in from 1.0s; the first line stays static)",
+    "hook_style": "'outline' = heavy stroked hook; 'minimal' = no outline, soft shadow, smaller second line",
+    "platforms": "per-platform length band and hook animation; YAP_PLATFORM=<name> re-composes from the cut for that platform",
+    "series": "the franchise identity: name (the cover kicker), question_template, mark_png (drawn on covers only when the file exists), pillars"
   },
   "creator": "Your Name",
   "niche": "one line: what your channel is about",
@@ -40,6 +42,46 @@
     "yoursite.com"
   ],
   "cta_clip": "",
-  "hook_anim": "typewriter",
-  "hook_style": "outline"
+  "hook_anim": "none",
+  "hook_style": "outline",
+  "platforms": {
+    "tiktok": {
+      "len": [
+        25,
+        40
+      ],
+      "hook_anim": "none"
+    },
+    "reels": {
+      "len": [
+        25,
+        40
+      ]
+    },
+    "shorts": {
+      "len": [
+        25,
+        60
+      ]
+    },
+    "linkedin": {
+      "len": [
+        30,
+        60
+      ],
+      "hook_anim": "none",
+      "static_first_frame": true
+    }
+  },
+  "series": {
+    "name": "",
+    "question_template": "How does {subject} sell?",
+    "mark_png": "",
+    "pillars": [
+      "content pillar 1",
+      "content pillar 2",
+      "content pillar 3"
+    ]
+  },
+  "pip_strict": false
 }

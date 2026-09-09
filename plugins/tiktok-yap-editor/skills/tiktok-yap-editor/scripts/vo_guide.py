@@ -8,12 +8,13 @@ Usage:
   vo_guide.py --picture picture.mp4 --timeline picture.timeline.json \
               --out guide.mp4 [--font "Bricolage Grotesque"] [--lead 3.0]
 """
-import argparse, json, os, subprocess
+import argparse, json, os, sys
 
-def ass_time(x):
-    h = int(x // 3600); x -= h * 3600
-    m = int(x // 60); s = x - m * 60
-    return f"{h:d}:{m:02d}:{s:05.2f}"
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import ass as yass  # noqa: E402
+from yaplib import media  # noqa: E402
+
+ass_time = yass.cs
 
 def esc(t):
     return t.replace("\\", "\\\\").replace("{", "(").replace("}", ")").replace("\n", r"\N")
@@ -44,8 +45,8 @@ def main():
 
     head = f"""[Script Info]
 ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
+PlayResX: {media.W}
+PlayResY: {media.H}
 WrapStyle: 2
 ScaledBorderAndShadow: yes
 
@@ -78,26 +79,26 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     # 3s black leader, then the picture; burn the guide .ass over the whole thing
     lead_clip = os.path.join(wd, "_lead.mp4")
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-f", "lavfi",
-                    "-i", f"color=c=black:s=1080x1920:r=30:d={a.lead}",
+    media.run(["ffmpeg", "-nostdin", "-y", "-f", "lavfi",
+                    "-i", f"color=c=black:s={media.W}x{media.H}:r=30:d={a.lead}",
                     "-f", "lavfi", "-t", f"{a.lead}",
                     "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2",
                     "-b:a", "192k", "-video_track_timescale", "30000",
-                    lead_clip, "-hide_banner", "-loglevel", "error"], check=True)
+                    lead_clip, "-hide_banner", "-loglevel", "error"], what="ffmpeg vo guide")
     cat = os.path.join(wd, "_guidecat.txt")
     with open(cat, "w") as f:
         f.write(f"file '{os.path.abspath(lead_clip)}'\n")
         f.write(f"file '{os.path.abspath(a.picture)}'\n")
     base = os.path.join(wd, "_guidebase.mp4")
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-f", "concat", "-safe", "0",
+    media.run(["ffmpeg", "-nostdin", "-y", "-f", "concat", "-safe", "0",
                     "-i", cat, "-c", "copy", base,
-                    "-hide_banner", "-loglevel", "error"], check=True)
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-i", base,
+                    "-hide_banner", "-loglevel", "error"], what="ffmpeg vo guide")
+    media.run(["ffmpeg", "-nostdin", "-y", "-i", base,
                     "-vf", f"ass={ass}", "-c:v", "libx264", "-preset", "veryfast",
                     "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy",
-                    a.out, "-hide_banner", "-loglevel", "error"], check=True)
+                    a.out, "-hide_banner", "-loglevel", "error"], what="ffmpeg vo guide")
     print(f"guide -> {a.out}  (leader {a.lead}s + {n} beats)")
 
 if __name__ == "__main__":

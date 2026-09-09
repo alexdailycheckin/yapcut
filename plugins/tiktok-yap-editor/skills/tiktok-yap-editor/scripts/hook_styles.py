@@ -30,46 +30,25 @@ Then burn it over the cut for the hook window, e.g.:
   ffmpeg -i cut.mp4 -i hook.png -filter_complex \
     "[0][1]overlay=0:0:enable='between(t,0.15,5.2)'" -c:a copy out.mp4
 """
-import argparse, json, os, re
+import argparse, os, sys
 from PIL import Image, ImageDraw, ImageFont
 
-W, H = 1080, 1920
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import ass as yass  # noqa: E402
+from yaplib import brand, fonts, media  # noqa: E402
+
+W, H = media.W, media.H
 MARGIN = 56
 MAXW = W - 2 * MARGIN
 
-FONT_DIRS = [os.path.expanduser("~/Library/Fonts"), "/Library/Fonts",
-             "/System/Library/Fonts", "/System/Library/Fonts/Supplemental",
-             os.path.expanduser("~/.fonts"),
-             os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "fonts")]
-
-
-def norm(s):
-    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
-
-
 def find_font(name):
-    """Best-effort resolve a font family name to a file path."""
-    target = norm(name)
-    best = None
-    for d in FONT_DIRS:
-        if not os.path.isdir(d):
-            continue
-        for fn in os.listdir(d):
-            if not fn.lower().endswith((".ttf", ".otf", ".ttc")):
-                continue
-            stem = norm(os.path.splitext(fn)[0])
-            if stem == target:
-                return os.path.join(d, fn)
-            if best is None and (target in stem or stem in target):
-                best = os.path.join(d, fn)
-    return best
+    """Family name to a font file, or None. yaplib.fonts: exact stem, then
+    family + weight, then family; never the old fuzzy stem-in-name guess."""
+    return fonts.find_font(name, required=False) if name else None
 
 
 def hex_rgba(h, a=255):
-    h = (h or "").lstrip("#")
-    if len(h) != 6:
-        return (255, 90, 42, a)
-    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), a)
+    return yass.hex_to_rgba(h, a)
 
 
 def load(path, size, index=0, variation=None):
@@ -130,16 +109,14 @@ def main():
     ap.add_argument("--out", default="hook.png")
     a = ap.parse_args()
 
-    cfg = {}
-    if a.brand and os.path.exists(a.brand):
-        try:
-            cfg = json.load(open(a.brand))
-        except Exception:
-            cfg = {}
-    accent = hex_rgba(a.accent or cfg.get("accent_hex", "#FF5A2A"))
-    white = hex_rgba(cfg.get("base_hex", "#FFFFFB"))
-    ink = hex_rgba(cfg.get("ink_hex", "#0A0A0A"))
-    brand_sans = cfg.get("caption_font", "Bricolage Grotesque ExtraBold")
+    # brand via yaplib.brand: --brand, else the --out directory's build, else
+    # the workspace, else the shipped default. No skill-root fallback.
+    cfg = brand.load(a.brand or None, workdir=os.path.dirname(os.path.abspath(a.out)))
+    accent_hex = "" if yass.is_none(cfg.get("accent_hex")) else cfg["accent_hex"]
+    accent = hex_rgba(a.accent or accent_hex)
+    white = hex_rgba(cfg.get("base_hex"))
+    ink = hex_rgba(cfg.get("ink_hex"))
+    brand_sans = cfg.get("caption_font")
 
     setup = [s for s in a.setup.split("|") if s.strip()]
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))

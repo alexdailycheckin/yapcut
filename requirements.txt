@@ -1,0 +1,5 @@
+# Python packages the tiktok-yap-editor scripts import. preflight.py reads this
+# file and checks that every package listed here imports; keep it to what the
+# scripts actually use. System tools (ffmpeg with libass, whisper-cli) are
+# checked by preflight.py directly and are not pip packages.
+Pillow>=9.0

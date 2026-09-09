@@ -4,7 +4,7 @@
   "pillars": [],
   "accounts": [],
   "caption_font": "Montserrat Black",
-  "label_font": "Montserrat Black",
+  "label_font": "",
   "caption_case": "on",
   "accent_hex": "none",
   "base_hex": "#FFFFFF",
@@ -12,5 +12,15 @@
   "handle": "",
   "contact_lines": [],
   "cta_clip": "",
-  "hook_anim": "none"
+  "hook_anim": "none",
+  "hook_style": "outline",
+  "hook_display_font": "Anton",
+  "pip_strict": false,
+  "platforms": {
+    "tiktok":   {"len": [25, 40], "hook_anim": "none"},
+    "reels":    {"len": [25, 40]},
+    "shorts":   {"len": [25, 60]},
+    "linkedin": {"len": [30, 60], "hook_anim": "none", "static_first_frame": true}
+  },
+  "series": {"name": "", "question_template": "", "mark_png": "", "pillars": []}
 }

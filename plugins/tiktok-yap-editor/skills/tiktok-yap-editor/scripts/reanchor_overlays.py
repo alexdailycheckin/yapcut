@@ -10,12 +10,13 @@ of re-timing them by hand.
 Usage: reanchor_overlays.py --old-overlays X_overlays.json --old-words w_old.json \
          --new-words w_new.json --out X_new_overlays.json [--strip-y]
 """
-import argparse, json
+import argparse, json, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import words as ywords  # noqa: E402
 
 def toks(p):
-    d = json.load(open(p))
-    return [t["offsets"]["from"] / 1000.0
-            for t in d["transcription"] if t["text"].strip()]
+    return [s for s, _e, _t in ywords.load_words(p)]
 
 def main():
     ap = argparse.ArgumentParser()

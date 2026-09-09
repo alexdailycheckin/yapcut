@@ -23,8 +23,10 @@ actually listened to and cleared.
 """
 import argparse, json, math, os, struct, subprocess, sys, tempfile, wave
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stutter_check import find_flags, norm, accept_key, load_accepted
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from stutter_check import find_flags, norm, accept_key, load_accepted  # noqa: E402
+from yaplib import media  # noqa: E402
+from yaplib import words as ywords  # noqa: E402
 
 MODEL = os.environ.get("WHISPER_MODEL",
                        os.path.expanduser("~/.whisper-models/ggml-small.en.bin"))
@@ -38,12 +40,10 @@ def window_tokens(video, t0, t1, tmpdir):
                     "-sow", "-dtw", "small.en", "-oj", "-of", base],
                    capture_output=True, check=True)
     out = []
-    for s in json.load(open(base + ".json"))["transcription"]:
-        t = s["text"].strip()
-        if not t or t.startswith("["):
+    for s, e, t in ywords.load_words(base + ".json", offset=t0):
+        if t.startswith("["):
             continue
-        out.append((s["offsets"]["from"] / 1000.0 + t0,
-                    s["offsets"]["to"] / 1000.0 + t0, t, norm(t)))
+        out.append((s, e, t, norm(t)))
     return out
 
 def has_double_take_dip(video, t0, t1, tmpdir):
@@ -101,9 +101,7 @@ def main():
                          "deliberate (shared with stutter_check.py). An unlisted "
                          "MEDIUM fails the gate.")
     a = ap.parse_args()
-    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                                "format=duration", "-of", "csv=p=0", a.video],
-                               capture_output=True, text=True).stdout)
+    dur = media.probe_duration(a.video)
     found = []   # (t0, t1, kind, conf, text)
     with tempfile.TemporaryDirectory() as td:
       # TWO TIERS, and the narrow one is not optional (added 2026-08-28).

@@ -37,7 +37,10 @@ repetition gate now works the same way: each MEDIUM must be cut from the clause
 plan or listed in --accept-file before the build proceeds. Keys are the
 normalised repeated text, so they survive a re-cut (timestamps do not).
 """
-import argparse, json, re, sys
+import argparse, json, os, re, sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import words as ywords  # noqa: E402
 
 FUNCTION = {"the", "a", "an", "i", "you", "we", "they", "it", "to", "and",
             "of", "that", "this", "is", "in", "on", "so", "but", "for", "my",
@@ -79,15 +82,10 @@ def load_accepted(path):
 
 
 def load_words(path):
-    d = json.load(open(path))
-    out = []
-    for s in d["transcription"]:
-        t = s["text"].strip()
-        if not t:
-            continue
-        out.append((s["offsets"]["from"] / 1000.0,
-                    s["offsets"]["to"] / 1000.0, t, norm(t)))
-    return out  # index here == build_ass.py word index
+    """[(t0, t1, text, norm)]: yaplib.words.load_words plus the normalised
+    token, so the index here is the canonical word index build_ass.py and
+    the corrections json use."""
+    return [(s, e, t, norm(t)) for s, e, t in ywords.load_words(path)]
 
 
 def find_flags(w, max_phrase=6, gap=3):

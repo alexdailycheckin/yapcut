@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 """Generate a styled .ass caption file from whisper -dtw word-level JSON.
 
-This is the libass-era replacement for caption_frames.py. Instead of rendering
-one transparent PNG per frame and compositing with overlay, we emit a single
-.ass subtitle file and burn it in one ffmpeg pass (see compose_ass.sh). It is
-far faster (no per-frame PNGs), less code, and easy to restyle.
-
-It needs an ffmpeg built WITH libass (the `ass`/`subtitles` filter). The default
-Homebrew `ffmpeg` bottle does NOT have it; install `ffmpeg-full` and link it
-(`brew install ffmpeg-full && brew link --overwrite --force ffmpeg-full`).
-preflight.py asserts this. If you are on a crippled ffmpeg, fall back to
-caption_frames.py + compose.sh.
+We emit a single .ass subtitle file and burn it in one ffmpeg pass (see
+compose_ass.sh). It needs an ffmpeg built WITH libass (the `ass`/`subtitles`
+filter). The default Homebrew `ffmpeg` bottle does NOT have it; install
+`ffmpeg-full` and link it (`brew install ffmpeg-full && brew link --overwrite
+--force ffmpeg-full`). preflight.py asserts this.
 
 Caption behaviour matches the proven house style: a STABLE phrase block (default
 3 words) with the currently-spoken word emphasised (karaoke). "Emphasis" depends
@@ -29,22 +24,45 @@ Input is whisper -oj -ml 1 -sow -dtw word JSON (transcription[].offsets.from/to
 in ms, .text). Optional corrections JSON fixes transcriber slips without
 re-running audio:  {"drop": [110,111], "fix": {"117": "Be", "122": "They"}}
 
+THE HOOK AND FRAME ZERO (2026-09-09). A muted feed judges the first frame on the
+burned text, and the old typewriter spent its first 1.1s drawing one letter and
+a cursor there. The first hook line is now on screen, complete, from 0.00 with
+no fade-in, in every mode. With --hook-anim typewriter only the SECOND line
+(after `|`) types in, starting at 1.0s. --no-hook-static restores the legacy
+full typewriter for anyone who wants the old look on a platform that does not
+judge frame zero.
+
+Exit codes: 0 wrote the file; 2 a hook or caption word carries an em dash or an
+en dash (U+2014 / U+2013), which is banned on screen everywhere.
+
 Usage:
   python3 build_ass.py --words words.json --out captions.ass \
     [--preset minimal|bold|native] \
     [--hook "YOUR HOOK LINE|SECOND LINE"] [--corrections corr.json] \
     [--accent '#FFDE00'] [--font 'Montserrat'] [--caps on|off] \
-    [--cap-y 1320] [--hook-y 640] [--group 3] [--active-scale 113]
+    [--cap-y 1320] [--hook-y 640] [--group 3] [--active-scale 113] \
+    [--hook-anim none|typewriter] [--hook-static|--no-hook-static]
 
 Notes on ASS:
-  - Colours are &HBBGGRR (NOT RGB) with inverted alpha. hex_to_ass() handles it.
-  - Coordinates run from top-left of a 1080x1920 PlayRes canvas.
+  - Colours are &HBBGGRR (NOT RGB) with inverted alpha. yaplib.ass.hex_to_ass.
+  - Coordinates run from top-left of a 1080x1920 PlayRes canvas (yaplib.media W, H).
   - We anchor every line middle-centre (\\an5) and \\pos it, so scaling a single
     word keeps the line centred.
 """
-import argparse, json, os, re, sys
+import argparse
+import json
+import os
+import re
+import sys
 
-W, H = 1080, 1920
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import ass as yass  # noqa: E402
+from yaplib import fonts, media  # noqa: E402
+from yaplib import words as ywords  # noqa: E402
+
+W, H = media.W, media.H
+CURSOR = "\u258c"           # left half block, the typewriter cursor
+STATIC_HOLD = 1.0           # seconds line 1 stands alone before line 2 types in
 
 # preset -> style defaults. accent=None means "no colour, scale only".
 PRESETS = {
@@ -65,21 +83,8 @@ PRESETS = {
                    hook_accent=False, spacing=0),
 }
 
-
-def hex_to_ass(h):
-    """#RRGGBB -> &H00BBGGRR (opaque)."""
-    h = h.lstrip("#")
-    r, g, b = h[0:2], h[2:4], h[4:6]
-    return f"&H00{b}{g}{r}".upper()
-
-
-def cs(t):
-    """seconds -> H:MM:SS.cc (centiseconds), ASS time format."""
-    if t < 0:
-        t = 0
-    h = int(t // 3600); m = int((t % 3600) // 60)
-    s = t % 60
-    return f"{h}:{m:02d}:{s:05.2f}"
+hex_to_ass = yass.hex_to_ass
+cs = yass.cs
 
 
 # --- hook auto-fit: the on-screen hook must NEVER run off the edge ----------
@@ -89,39 +94,9 @@ def cs(t):
 # with the actual font file (Pillow) and wrap + shrink until the hook fits
 # inside a title-safe width. Degrades to a char-width estimate if Pillow or the
 # font file is unavailable, so it still wraps (never silently clips).
-_FONT_DIRS = [
-    os.path.expanduser("~/Library/Fonts"), "/Library/Fonts",
-    "/System/Library/Fonts", "/System/Library/Fonts/Supplemental",
-    os.path.expanduser("~/.fonts"), "/usr/share/fonts", "/usr/local/share/fonts",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "fonts"),
-]
-
-
-def _norm(s):
-    return re.sub(r"[^a-z0-9]", "", s.lower())
-
-
-def resolve_font_file(name):
-    """Best-effort map an ASS font name -> a .ttf/.otf path on disk."""
-    target = _norm(name)
-    best = None
-    for d in _FONT_DIRS:
-        if not os.path.isdir(d):
-            continue
-        for fn in os.listdir(d):
-            if not fn.lower().endswith((".ttf", ".otf", ".ttc")):
-                continue
-            stem = _norm(os.path.splitext(fn)[0])
-            if stem == target:
-                return os.path.join(d, fn)
-            if best is None and (target in stem or stem in target):
-                best = os.path.join(d, fn)
-    return best
-
-
 def _measurer(font_name, spacing_px):
     """Return measure(text, size)->px. Uses Pillow if possible, else estimate."""
-    path = resolve_font_file(font_name)
+    path = fonts.find_font(font_name, required=False)
     try:
         from PIL import ImageFont  # noqa
         cache = {}
@@ -131,7 +106,7 @@ def _measurer(font_name, spacing_px):
                 return 0.0
             f = cache.get(size)
             if f is None:
-                f = ImageFont.truetype(path, size) if path else ImageFont.load_default()
+                f = ImageFont.truetype(path, size)
                 cache[size] = f
             try:
                 w = f.getlength(text)
@@ -205,6 +180,32 @@ def fit_hook(hlines, font_name, caps, spacing_px, base_size,
     return lines, min_size, n_head
 
 
+def tw_units(s, glue_newline=True):
+    """Split ASS text into typewriter units. {\\...} override blocks are
+    zero-width, so they glue to the NEXT unit (a partial "{\\fs6" must never be
+    typed as literal text). With glue_newline a "\\N" glues too, so a new line
+    appears together with its first character and the cursor never sits on an
+    empty line at the wrong size; the legacy typewriter counted "\\N" as its own
+    unit (glue_newline=False)."""
+    units, i, pend = [], 0, ""
+    while i < len(s):
+        if s[i] == "{":
+            j = s.find("}", i)
+            if j < 0:
+                break
+            pend += s[i:j + 1]; i = j + 1
+        elif s[i:i + 2] == "\\N":
+            if glue_newline:
+                pend += "\\N"; i += 2
+            else:
+                units.append(pend + "\\N"); pend = ""; i += 2
+        else:
+            units.append(pend + s[i]); pend = ""; i += 1
+    if pend:
+        units.append(pend)
+    return units
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--words", required=True)
@@ -221,7 +222,11 @@ def main():
     ap.add_argument("--active-scale", type=int, default=None)
     ap.add_argument("--hook-secs", type=float, default=2.5)
     ap.add_argument("--hook-anim", choices=["none", "typewriter"], default="none",
-                    help="typewriter = reveal the hook character-by-character with a cursor")
+                    help="typewriter = the SECOND hook line types in from 1.0s (line 1 is "
+                         "static from 0.00 unless --no-hook-static)")
+    ap.add_argument("--hook-static", action=argparse.BooleanOptionalAction, default=True,
+                    help="keep the first hook line fully drawn from 0.00 (default). "
+                         "--no-hook-static = legacy typewriter over the whole hook.")
     ap.add_argument("--hook-style", choices=["outline", "minimal"], default="outline",
                     help="outline = heavy stroked hook (legacy default). minimal = no "
                          "outline, soft shadow, second line at ~55%% size (the "
@@ -251,16 +256,24 @@ def main():
     if a.accent is not None:
         p["accent"] = None if a.accent.lower() in ("none", "off", "") else a.accent
 
-    d = json.load(open(a.words))
-    words = [[s["offsets"]["from"] / 1000.0, s["offsets"]["to"] / 1000.0, s["text"].strip()]
-             for s in d["transcription"] if s["text"].strip()]
+    # DASH GATE: em/en dashes are banned on screen (Part 1). A hook carries the
+    # author's text verbatim and a corrections "fix" can smuggle one into a
+    # caption, so both are checked here, before anything is written.
+    if ywords.has_dash(a.hook):
+        print("DASH GATE FAILED: the hook contains an em dash or en dash. Use a comma, "
+              "a colon, or a '|' line break.")
+        return 2
+
+    words = [list(w) for w in ywords.load_words(a.words)]
     if not words:
         sys.exit("no words in transcript")
-
     if a.corrections:
-        c = json.load(open(a.corrections)); drop = set(c.get("drop", []))
-        fix = {int(k): v for k, v in c.get("fix", {}).items()}
-        words = [[w[0], w[1], fix.get(i, w[2])] for i, w in enumerate(words) if i not in drop]
+        words = [list(w) for w in ywords.apply_corrections(words, a.corrections)]
+    dashed = [(i, w[2]) for i, w in enumerate(words) if ywords.has_dash(w[2])]
+    if dashed:
+        print("DASH GATE FAILED: caption word(s) carry an em/en dash: "
+              + ", ".join(f"#{i} {t!r}" for i, t in dashed[:8]))
+        return 2
 
     eos = lambda t: t.rstrip()[-1:] in ".?!"
     def disp(t):
@@ -269,7 +282,7 @@ def main():
         t = t.replace("{", "(").replace("}", ")")  # ASS-safe
         return t.upper() if p["caps"] else t
 
-    # stable phrase groups (same logic as caption_frames.py)
+    # stable phrase groups
     groups, cur = [], []
     for w in words:
         cur.append(w)
@@ -281,7 +294,7 @@ def main():
     accent_ass = hex_to_ass(p["accent"]) if p["accent"] else base_ass
     out_ass = hex_to_ass(p["outline"])
     # spark/counter accent: explicit --accent-hex wins, else the caption accent
-    spark_ass = hex_to_ass(a.accent_hex) if a.accent_hex else accent_ass
+    spark_ass = hex_to_ass(a.accent_hex) if (a.accent_hex and not yass.is_none(a.accent_hex)) else accent_ass
     SC = p["active_scale"]
 
     # --- build dialogue lines: one per active word so the highlight moves ---
@@ -331,18 +344,19 @@ def main():
                 print(f"  hook auto-fit: {p['hook_size']}px -> {fit_size}px, "
                       f"{len(disp_lines)} line(s) (safe width {int(safe_w)}px)")
             p["hook_size"] = fit_size
+            head_txt = "\\N".join(disp_lines[:n_head])
             if a.hook_style == "minimal" and len(disp_lines) > n_head:
                 # minimal look: big statement line(s) + smaller context line(s).
                 # sub MUST match fit_hook's sub_of() or the measurement that
                 # decided the wrap no longer describes what gets drawn.
-                sub = max(a.hook_min_size // 2, int(fit_size * SUB_FRAC))
-                full = "\\N".join(disp_lines[:n_head]) + "".join(
-                    f"\\N{{\\fs{sub}}}{ln}" for ln in disp_lines[n_head:])
-                block_h = 1.25 * (fit_size * n_head
-                                  + sub * (len(disp_lines) - n_head))
+                sub_fs = max(a.hook_min_size // 2, int(fit_size * SUB_FRAC))
+                tail_txt = "".join(f"\\N{{\\fs{sub_fs}}}{ln}" for ln in disp_lines[n_head:])
+                block_h = 1.25 * (fit_size * n_head + sub_fs * (len(disp_lines) - n_head))
             else:
-                full = "\\N".join(disp_lines)
+                sub_fs = fit_size
+                tail_txt = "".join(f"\\N{ln}" for ln in disp_lines[n_head:])
                 block_h = 1.25 * fit_size * len(disp_lines)
+            full = head_txt + tail_txt
             # \an5 centers the whole multi-line block on hook_y
             hook_band = {"top": int(p["hook_y"] - block_h / 2 - 12),
                          "bottom": int(p["hook_y"] + block_h / 2 + 12),
@@ -357,36 +371,45 @@ def main():
                 wd = a.hook_spark.upper() if p["caps"] else a.hook_spark
                 return text.replace(wd, f"{{\\1c{spark_ass}}}{wd}{{\\1c{hk_col}}}", 1)
 
-            if a.hook_anim == "typewriter":
-                # reveal unit-by-unit (a "\\N" line break counts as one unit).
-                # {\...} override blocks are zero-width: glue them to the next
-                # unit so a partial "{\fs6" never gets typed as literal text.
-                units, i, pend = [], 0, ""
-                while i < len(full):
-                    if full[i] == "{":
-                        j = full.find("}", i)
-                        if j < 0: break
-                        pend += full[i:j + 1]; i = j + 1
-                    elif full[i:i + 2] == "\\N":
-                        units.append(pend + "\\N"); pend = ""; i += 2
-                    else:
-                        units.append(pend + full[i]); pend = ""; i += 1
-                if pend: units.append(pend)
+            if a.hook_anim == "typewriter" and not a.hook_static:
+                # LEGACY: the whole hook types in from 0.00 (frame zero shows
+                # one letter and a cursor). Reachable only via --no-hook-static.
+                units = tw_units(full, glue_newline=False)
                 type_dur = min(1.1, a.hook_secs * 0.55)
                 step = type_dur / max(1, len(units))
                 for k in range(1, len(units) + 1):
                     sub = "".join(units[:k])
-                    cursor = "" if k == len(units) else "▌"  # ▌
+                    cursor = "" if k == len(units) else CURSOR
                     st = (k - 1) * step
                     en = k * step if k < len(units) else type_dur
                     events.append((st, en + 0.001, "Hook",
                                    f"{{{pos}\\1c{hk_col}}}{sub}{cursor}"))
-                # held full hook (with spark), fades out
                 events.append((type_dur, a.hook_secs, "Hook",
                                f"{{{pos}\\1c{hk_col}\\fad(0,250)}}{spark(full)}"))
+            elif a.hook_anim == "typewriter" and tail_txt:
+                # Line 1 static and complete from 0.00 (no fade-in), line 2
+                # types in from STATIC_HOLD. During the hold a fully transparent
+                # glyph stands in for line 2 so the block height, and therefore
+                # line 1's position, never jumps when typing starts.
+                type_dur = min(1.1, max(0.2, (a.hook_secs - STATIC_HOLD) * 0.5))
+                units = tw_units(tail_txt, glue_newline=True)
+                placeholder = f"\\N{{\\fs{sub_fs}\\alpha&HFF&}}{CURSOR}"
+                events.append((0.0, STATIC_HOLD, "Hook",
+                               f"{{{pos}\\1c{hk_col}}}{spark(head_txt)}{placeholder}"))
+                step = type_dur / max(1, len(units))
+                for k in range(1, len(units) + 1):
+                    partial = "".join(units[:k])
+                    cursor = "" if k == len(units) else CURSOR
+                    st = STATIC_HOLD + (k - 1) * step
+                    en = STATIC_HOLD + (k * step if k < len(units) else type_dur)
+                    events.append((st, en + 0.001, "Hook",
+                                   f"{{{pos}\\1c{hk_col}}}{spark(head_txt)}{partial}{cursor}"))
+                events.append((STATIC_HOLD + type_dur, a.hook_secs, "Hook",
+                               f"{{{pos}\\1c{hk_col}\\fad(0,250)}}{spark(full)}"))
             else:
+                # static hook: fully drawn at frame zero, no fade-in, fades out.
                 events.append((0.0, a.hook_secs, "Hook",
-                               f"{{{pos}\\1c{hk_col}\\fad(150,250)}}{spark(full)}"))
+                               f"{{{pos}\\1c{hk_col}\\fad(0,250)}}{spark(full)}"))
 
     # --- optional extra overlays: source lower-thirds + number count-ups ---
     if a.overlays:
@@ -394,6 +417,9 @@ def main():
             ot = o.get("type")
             if ot == "source":
                 txt = o["text"].replace("{", "(").replace("}", ")")
+                if ywords.has_dash(txt):
+                    print(f"DASH GATE FAILED: source overlay {txt!r} carries an em/en dash")
+                    return 2
                 events.append((o["start"], o["end"], "Cap",
                                f"{{\\an1\\pos(48,1500)\\fn Space Mono\\fs34\\bord5\\shad2"
                                f"\\1c{base_ass}\\3c{out_ass}\\fad(150,150)}}{txt}"))
@@ -470,7 +496,8 @@ def main():
     for st, en, style, txt in events:
         lines.append(f"Dialogue: 0,{cs(st)},{cs(en)},{style},,0,0,0,,{txt}")
 
-    open(a.out, "w").write("\n".join(lines) + "\n")
+    with open(a.out, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
     # geometry sidecar: burn_pips.py reads this to keep raster PiPs off the
     # hook text and the caption line (it cannot parse .ass itself).
     meta = {"hook": hook_band,
@@ -480,7 +507,8 @@ def main():
     print(f"wrote {a.out}  (preset={a.preset}, font={p['font']}, "
           f"accent={p['accent'] or 'scale-only'}, {len(groups)} phrase-groups, "
           f"{len(events)} events)")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

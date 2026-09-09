@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # libass-era final pass: burn a generated .ass caption file onto the cut,
 # normalize loudness, and re-encode to clean constant-frame-rate 30fps.
-# This replaces compose.sh (the Pillow PNG-overlay path) when ffmpeg has libass.
+# The one caption burn path: it needs an ffmpeg built with libass (preflight.py
+# asserts it). The Pillow PNG-overlay fallback was removed 2026-09-09.
 #
 # Usage: compose_ass.sh <cut.mp4> <captions.ass> <out.mp4>
 #
@@ -13,7 +14,7 @@
 # - loudnorm to -14 LUFS: TikTok normalizes toward ~-14; raw phone audio (~-22)
 #         sounds thin against the feed. loudnorm resamples internally (its
 #         output hits 96/192kHz), so -ar 48000 pins the export back to normal.
-# - re-encode CFR 30fps: a concat of copied streams (from cut.py) can play black
+# - re-encode CFR 30fps: a concat of copied streams (from yapcut.py) can play black
 #         in QuickTime due to irregular timestamps; this clean pass fixes it.
 set -euo pipefail
 CUT="$1"; ASS="$2"; OUT="$3"

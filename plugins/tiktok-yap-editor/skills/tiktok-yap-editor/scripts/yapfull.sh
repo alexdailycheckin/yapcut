@@ -1,245 +1,128 @@
 #!/usr/bin/env bash
-# Full per-clip pipeline: single-pass cut -> QA -> brand captions -> CTA contact
-# block -> compose. Reads a brand-config.json so it is creator-agnostic.
+# Full per-clip pipeline (Mode A): single-pass cut -> gates -> brand captions ->
+# CTA contact block -> compose -> gates on the finished file. Creator-agnostic:
+# brand comes from brand-config.json via yaplib/brand.py, gates from gates.sh.
 #
 # Usage:
 #   yapfull.sh <workdir> <clauses.json> <out.mp4> "<hook|line2>" "<hookword>" \
 #              [brand-config.json] [corrections.json]
 #
-# Config resolution (first found): arg > <workdir>/brand-config.json >
-#   <skill>/brand-config.json > scripts/brand-config.default.json
+# Brand resolution (yaplib/brand.py): arg > <workdir>/brand-config.json >
+#   <workspace>/brand-config.json > scripts/brand-config.default.json.
+#   No skill-root fallback.
+# Env:
+#   YAP_PLATFORM=tiktok|reels|shorts|linkedin  (default tiktok). Picks that
+#       platform's hook animation and length band from brand-config `platforms`;
+#       any platform other than tiktok suffixes the output: <out>.<platform>.mp4.
+#   YAP_FROM_CUT=1   skip the cut and reuse $WD/full_<base>.mp4 (caption fixes,
+#       platform variants, hook variants: seconds instead of minutes)
+#   YAP_CUT_BASE=<base>  name of the cut to reuse when <out> differs from it
+#       (hook_variant.sh sets this so clip-b.mp4 composes from full_clip.mp4)
+#   HOOK_SECS=5.0    how long the burned hook stays up
+#   YAP_SCRIPT=<path>  verbatim script for the caption gate (default $WD/<base>_script.txt)
+#   plus the gate overrides documented in gates.sh.
+# Writes $WD/<final-base>_gates.json (every gate's rc, hook, platform, paths);
+# finalize.sh turns that into the edit record.
 set -euo pipefail
 WD="$1"; CLAUSES="$2"; OUT="$3"; HOOK="$4"; HOOKWORD="${5:-}"; CFG="${6:-}"; CORR="${7:-}"
 SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPTS/gates.sh"
+mkdir -p "$WD"
+
+eval "$(python3 "$SCRIPTS/yaplib/brand.py" --shell --workdir "$WD" ${CFG:+--brand "$CFG"})"
+CFG="$BRANDCFG"
+echo "brand: $CFG  platform: $PLATFORM  hook_anim: $HANIM  hook_style: $HSTYLE"
+
 OUTBASE="$(basename "${OUT%.*}")"
-
-if [ -z "$CFG" ]; then
-  if   [ -f "$WD/brand-config.json" ];        then CFG="$WD/brand-config.json"
-  elif [ -f "$SCRIPTS/../brand-config.json" ]; then CFG="$SCRIPTS/../brand-config.json"
-  else CFG="$SCRIPTS/brand-config.default.json"; fi
-fi
-[ -n "$CORR" ] || CORR="$WD/${OUTBASE}_corrections.json"
+CUTBASE="${YAP_CUT_BASE:-$OUTBASE}"
+if [ "$PLATFORM" != "tiktok" ]; then OUT="${OUT%.*}.${PLATFORM}.mp4"; fi
+FINALBASE="$(basename "${OUT%.*}")"
+CUT="$WD/full_${CUTBASE}.mp4"
+WORDS="$WD/w_${CUTBASE}.json"
+KEEPS="$WD/keeps_full_${CUTBASE}.json"
+ASS="$WD/cap_${FINALBASE}.ass"
+[ -n "$CORR" ] || CORR="$WD/${CUTBASE}_corrections.json"
 [ -f "$CORR" ] || echo '{}' > "$CORR"
+# optional per-clip extra overlays (source tags, number count-ups, pips):
+# always passed quoted, empty string when absent so paths with spaces are safe
+OVRFILE="$WD/${CUTBASE}_overlays.json"; [ -f "$OVRFILE" ] || OVRFILE=""
+STUTOK="$WD/${CUTBASE}_stutter_ok.json"
+CAPOK="$WD/${CUTBASE}_capqa_ok.json"
+SCRIPTFILE="${YAP_SCRIPT:-$WD/${CUTBASE}_script.txt}"
+HOOK_SECS="${HOOK_SECS:-5.0}"
 
-eval "$(python3 - "$CFG" <<'PY'
-import json,sys,shlex
-c=json.load(open(sys.argv[1]))
-g=lambda k,d:c.get(k,d)
-print("CFONT=%s"%shlex.quote(g("caption_font","Montserrat Black")))
-print("CCASE=%s"%shlex.quote("on" if str(g("caption_case","on")).lower() in("on","caps","upper","true") else "off"))
-print("ACCENT=%s"%shlex.quote(g("accent_hex","none")))
-print("BASE=%s"%shlex.quote(g("base_hex","#FFFFFF")))
-print("INK=%s"%shlex.quote(g("ink_hex","#000000")))
-print("HANDLE=%s"%shlex.quote(g("handle","")))
-print("HFONT=%s"%shlex.quote(g("label_font", g("caption_font","Montserrat Black"))))
-print("CONTACT=%s"%shlex.quote("\n".join(g("contact_lines",[]))))
-print("HANIM=%s"%shlex.quote(g("hook_anim","none")))
-print("HSTYLE=%s"%shlex.quote(g("hook_style","outline")))
-PY
-)"
-# optional per-clip extra overlays (source tags, number count-ups): <out>_overlays.json
-# (always pass --overlays, quoted; empty string when absent so paths with spaces are safe)
-OVRFILE="$WD/${OUTBASE}_overlays.json"; [ -f "$OVRFILE" ] || OVRFILE=""
+gates_init "$WD/${FINALBASE}_gates.json" "$PLATFORM" "$OUT"
+gate_meta_json paths "$(python3 -c 'import json,sys; print(json.dumps(dict(zip(sys.argv[1::2], sys.argv[2::2]))))' \
+  clauses "$CLAUSES" cut "$CUT" words "$WORDS" keeps "$KEEPS" ass "$ASS" corrections "$CORR" \
+  overlays "$OVRFILE" script "$SCRIPTFILE" stutter_ok "$STUTOK" capqa_ok "$CAPOK" brand "$CFG")"
+
+# 0. HOOK WORDS GATE, before any rendering: a hook that needs shrinking to fit
+# is a hook the muted viewer cannot read in one fixation.
+gate_hook_words "$HOOK" "$HOOKWORD" "$HANIM" "$HSTYLE" "$HOOK_SECS"
 
 # 1. single-pass cut (clean CFR, dead-air, tight tails, anti-stutter crop-alt)
-# YAP_FROM_CUT=1 skips this stage and reuses the existing $WD/full_<out>.mp4:
-# use it for caption-only fixes, or when the raw is gone and the cut survives.
 if [ "${YAP_FROM_CUT:-0}" != "1" ]; then
-python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$WD/full_${OUTBASE}.mp4" \
-  --silence-db -42 --auto-floor --head-trim --padr 0.12 --padl 0.10 --min-gap 0.55 --min-seg 0.45 --d 0.10
+  python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$CUT" \
+    --silence-db -42 --auto-floor --head-trim --padr 0.12 --padl 0.10 --min-gap 0.55 --min-seg 0.45 --d 0.10
+else
+  [ -f "$CUT" ] || { echo "YAP_FROM_CUT=1 but no cut at $CUT"; exit 2; }
+  echo "reusing cut: $CUT"
 fi
 echo "--- blackdetect (cut) ---"
-ffmpeg -nostdin -i "$WD/full_${OUTBASE}.mp4" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
+ffmpeg -nostdin -i "$CUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  NO black frames"
-DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$WD/full_${OUTBASE}.mp4")
+DUR=$(python3 "$SCRIPTS/yaplib/media.py" duration "$CUT")
 echo "--- dur: $DUR ---"
 
-# 2. word-timed captions in the brand style
-bash "$SCRIPTS/transcribe.sh" "$WD/full_${OUTBASE}.mp4" "$WD/w_${OUTBASE}" --words >/dev/null 2>&1
-
-# 2b. STUTTER GATE: a doubled take / restart must never ship. Two detectors:
-# the full transcript (free, indices feed caption drops) AND a windowed audio
-# scan: whisper transcribing a whole file sometimes COLLAPSES a repeated line
-# into one, hiding it from any transcript check; short windows stay literal.
-# Override for a deliberate rhetorical repeat: YAP_ALLOW_STUTTER=1.
-# MEDIUM findings are NOT advisory (2026-08-27): an unlisted one fails the gate,
-# exactly like an unknown caption word does. Printing MEDIUM and passing anyway
-# is what shipped "Toronto's local... Toronto's local news" on the 08-24 CBRE
-# episode: both detectors flagged it, it sat next to the deliberate "CNBC ran it
-# / Gizmodo ran it" anaphora, and it got waved through with them. Listen to each
-# one, then either cut it via the clause plan or record it in <out>_stutter_ok.json.
-STUTOK="$WD/${OUTBASE}_stutter_ok.json"
-[ -f "$STUTOK" ] || echo '[]' > "$STUTOK"
-set +e
-python3 "$SCRIPTS/stutter_check.py" --words "$WD/w_${OUTBASE}.json" \
-  --accept-file "$STUTOK"; STUT_RC=$?
-python3 "$SCRIPTS/restart_scan.py" --video "$WD/full_${OUTBASE}.mp4" \
-  --accept-file "$STUTOK"; SCAN_RC=$?
-set -e
-if { [ "$STUT_RC" -eq 2 ] || [ "$SCAN_RC" -eq 2 ]; } && [ "${YAP_ALLOW_STUTTER:-0}" != "1" ]; then
-  echo "STUTTER GATE FAILED: a real restart -> cut it via the clause plan; a"
-  echo "  deliberate repeat -> add its printed key to ${OUTBASE}_stutter_ok.json."
-  exit 2
+# 2. word-timed transcript of the cut (reused on YAP_FROM_CUT=1 when present:
+# the cut did not change, so neither did its words)
+if [ "${YAP_FROM_CUT:-0}" = "1" ] && [ -s "$WORDS" ]; then
+  echo "reusing transcript: $WORDS"
+else
+  bash "$SCRIPTS/transcribe.sh" "$CUT" "$WD/w_${CUTBASE}" --words >/dev/null 2>&1
 fi
 
-# 2c. DEAD-AIR GATE: pauses that survived the cut. silencedetect cannot see
-# them under room tone, and the caption transcript (-sow) glues pause time
-# into word tokens, so the gate transcribes the cut itself (punct-separate).
-# A fail means the cut stage never saw the pause (noisy take): measure the
-# floor, raise --silence-db, re-cut (SKILL.md 6b). Deliberate beats:
-# YAP_ALLOW_GAPS="6.9,41.2" permits those timestamps; YAP_ALLOW_GAPS=1 skips.
-if [ "${YAP_ALLOW_GAPS:-0}" != "1" ]; then
-  set +e
-  python3 "$SCRIPTS/gap_check.py" --video "$WD/full_${OUTBASE}.mp4" \
-    --allow "${YAP_ALLOW_GAPS:-}"; GAP_RC=$?
-  set -e
-  if [ "$GAP_RC" -eq 2 ]; then
-    echo "DEAD-AIR GATE FAILED: the cut is not tight."
-    exit 2
-  fi
-fi
+# 2b. REPETITION GATE: two detectors (transcript + windowed audio scan). MEDIUM
+# is a decision, not a note: unlisted MEDIUM fails, list judged ones in $STUTOK.
+gate_stutter_restart "$WORDS" "$CUT" "$STUTOK"
 
-python3 "$SCRIPTS/build_ass.py" --words "$WD/w_${OUTBASE}.json" --out "$WD/cap_${OUTBASE}.ass" \
+# 2c. DEAD-AIR GATE: pauses that survived the cut, transcript-measured.
+gate_dead_air "$CUT"
+
+# 3. captions + hook in the brand style, then the CTA contact block
+python3 "$SCRIPTS/build_ass.py" --words "$WORDS" --out "$ASS" \
   --preset minimal --font "$CFONT" --caps "$CCASE" --accent none --active-scale 112 \
-  --hook-y 430 --hook "$HOOK" --hook-secs "${HOOK_SECS:-5.0}" --hook-anim "$HANIM" --hook-style "$HSTYLE" --hook-spark "$HOOKWORD" \
-  --accent-hex "$ACCENT" --overlays "$OVRFILE" --corrections "$CORR" >/dev/null
+  --hook-y 430 --hook "$HOOK" --hook-secs "$HOOK_SECS" --hook-anim "$HANIM" --hook-style "$HSTYLE" \
+  --hook-spark "$HOOKWORD" --accent-hex "$ACCENT" --overlays "$OVRFILE" --corrections "$CORR"
+python3 "$SCRIPTS/cta_block.py" --ass "$ASS" --dur "$DUR" --handle "$HANDLE" --contact "$CONTACT" \
+  --font "$HFONT" --accent "$ACCENT" --base "$BASE" --ink "$INK" --lead 9.7
 
-# 3. brand touches: accent spark on the hook word + contact block at the CTA tail
-python3 - "$WD/cap_${OUTBASE}.ass" "$HOOKWORD" "$DUR" "$ACCENT" "$BASE" "$INK" "$HANDLE" "$CONTACT" "$HFONT" <<'PY'
-import sys
-p,hw,dur,accent,base,ink,handle,contact,hfont=sys.argv[1:10]
-dur=float(dur)
-def hx(h):  # #RRGGBB -> ASS &H00BBGGRR
-    h=h.lstrip("#"); return "&H00%s%s%s"%(h[4:6],h[2:4],h[0:2]) if len(h)==6 else "&H00FFFFFF"
-A=hx(accent) if accent.lower() not in("none","off","") else None
-B=hx(base); I=hx(ink)
-s=open(p).read()
-def t(x): return "0:00:%05.2f"%x
-if handle:
-    hs=max(0.0,dur-9.7)
-    lines=[l for l in contact.split("\n") if l.strip()]
-    spark=("{\\1c%s&}+ "%A) if A else "+ "
-    body=spark+"{\\1c%s&}%s"%(B,handle)
-    for l in lines: body+=r"\N{\fs30\1c%s&}%s"%(B,l)
-    ev=(r"Dialogue: 2,%s,%s,Cap,,0,0,0,,{\an2\pos(540,1792)\fn %s\3c%s\bord5\shad0\fsp2\fad(150,0)}{\fs38}%s"
-        %(t(hs),t(dur),hfont,I,body))
-    s=s.rstrip()+"\n"+ev+"\n"
-open(p,"w").write(s)
-PY
+# 3b. CAPTION GATE (scripted runs): no burned word the script never said.
+gate_caption "$ASS" "$SCRIPTFILE" "$CFG" "$OVRFILE" "$CAPOK"
 
-# 3b. CAPTION GATE: for scripted runs, no burned word the script never said
-# (whisper garbles brand names: ARK/Radio/clod/chatgbt all shipped once).
-# Contract: save the verbatim script to $WD/<out>_script.txt (or $YAP_SCRIPT).
-# No script file = gate skipped (unscripted yaps). Override: YAP_ALLOW_CAPTIONS=1.
-SCRIPTFILE="${YAP_SCRIPT:-$WD/${OUTBASE}_script.txt}"
-if [ -f "$SCRIPTFILE" ] && [ "${YAP_ALLOW_CAPTIONS:-0}" != "1" ]; then
-  python3 "$SCRIPTS/caption_qa.py" --ass "$WD/cap_${OUTBASE}.ass" \
-    --script "$SCRIPTFILE" --brand "$CFG" --overlays "$OVRFILE" \
-    --accept-file "$WD/${OUTBASE}_capqa_ok.json" \
-    || { echo "CAPTION GATE FAILED: garbles -> ${OUTBASE}_corrections.json + YAP_FROM_CUT=1; ad-libs -> ${OUTBASE}_capqa_ok.json."; exit 2; }
-elif [ ! -f "$SCRIPTFILE" ]; then
-  echo "caption gate SKIPPED (no script at $SCRIPTFILE)"
-fi
-
-# 4. compose: burn captions, loudnorm -14, clean CFR re-encode
-bash "$SCRIPTS/compose_ass.sh" "$WD/full_${OUTBASE}.mp4" "$WD/cap_${OUTBASE}.ass" "$OUT" 2>&1 | grep -E "wrote|I:|loudness"
+# 4. compose: burn captions, loudness to -14 (measured, corrected, verified), clean CFR
+bash "$SCRIPTS/compose_ass.sh" "$CUT" "$ASS" "$OUT"
 
 # 4a. burn image PiPs (logos, article/headline screenshots). libass cannot
-# composite raster, so build_ass only drew the text overlays (source/counter);
-# the `pip` entries in the overlays JSON are burned here so they never silently
-# drop. Real screenshots/logos only (no AI), per the hard rule.
+# composite raster, so build_ass only drew the text overlays; the `pip` entries
+# are burned here so they never silently drop. Real screenshots/logos only.
 if [ -n "$OVRFILE" ] && [ -f "$OVRFILE" ]; then
   python3 "$SCRIPTS/burn_pips.py" --video "$OUT" --overlays "$OVRFILE" --workdir "$WD" \
-    --meta "$WD/cap_${OUTBASE}.ass.meta.json" --out "$OUT.pips.mp4"
+    --meta "$ASS.meta.json" --out "$OUT.pips.mp4"
   [ -f "$OUT.pips.mp4" ] && mv "$OUT.pips.mp4" "$OUT"
 fi
 ffmpeg -nostdin -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  FINAL: NO black frames"
 
-# 4b. SEAM GATE: no splice holes/blips at any join in the finished video.
-# seam_qa assumes room tone never reaches digital silence, so anything quieter
-# than -65dB beside a join must be a dropout. A gated mic (or a very quiet room)
-# breaks that assumption: the pause between two words really is silence, so a
-# clean edit fails every join. YAP_ALLOW_SEAM=1 overrides, but ONLY once
-# seam_evidence.py has shown the flagged joins are short (inter-word rhythm, not
-# dead air) AND free of step clicks. Run it, read it, then decide:
-#   python3 scripts/seam_evidence.py "$OUT" "$WD/keeps_full_${OUTBASE}.json"
-# Never set this just to turn a red gate green.
-if ! python3 "$SCRIPTS/seam_qa.py" --keeps "$WD/keeps_full_${OUTBASE}.json" --video "$OUT"; then
-  if [ "${YAP_ALLOW_SEAM:-0}" = "1" ]; then
-    echo "SEAM GATE: failures overridden by YAP_ALLOW_SEAM=1"
-    echo "  (justify with seam_evidence.py: short runs, no clicks)"
-  else
-    echo "SEAM GATE FAILED: splice hole at a join"
-    echo "  If this mic gates to silence, measure first:"
-    echo "    python3 $SCRIPTS/seam_evidence.py \"$OUT\" \"$WD/keeps_full_${OUTBASE}.json\""
-    exit 2
-  fi
-fi
-
-# 4c. RECEIPTS + RETENTION (on the finished file, overlays counted).
-# pip_coverage: every spoken brand/stat wants a receipt on screen. Strict
-# (build-fatal) when brand-config sets "pip_strict": true or YAP_PIP_STRICT=1;
-# otherwise a report. retention_check: re-hook + pattern-interrupt budget,
-# hook-end read from the .ass so the phantom default never masks a gap.
-# Override retention: YAP_ALLOW_STATIC=1.
-PIPSTRICT=$(python3 -c "import json,sys;print(1 if json.load(open(sys.argv[1])).get('pip_strict') else 0)" "$CFG" 2>/dev/null || echo 0)
-[ "${YAP_PIP_STRICT:-0}" = "1" ] && PIPSTRICT=1
-set +e
-if [ "$PIPSTRICT" = "1" ]; then
-  python3 "$SCRIPTS/pip_coverage.py" --words "$WD/w_${OUTBASE}.json" \
-    --overlays "$OVRFILE" --corrections "$CORR" --strict; PIP_RC=$?
-else
-  python3 "$SCRIPTS/pip_coverage.py" --words "$WD/w_${OUTBASE}.json" \
-    --overlays "$OVRFILE" --corrections "$CORR"; PIP_RC=$?
-fi
-set -e
-[ "$PIP_RC" -eq 2 ] && { echo "RECEIPTS GATE FAILED: add evidence PiPs/counters at the MISS timestamps."; exit 2; }
-
-HOOKEND=$(python3 -c "
-import re,sys
-last=0.0
-for l in open(sys.argv[1],encoding='utf-8',errors='ignore'):
-    if l.startswith('Dialogue:') and ',Hook,' in l:
-        h,m,s=l.split(',')[2].split(':'); last=max(last,int(h)*3600+int(m)*60+float(s))
-print(f'{last:.2f}' if last else '2.5')" "$WD/cap_${OUTBASE}.ass" 2>/dev/null || echo 2.5)
-# The pattern-interrupt budget is 5s for short form and ~6s once the video is
-# 60s+ (a longer video is allowed to breathe; SKILL.md, "Retention pass"). This
-# was left at retention_check's 5s default, so every long-form build was judged
-# at the short-form bar and a legal 5.9s beat failed the gate.
-MAXGAP=$(python3 -c "
-import sys
-print('6.0' if float(sys.argv[1]) >= 60 else '5.0')" "$DUR" 2>/dev/null || echo 5.0)
-if [ "${YAP_ALLOW_STATIC:-0}" != "1" ]; then
-  echo "--- retention (max-gap ${MAXGAP}s) ---"
-  if [ -n "$OVRFILE" ]; then
-    python3 "$SCRIPTS/retention_check.py" --video "$OUT" --overlays "$OVRFILE" --hook-end "$HOOKEND" --max-gap "$MAXGAP" \
-      || { echo "RETENTION GATE FAILED: fill the static stretches (PiP/counter/punch-in)."; exit 2; }
-  else
-    python3 "$SCRIPTS/retention_check.py" --video "$OUT" --hook-end "$HOOKEND" --max-gap "$MAXGAP" \
-      || { echo "RETENTION GATE FAILED: fill the static stretches (PiP/counter/punch-in)."; exit 2; }
-  fi
-fi
-
-# 4d. DRIFT GATE (fatal): the picture and the voice must be the same length.
-# The old per-segment fps=30 encode gained ~0.5 frame per cut, so lips slid
-# progressively off the voice (up to +0.77s by the end on measured batches).
-# yapcut now paces frames against the cumulative audio clock; this re-checks
-# the SHIPPED file end to end so a regression can never reach a post.
-python3 - "$OUT" <<'PY'
-import subprocess, sys
-sd = {}
-for ln in subprocess.run(["ffprobe","-v","error","-show_entries",
-        "stream=codec_type,duration","-of","csv=p=0",sys.argv[1]],
-        capture_output=True,text=True).stdout.strip().splitlines():
-    t, d = ln.split(",")[:2]
-    sd[t] = float(d)
-drift = sd.get("video",0) - sd.get("audio",0)
-print(f"--- QA: video-audio drift {drift:+.3f}s ---")
-# limit = 2 frames + ~45ms AAC priming/padding (the aac encode inflates the
-# audio STREAM duration with silence; content sync is gated strictly in yapcut)
-if abs(drift) > 0.112:
-    print(f"DRIFT GATE FAILED: picture is {drift:+.3f}s vs voice (limit 0.112s). DO NOT SHIP.")
-    sys.exit(2)
-PY
+# 4b-4e. gates on the FINISHED file
+gate_seam "$KEEPS" "$OUT"
+gate_receipts "$WORDS" "$OVRFILE" "$CORR" "$PIPSTRICT"
+gate_retention "$OUT" "$OVRFILE" "$ASS" "$DUR" "$KEEPS"
+gate_drift "$OUT"
+gate_frame0 "$ASS" "$HOOK"
+FDUR=$(python3 "$SCRIPTS/yaplib/media.py" duration "$OUT")
+gate_length "$FDUR" "$PLATFORM" "$PLATFORM_LEN_MIN" "$PLATFORM_LEN_MAX"
+gate_meta_json duration_s "$FDUR"
+gate_meta finished_at "$(date +%Y-%m-%dT%H:%M:%S)"
+echo "gates -> $GATES_JSON"
 echo "DONE -> $OUT"

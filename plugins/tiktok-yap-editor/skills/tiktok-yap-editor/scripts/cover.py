@@ -10,7 +10,17 @@ Two modes:
 
 2) Build the cover:
    python3 cover.py --video final.mp4 --frame 34 --title "How does Apple sell?" \
-     --kicker "How whatever sells" --out cover.jpg [--no-text] [--yt]
+     [--kicker "How whatever sells"] --out cover.jpg [--no-text] [--yt] [--brand cfg]
+   or, for a show episode, let the series block in brand-config shape it:
+   python3 cover.py --video final.mp4 --frame 34 --subject Apple --out cover.jpg
+
+Series identity comes from brand-config `series` {name, question_template,
+mark_png, pillars} (yaplib.brand): --kicker defaults to series.name, --subject
+fills question_template ("How does {subject} sell?"), and the series mark is
+drawn under the accent rule ONLY when mark_png exists (relative paths resolve
+against <workspace>/assets/); room is reserved for it only then. Before this
+the kicker was a per-run string and the mark came from a script that lives only
+in one private workspace, while every cover reserved 166px for it.
 
 Design:
 - Vertical cover is 1080x1920. The Instagram grid crops covers to the CENTRE
@@ -38,34 +48,42 @@ Pick a frame with eye contact and an expressive (not neutral) face: it lifts CTR
 The auto placement optimises legibility only, so it cannot tell a blink from a
 smile; eyeball the frame before shipping.
 """
-import argparse, json, os, subprocess, tempfile
+import argparse, json, os, sys, tempfile
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-W, H = 1080, 1920
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import ass as yass  # noqa: E402
+from yaplib import brand, fonts, media  # noqa: E402
+from yaplib.home import radar_home  # noqa: E402
+
+W, H = media.W, media.H
 IG_BOTTOM = 1500          # the Instagram grid crop; cover text must finish above it
-FONT_CANDIDATES = [
-    os.path.expanduser("~/Library/Fonts/BricolageGrotesque-ExtraBold.ttf"),
-    os.path.expanduser("~/Library/Fonts/Montserrat-Black.ttf"),
-    "/System/Library/Fonts/Supplemental/Arial Black.ttf",
-]
+MARK_GAP, MARK_H = 34, 132   # room under the rule for the series mark, when there is one
+
+# Faces are resolved by FAMILY from brand-config (caption_font for the title,
+# label_font for the kicker) in main() via configure(); these are the fallbacks
+# for a call with no brand file at all.
+_FACES = {"title": None, "mono": None}
+
+
+def configure(cfg):
+    _FACES["title"] = fonts.first_font([(cfg.get("caption_font"), None), ("Montserrat Black", None),
+                                        ("Arial Black", None), ("Helvetica", None)])
+    _FACES["mono"] = fonts.first_font([(cfg.get("label_font"), "400"), (cfg.get("label_font"), None),
+                                       ("Space Mono", "400"), ("Menlo", None), ("DejaVu Sans Mono", None)])
 
 
 def font(size):
-    for p in FONT_CANDIDATES:
-        if os.path.exists(p):
-            return ImageFont.truetype(p, size)
-    return ImageFont.load_default()
+    p = _FACES["title"]
+    return ImageFont.truetype(p, size) if p else ImageFont.load_default()
 
 
 def grab(video, t, out):
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-ss", str(t), "-i", video,
-                    "-frames:v", "1", out, "-hide_banner", "-loglevel", "error"], check=True)
+    media.ffmpeg(["-ss", str(t), "-i", video, "-frames:v", "1", out], what="ffmpeg frame grab")
 
 
 def duration(video):
-    o = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                        "-of", "default=nw=1:nk=1", video], capture_output=True, text=True).stdout
-    return float(o.strip())
+    return media.probe_duration(video)
 
 
 def contact_sheet(video, out, interval):
@@ -90,23 +108,23 @@ TANG = (255, 90, 42, 255)
 
 
 def hex_rgba(h, a=255):
-    h = (h or "").lstrip("#")
-    if len(h) != 6:
-        return (255, 90, 42, a)
-    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), a)
-
-
-def default_brand_path():
-    """brand-config.json next to the skill root (scripts/../)."""
-    return os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "brand-config.json")
+    return yass.hex_to_rgba(h, a)
 
 
 def mono(size):
-    p = os.path.expanduser("~/Library/Fonts/spacemono-400.ttf")
-    if os.path.exists(p):
-        return ImageFont.truetype(p, size)
-    return font(size)
+    p = _FACES["mono"]
+    return ImageFont.truetype(p, size) if p else font(size)
+
+
+def resolve_mark(cfg, home):
+    """Absolute path of the series mark PNG, or None when it does not exist.
+    Relative paths resolve against <workspace>/assets/."""
+    m = (cfg.get("series") or {}).get("mark_png") or ""
+    if not m:
+        return None
+    if not os.path.isabs(m):
+        m = os.path.join(str(home), "assets", m) if home else os.path.abspath(m)
+    return m if os.path.isfile(m) else None
 
 
 def draw_title(img, title, title_y):
@@ -293,7 +311,7 @@ def title_block_height(dr, title, kicker, side=140):
     return h
 
 
-def draw_title_clean(img, title, kicker="", title_y=1030, side=140):
+def draw_title_clean(img, title, kicker="", title_y=1030, side=140, mark=None):
     """The default cover treatment.
 
     No background plate at all. Instagram crops the grid thumbnail to the CENTRE
@@ -330,6 +348,13 @@ def draw_title_clean(img, title, kicker="", title_y=1030, side=140):
         y += lh
     rule_w = int(min(widest, max_w))
     dr.rounded_rectangle([side, y + 6, side + rule_w, y + 15], 5, fill=TANG)
+    if mark:
+        # the series mark, MARK_GAP under the rule, MARK_H tall, left-aligned
+        # with the type. Only drawn when the PNG exists (resolve_mark).
+        m = Image.open(mark).convert("RGBA")
+        scale = MARK_H / m.height
+        m = m.resize((max(1, int(m.width * scale)), MARK_H), Image.LANCZOS)
+        img.alpha_composite(m, (side, y + 15 + MARK_GAP))
 
 
 def main():
@@ -340,8 +365,11 @@ def main():
     ap.add_argument("--interval", type=float, default=2.0)
     ap.add_argument("--frame", type=float)
     ap.add_argument("--title", default="")
-    ap.add_argument("--kicker", default="",
-                    help="small tracked mono line above the title (e.g. the show name)")
+    ap.add_argument("--subject", default="",
+                    help="episode subject; the title becomes brand-config series.question_template "
+                         "with {subject} filled (e.g. 'How does Apple sell?')")
+    ap.add_argument("--kicker", default=None,
+                    help="small tracked mono line above the title (default: brand-config series.name)")
     ap.add_argument("--style", choices=["clean", "scrim"], default="clean",
                     help="clean = no plate, bone type on the shirt (default). "
                          "scrim = the retired full-width band.")
@@ -349,29 +377,36 @@ def main():
     ap.add_argument("--title-y", type=int, default=None,
                     help="default: auto for clean (see --no-auto-y), 520 for scrim")
     ap.add_argument("--no-mark-room", action="store_true",
-                    help="do not reserve space under the rule for the inflatable "
-                         "mark (use when no balloon will be added)")
+                    help="do not reserve space under the rule for the series mark even "
+                         "when brand-config series.mark_png exists")
     ap.add_argument("--no-auto-y", action="store_true",
                     help="clean style: skip the automatic placement scan")
     ap.add_argument("--yt", action="store_true")
     ap.add_argument("--brand", default="",
-                    help="path to brand-config.json for the accent rule colour "
-                         "(default: the skill's own brand-config.json)")
+                    help="explicit brand-config.json (default: yaplib.brand resolution: "
+                         "the video's .yap_build, then the workspace, then the shipped default)")
     ap.add_argument("--accent", default="",
                     help="override the accent rule colour, e.g. '#E8232F'")
     ap.add_argument("--out", default="cover.jpg")
     a = ap.parse_args()
 
     global TANG
-    bpath = a.brand or default_brand_path()
-    accent = a.accent
-    if not accent and os.path.exists(bpath):
-        try:
-            accent = json.load(open(bpath)).get("accent_hex", "")
-        except Exception:
-            accent = ""
+    src_dir = os.path.dirname(os.path.abspath(a.video or a.image or a.out))
+    home = radar_home(argv=[], required=False)
+    cfg = brand.load(a.brand or None, workdir=src_dir, home_dir=home)
+    configure(cfg)
+    series = cfg.get("series") or {}
+    accent = a.accent or ("" if yass.is_none(cfg.get("accent_hex")) else cfg.get("accent_hex"))
     if accent:
         TANG = hex_rgba(accent)
+    if a.kicker is None:
+        a.kicker = series.get("name") or ""
+    if not a.title and a.subject:
+        tpl = series.get("question_template") or "How does {subject} sell?"
+        a.title = tpl.replace("{subject}", a.subject)
+    mark = None if a.no_mark_room else resolve_mark(cfg, home)
+    if (series.get("mark_png") and not mark and not a.no_mark_room):
+        print(f"  series.mark_png set but not found ({series.get('mark_png')}); no mark, no room reserved")
 
     if a.contact_sheet:
         contact_sheet(a.video, a.out, a.interval)
@@ -396,21 +431,25 @@ def main():
                 # search range ran past the Instagram grid crop: that is how
                 # "How does Pop Mart sell?" shipped with its question below the
                 # square entirely. reserve keeps room under the rule for the
-                # inflatable mark add_logo.py places there (GAP + LOGO_H).
+                # series mark, and only when there is one to draw.
                 dr0 = ImageDraw.Draw(img)
                 blk = title_block_height(dr0, a.title, a.kicker)
-                reserve = 0 if a.no_mark_room else 34 + 132
+                reserve = (MARK_GAP + MARK_H) if mark else 0
                 hi = IG_BOTTOM - blk - reserve
                 ty = best_title_y(img, block=blk, lo=min(880, hi), hi=hi)
                 print(f"  auto title-y {ty}  (block {blk}px, ends {ty + blk})")
             else:
                 ty = 1030 if a.style == "clean" else 520
             if a.style == "clean":
-                draw_title_clean(img, a.title, a.kicker, ty)
+                draw_title_clean(img, a.title, a.kicker, ty, mark=mark)
             else:
                 draw_title(img, a.title, ty)
         img.convert("RGB").save(a.out, quality=92)
         print(f"wrote {a.out}  (frame {a.frame}s)")
+        # sidecar for finalize.sh: the edit record carries cover {frame_t, path}
+        json.dump({"frame_t": a.frame, "video": a.video, "image": a.image, "title": a.title,
+                   "kicker": a.kicker, "mark": mark, "brand": cfg.get("_path")},
+                  open(a.out + ".meta.json", "w"), indent=1)
 
         if a.yt:
             # 1280x720: blurred fill of the frame + the subject scaled to fit height

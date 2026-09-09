@@ -23,7 +23,9 @@ Usage:
       [--accept-file .yap_build/<out>_capqa_ok.json]
 
 accept-file: JSON list of reviewed-ok caption words, e.g. ["these","tools"].
-Exit codes: 0 clean, 2 = unreviewed caption words (build-gating).
+Exit codes: 0 clean, 2 = unreviewed caption words (build-gating). A caption
+word carrying an em dash or an en dash (U+2014 / U+2013) is always flagged: the
+dash ban is a hard rule on screen, and no accept-file can clear it.
 For each offender it prints the closest script word: garble -> fix it in
 <out>_corrections.json and re-run yapfull with YAP_FROM_CUT=1; ad-lib ->
 append the word to the accept-file and re-run.
@@ -31,8 +33,12 @@ append the word to the accept-file and re-run.
 import argparse
 import difflib
 import json
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import words as ywords  # noqa: E402
 
 ONES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight",
         "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
@@ -96,7 +102,7 @@ def caption_words(ass_path: str) -> list:
         if m and float(m.group(1)) < 1150:
             continue
         text = re.sub(r"\{[^}]*\}", "", text).replace("\\N", " ").strip()
-        for w in re.findall(r"[A-Za-z0-9'$%€£&+]+", text):
+        for w in re.findall(r"[A-Za-z0-9'$%€£&+\u2013\u2014]+", text):
             if w.lower() not in seen:
                 seen.add(w.lower())
                 words.append(w)
@@ -142,6 +148,9 @@ def main() -> int:
     caps = caption_words(a.ass)
     bad = []
     for i, w in enumerate(caps):
+        if ywords.has_dash(w):
+            bad.append((w, ["<em/en dash on screen: banned, no accept-file clears it>"]))
+            continue
         folded = canon(w)
         if not folded:
             continue
@@ -164,6 +173,9 @@ def main() -> int:
     print(f"caption_qa: {len(bad)} caption word(s) the script never contained:")
     pool = sorted(vocab)
     for w, folded in bad:
+        if folded and folded[0].startswith("<"):
+            print(f"  {w!r}  {folded[0]}")
+            continue
         near = difflib.get_close_matches(folded[0], pool, n=1, cutoff=0.5)
         hint = f"  (script has: {near[0]})" if near else ""
         print(f"  {w!r}{hint}")

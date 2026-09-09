@@ -5,12 +5,31 @@ into assets/sfx/ so sfxmix.py can layer them.
 
 Run once (or after editing):  python3 scripts/gen_sfx.py
 Force overwrite:              python3 scripts/gen_sfx.py --force
-Pack lives at: <skill>/assets/sfx/
+Pack lives at <workspace>/assets/sfx/ when a workspace exists (plugin updates never touch it), else <skill>/assets/sfx/
 """
-import argparse, math, os, subprocess
+import argparse, math, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
 
 SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(SKILL, "assets", "sfx")
+
+def _pack_dir(create=False):
+    """<home>/assets/sfx first (survives plugin updates), else <skill>/assets/sfx."""
+    import sys as _s, os as _o
+    _s.path.insert(0, _o.path.dirname(_o.path.realpath(__file__)))
+    try:
+        from yaplib.home import radar_home
+        home = radar_home(required=False)
+    except Exception:
+        home = None
+    if home:
+        p = _o.path.join(str(home), "assets", "sfx")
+        if create or _o.path.isdir(p):
+            return p
+    return _o.path.join(SKILL, "assets", "sfx")
+
+OUT = _pack_dir(create=True)
 
 def ff(src_filter, out, dur, post="", sr=48000):
     """Render an lavfi audio graph to a 48k stereo wav."""
@@ -18,7 +37,7 @@ def ff(src_filter, out, dur, post="", sr=48000):
     cmd = ["ffmpeg", "-nostdin", "-y", "-f", "lavfi", "-i", f"{af}",
            "-t", f"{dur}", "-ar", str(sr), "-ac", "2",
            "-c:a", "pcm_s16le", out, "-hide_banner", "-loglevel", "error"]
-    subprocess.run(cmd, check=True)
+    media.run(cmd, what="ffmpeg sfx render")
 
 def chirp(f0, f1, T):
     """aevalsrc expression for a linear frequency sweep f0->f1 over T seconds."""
@@ -60,7 +79,7 @@ def main():
         cmd = ["ffmpeg", "-nostdin", "-y", "-f", "lavfi", "-i", graph,
                "-t", "0.6", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le",
                p, "-hide_banner", "-loglevel", "error"]
-        subprocess.run(cmd, check=True)
+        media.run(cmd, what="ffmpeg sfx render")
 
     # --- click / pop: tiny transient for a caption snap / quick beat ---
     if (p := need("click.wav")):
@@ -87,7 +106,7 @@ def main():
         cmd = ["ffmpeg", "-nostdin", "-y", "-f", "lavfi", "-i", graph,
                "-t", "20", "-ar", "48000", "-ac", "2", "-c:a", "aac", "-b:a", "128k",
                p, "-hide_banner", "-loglevel", "error"]
-        subprocess.run(cmd, check=True)
+        media.run(cmd, what="ffmpeg sfx render")
 
     if (p := need("bed_drive.m4a")):
         # darker, more momentum: A2 E3 A3 with faster tremolo pulse
@@ -100,14 +119,12 @@ def main():
         cmd = ["ffmpeg", "-nostdin", "-y", "-f", "lavfi", "-i", graph,
                "-t", "20", "-ar", "48000", "-ac", "2", "-c:a", "aac", "-b:a", "128k",
                p, "-hide_banner", "-loglevel", "error"]
-        subprocess.run(cmd, check=True)
+        media.run(cmd, what="ffmpeg sfx render")
 
     print("SFX pack ->", OUT)
     for f in sorted(os.listdir(OUT)):
         full = os.path.join(OUT, f)
-        d = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                            "format=duration", "-of", "csv=p=0", full],
-                           capture_output=True, text=True).stdout.strip()
+        d = f"{media.probe_duration(full):.3f}"
         print(f"  {f:16s} {d}s")
 
 if __name__ == "__main__":

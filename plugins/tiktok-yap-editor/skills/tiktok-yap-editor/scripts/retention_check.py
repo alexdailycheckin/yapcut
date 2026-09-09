@@ -9,30 +9,34 @@ counter, source tag, PiP evidence insert). The gate flags:
   2. no event inside the re-hook window (0.3s .. --first): seconds 2-5 must
      raise the stakes visually, not just verbally.
 
+JOINS ARE NOT EVENTS (2026-09-09). The cutter's own pause-cuts, plus the
+1.00/1.06 crop toggle at each of them, register as scene changes, and on the
+shipped aug 24 / aug 30 files 69 to 86 percent of counted events sat at joins.
+A 56s talking head with 16 pause-cuts passed the budget with zero deliberate
+events. Pass --keeps (the keeps_full_<out>.json yapcut writes) and every scene
+event within --join-tol of a join is discarded before counting; the gate then
+measures what the EDITOR put on screen, not what the cutter removed.
+
 Usage:
   python3 retention_check.py --video final.mp4 \
       [--overlays .yap_build/clip_overlays.json] [--hook-end 5.2] \
+      [--keeps .yap_build/keeps_full_clip.json] [--join-tol 0.2] \
       [--max-gap 5.0] [--first 3.5] [--scene 0.10]
 
 Exit codes: 0 = clean, 2 = gate failed (build-gating, like stutter_check).
-Tuning: the alternating static crop reads as a small change; if real cuts are
-missed lower --scene toward 0.06, if caption words register as cuts raise it.
+Tuning: if real cuts are missed lower --scene toward 0.06, if caption words
+register as cuts raise it.
 """
 import argparse
 import json
+import os
 import re
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-
-def probe_duration(video: str) -> float:
-    out = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", video],
-        capture_output=True, text=True, check=True)
-    return float(out.stdout.strip())
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
 
 
 def scene_events(video: str, threshold: float) -> list:
@@ -40,9 +44,8 @@ def scene_events(video: str, threshold: float) -> list:
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tf:
         meta_path = tf.name
     vf = f"select='gt(scene,{threshold})',metadata=print:file={meta_path}"
-    subprocess.run(
-        ["ffmpeg", "-hide_banner", "-i", video, "-vf", vf, "-an", "-f", "null", "-"],
-        capture_output=True, text=True)
+    media.run(["ffmpeg", "-nostdin", "-hide_banner", "-i", video, "-vf", vf,
+               "-an", "-f", "null", "-"], what="ffmpeg scene detection")
     times = []
     for line in Path(meta_path).read_text().splitlines():
         m = re.search(r"pts_time:([0-9.]+)", line)
@@ -64,10 +67,24 @@ def overlay_events(overlays_path: str) -> list:
     return times
 
 
+def join_times(keeps_path: str) -> list:
+    """Cumulative join positions on the OUTPUT timeline from a keeps json."""
+    keeps = json.loads(Path(keeps_path).read_text())
+    joins, t = [], 0.0
+    for k in keeps[:-1]:
+        t += float(k["b"]) - float(k["a"])
+        joins.append(t)
+    return joins
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", required=True)
     ap.add_argument("--overlays", help="overlays.json (source tags, counters, pip)")
+    ap.add_argument("--keeps", help="keeps_full_<out>.json from yapcut: scene events at its "
+                    "joins are the cutter's, not the editor's, and are discarded")
+    ap.add_argument("--join-tol", type=float, default=0.2,
+                    help="a scene event within this many seconds of a join is a join")
     ap.add_argument("--hook-end", type=float, default=5.2,
                     help="when the burned hook disappears (that is an event)")
     ap.add_argument("--max-gap", type=float, default=5.0,
@@ -78,8 +95,17 @@ def main() -> int:
                     help="ffmpeg scene-change threshold")
     args = ap.parse_args()
 
-    dur = probe_duration(args.video)
-    events = scene_events(args.video, args.scene)
+    dur = media.probe_duration(args.video)
+    scenes = scene_events(args.video, args.scene)
+    discarded = 0
+    if args.keeps and Path(args.keeps).exists():
+        joins = join_times(args.keeps)
+        kept = [t for t in scenes if not any(abs(t - j) <= args.join_tol for j in joins)]
+        discarded = len(scenes) - len(kept)
+        scenes = kept
+        print(f"joins: {len(joins)} from {Path(args.keeps).name}; "
+              f"{discarded} scene event(s) discarded as joins (within {args.join_tol}s)")
+    events = list(scenes)
     events.append(args.hook_end)
     if args.overlays and Path(args.overlays).exists():
         events += overlay_events(args.overlays)

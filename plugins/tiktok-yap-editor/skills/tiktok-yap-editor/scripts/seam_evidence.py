@@ -30,18 +30,19 @@ import math
 import os
 import statistics
 import struct
-import subprocess
 import sys
 import tempfile
 import wave
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
 
 
 def load_pcm(video, rate=48000):
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.close()
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-i", video, "-ar", str(rate),
-                    "-ac", "1", "-c:a", "pcm_s16le", tmp.name,
-                    "-hide_banner", "-loglevel", "error"], check=True)
+    media.ffmpeg(["-i", video, "-ar", str(rate), "-ac", "1", "-c:a", "pcm_s16le", tmp.name],
+                 what="ffmpeg pcm extract")
     w = wave.open(tmp.name, "rb")
     fr = w.getframerate()
     sm = struct.unpack(f"<{w.getnframes()}h", w.readframes(w.getnframes()))

@@ -1,66 +1,52 @@
 ---
 name: tiktok-yap-editor
-description: Turn raw phone clips into finished, post-ready vertical TikTok/Reels/Shorts videos. Two modes. Mode A (talking-head yap): transcript-first story edit, zero-dead-air jump-cut tightening, word-by-word burned captions in the creator's brand, a burned text hook, an optional spoken-outro CTA, loudness for the feed, QA. Mode B (VO-to-picture storytelling / day-in-the-life): the creator films loose b-roll clips of their day, the skill scripts the voiceover beat by beat, locks the PICTURE to that script at attention-tuned clip lengths, and burns a record-to-picture guide so the creator records the VO later in sync, then lays it in and captions it. Both modes can add an optional SFX + ducked music-bed layer and support 25-40s short-form or 60-90s long-form. Use whenever someone wants to edit, caption, cut, or finish a talking-head/yapping/selfie video OR a scripted-voiceover storytelling/day-in-the-life montage from b-roll, even without the word "edit" (e.g. "make a tiktok from these clips", "caption this", "tighten this yap", "turn this footage into a post", "add subtitles", "script my voiceover and cut my day clips", "day in the life edit", "add SFX/music to my video", or a dropped folder of .MOV/.mp4 clips). Creator-agnostic: on first run it interviews the creator for their brand (niche, fonts, colours, handle, contact, CTA) and saves a brand-config.json. Do NOT use for AI-generated video, static social images, or branded corporate assets.
+description: "Turn raw phone clips into finished, captioned vertical video for TikTok, Reels, Shorts and LinkedIn. Use for make a tiktok from these clips, caption this, tighten this yap, turn this footage into a post, add subtitles, day in the life edit, script my voiceover and cut my day clips, add SFX or music, or a dropped folder of .MOV or .mp4 clips. Mode A cuts a talking head to the words said; Mode B locks picture to a scripted voiceover. Not for AI-generated video or static images."
 ---
 
 # TikTok Yap Editor
 
-Turn raw phone clips into a finished vertical short. Bias toward shipping a
-clean, tight, captioned clip that serves the channel, not technical perfection.
+Turn raw phone clips into a finished vertical short. Bias toward shipping a clean, tight,
+captioned clip that serves the channel, not technical perfection.
 
-Two parts. **Part 1 is the editorial judgment** (which take, what story, what
-goes on screen, where to stop) and it is where the video is won or lost.
-**Part 2 is the pipeline**, which is deterministic and lives in bundled scripts.
-Read Part 1 before you cut anything. When a pipeline step and an editorial rule
-pull against each other, Part 1 wins, because a gate that passes on an
-illegible video has measured the wrong thing.
+Two parts. **Part 1 is the editorial judgment** (which take, what story, what goes on screen,
+where to stop) and it is where the video is won or lost. **Part 2 is the pipeline**, which is
+deterministic, gated, and lives in bundled scripts. Read Part 1 before you cut anything. When
+a pipeline step and an editorial rule pull against each other, Part 1 wins, because a gate
+that passes on an illegible video has measured the wrong thing.
 
 ## Two modes (pick one before you start)
-- **Mode A: talking-head yap.** The creator yaps to camera; **audio leads,
-  picture follows**. Transcribe, build a premise-first story, cut the footage to
-  the words actually said. This is the original flow (`yapcut.py` + `yapfull.sh`),
-  documented under "The pipeline" below.
-- **Mode B: VO-to-picture storytelling / day-in-the-life.** The creator films
-  loose b-roll of their day with NO usable on-camera speech; **picture leads,
-  voice follows**. You SCRIPT the voiceover beat by beat, lock the picture to that
-  script at attention-tuned clip lengths (`brollcut.py`), burn a record-to-picture
-  guide (`vo_guide.py`) the creator reads VO against later, then lay the VO in,
-  caption, and finish (`storyfull.sh`). Documented under "Mode B" below.
-Both modes share the brand-config, the caption/hook engine, the SFX layer, and
-the cover/finalize steps. **Pick the mode from what the footage is**: people
-talking to camera = A; silent/ambient day-clips + "script my voiceover" = B.
 
-**Length.** Short-form target stays 25-40s (Mode A's default). Mode B / long-form
-targets **60-90s**: keep the hook in the first ~2s, cut fast (1.5-2.5s clips) for
-the first 4-5 beats, then let later beats breathe (3-4s) under a music bed. Past
-~90s, add a clear mid-point reset (a new sub-hook line) or it sags.
+- **Mode A: talking-head yap.** The creator yaps to camera; audio leads, picture follows.
+  Transcribe, build a premise-first story, cut the footage to the words actually said
+  (`yapfull.sh`).
+- **Mode B: VO-to-picture storytelling.** Loose b-roll with no usable on-camera speech;
+  picture leads, voice follows. Script the voiceover beat by beat, lock picture to it
+  (`brollcut.py`), burn a record-to-picture guide (`vo_guide.py`), then lay the VO in and
+  finish (`storyfull.sh`, which runs the same gates as Mode A).
 
-## First run: brand discovery (do this once per creator)
+Pick the mode from what the footage is. Short form targets 25 to 40 seconds; long form 60 to
+90, with a mid-point re-hook past 90. Per-platform bands live in the brand config.
 
-Before editing for a new creator, check for a `brand-config.json` (look in
-`<footage>/.yap_build/`, then the skill root). **If it is missing, interview the
-creator** with `AskUserQuestion` and write the config. Ask about:
+## First run: brand discovery (once per creator)
 
-1. **Niche / positioning** (one line; drives hook + story framing) and **content
-   pillars** (2-4).
-2. **Caption font** (default `Montserrat Black` ALL CAPS; or a brand display font
-   like `Bricolage Grotesque ExtraBold` in sentence case) and **case**.
-3. **Accent colour** (a single spark/highlight hex, e.g. `#FF5A2A`, or none) plus
-   **base** (caption fill, usually white) and **ink** (stroke, usually near-black).
-4. **Handle** to burn at the CTA (e.g. `YOURNAME.COM`) and any **contact lines**
-   under it (email, site).
-5. **CTA style** (optional, off by default for retention): if the creator wants
-   one, a reusable **spoken-outro clip** (record one "hey I'm X, follow for…"
-   and reuse it, set `cta_clip`) or just the burned handle/contact block. Leave
-   `cta_clip` empty to end on the button; only add the spoken CTA when the
-   creator specifically wants it and retention can carry the extra seconds.
-6. **Reference accounts** to study/tag.
+Look for `brand-config.json` in the workspace (`$YAPCUT_HOME`, else the folder holding
+`radar-config.json`, else `~/outlier-radar/`), then in the footage's `.yap_build/`. Never in
+the skill folder. If missing, interview with `AskUserQuestion` and write the workspace file
+from `brand-config.example.json`:
 
-Write the answers to `<footage>/.yap_build/brand-config.json` using
-`brand-config.example.json` as the schema. `scripts/yapfull.sh` reads it, so the
-brand is data, not hardcoded. (The font choice must be installed, see Preflight.)
+1. **Niche** (one line) and **pillars** (2 to 4).
+2. **Caption font and case**, **accent**, **base** and **ink** colours.
+3. **Handle** and **contact lines** for the CTA block; **CTA style** (off by default: end on
+   the payoff; a spoken outro clip only when the reason to follow can land before attention dies).
+4. **Platforms**: which of TikTok, Reels, Shorts, LinkedIn they post to. Each has a length band
+   and a hook animation (LinkedIn: static first frame, since it autoplays muted). The example
+   config carries defaults.
+5. **Series**: the franchise name (the cover kicker), the question template, a mark file if
+   they have one, the pillars. Recognition is the same name and mark repeated until the
+   audience spots the show in a grid.
+6. **Reference accounts** to study.
 
----
+The fonts must be installed (`preflight.py` checks). The brand is data, never hardcoded.
 
 # Part 1: Editorial. This decides whether the video is good.
 
@@ -194,672 +180,142 @@ Never use em dashes or en dashes, on screen or anywhere else. Commas and colons.
 
 ## Folder convention (non-negotiable)
 
-Working files go under `<footage>/.yap_build/` (dot-prefixed, wiped at the end).
-The deliverable folder holds ONLY the finished video (+ its cover), and finals
-land in a per-run subfolder named after the source footage folder
-(`output/<footage-folder-name>/clip.mp4`), never flat in `output/`.
-`finalize.sh` promotes the final and clears the working dir.
+Working files go under `<footage>/.yap_build/`. Finals land in a per-run subfolder named after
+the footage folder (`output/<footage-folder-name>/<name>.mp4`) with a cover beside them, and
+`finalize.sh` writes `<name>.edit.json` there: the decision record (clauses, hook, gates,
+platform, radar id) that joins the cut to the post. It no longer deletes the working
+directory by default; `--wipe` does.
 
-## The pipeline
+## The sequence is locked
 
-**The sequence is locked.** One video walks all of it before it is "done";
-a file in the deliverable folder means every gate below passed. Never build a
-batch ahead of the gates: builds that sprint ahead of QA are how defects reach
-the creator (learned 2026-07-10, three times in one day).
+One video walks every step before it is done, sequentially, never a batch ahead of the gates.
+`yapfull.sh` (Mode A) and `storyfull.sh` (Mode B) both source `scripts/gates.sh`, which runs
+every gate and records each result in `<workdir>/<out>_gates.json`. Exit codes: 0 pass, 1
+warning (printed, the build continues), 2 fail (the build stops and the gate names its fix and
+its override variable). Never set an override to turn a red gate green; each one exists
+because of a shipped defect (why: `references/gotchas.md`, CHANGELOG).
 
-1. survey + word-transcribe the raw
-2. restart map on the raw (2c): flagged spans become planned cuts
-3. premise -> storyline -> clause plan (4)
-4. ground-truth every boundary with a window re-transcription (4, boundary rule)
-5. cut (5); the black-frame print is a canary (yapcut's design prevents them,
-   seam_qa is the fatal check)
-6. transcribe the cut -> GATE: repetition, two detectors (yapfull, build-fatal):
-   stutter_check on the transcript AND restart_scan windowed audio scan (whisper
-   transcribing a whole file sometimes collapses a repeated line into one,
-   hiding it from any transcript check; short windows stay literal). restart_scan
-   runs TWO window tiers, 30s and 6s, and the narrow one is not optional: 30s is
-   still wide enough for whisper to tidy an aborted restart into the clean retake
-   beside it, which is how "a viral mark... a viral marketing creative" shipped
-   on 2026-08-24 with both gates silent. At 6s the same audio gates HIGH.
-   **MEDIUM is a decision, not a note.** An unlisted MEDIUM fails the build; you
-   listen and either cut it via the clause plan or record its key in
-   `<out>_stutter_ok.json`. Printing MEDIUM and passing is what shipped a real
-   restart on 2026-08-24 (see step 2c)
-   -> GATE: dead air (yapfull, build-fatal): gap_check transcribes the cut
-   punct-separate and fails any surviving inter-word gap >= 0.8s. Silence
-   detection cannot do this job: room tone sits above any -dB threshold, and
-   a 1.3s hole once shipped past both the cutter and a human pass
-7. line audit (read the cut as a story; adjudicate MEDIUM stutter flags)
-8. captions + hook + corrections -> GATE: caption garble (yapfull, build-fatal
-   on scripted runs): caption_qa diffs every burned word against the script;
-   whisper garbles ship otherwise (ARK, Radio, clod, chatgbt, Ferguson all did)
-   -> compose -> GATE: seam_qa (yapfull, build-fatal)
-9. GATE: receipts + retention (yapfull, on the finished file): pip_coverage
-   wants something on screen for every spoken brand/stat (fatal when
-   brand-config sets "pip_strict": true), retention_check enforces re-hook +
-   pattern-interrupt budget. Then cover.
-10. creator watches -> finalize (promote + wipe workdir)
+| Step | You write | You run | A red gate means | Details |
+|---|---|---|---|---|
+| 0. Preflight | | `preflight.py` (once: `setup_fonts.sh`) | apply the printed fix hint | `requirements.txt` |
+| 1. Survey | | probe every clip; never pre-judge takes by length | | |
+| 2. Transcribe | | `transcribe.sh <clip> <out>` per clip; read all transcripts together | | |
+| 2b. Restart-heavy takes | `keep_whole` rows via `mkclauses.py` | `segmenter.py <clip>` for silence-accurate runs | | gotchas.md, "Clause boundaries": use run boundaries verbatim, never auto-fit them |
+| 2c. Stutters | `<out>_stutter_ok.json` for deliberate repeats | `stutter_check.py --words`, `restart_scan.py --video` | listen; cut it via the clause plan or record its key. A MEDIUM is a decision, not a note | `references/speech-and-repetition.md` |
+| 2d. Footage library | `records.json` (kind, tags, moments, `reads_as`) | `library.py prep`, `upsert`; after finalize `mark-used`, `reconcile --roots` | | `library.py --help`; data in `<home>/footage-library/` |
+| 3. Storyline | the beat sheet, with the receipt and the cutaway per line, approved by the creator | | | Part 1 |
+| 4. Clause plan | `clauses.json` with boundaries taken from a window re-transcription, never a full-file transcript | `transcribe.sh` on a trimmed window | | gotchas.md, "Boundary placement" |
+| 5. Cut | | `yapcut.py` (flags fixed in yapfull.sh; `--grade` rides inside the segment pass) | black frames are a canary; `seam_qa.py` is the fatal check | "Why yapcut", CHANGELOG 2.3 |
+| 6. Gates | `<out>_script.txt` (scripted runs), `<out>_corrections.json`, `<out>_capqa_ok.json`, `<out>_overlays.json` | inside `yapfull.sh`: hook words, stutter and restart, dead air, caption, seam, receipts, retention (with `--keeps`, so pause cuts do not count as events), drift, frame zero | the gate prints the fix and its `YAP_*` override; a scripted run with a garbled caption fixes it in corrections and reruns with `YAP_FROM_CUT=1` | `gates.sh` header |
+| 7. Captions, hook, CTA | the hook (9 words or fewer, first line static at frame zero) and the spark word | `yapfull.sh <workdir> <clauses> <out> "<hook|line two>" "<spark>"` | hook too long: cut words, never shrink type | `hook_styles.py` for a designed hook |
+| 8. Compose, receipts, cover | `<out>_overlays.json` pip entries; cover title and kicker (from `series`) | `compose_ass.sh`, `burn_pips.py` (inside yapfull), `cover.py --video <caption-free cut> --contact-sheet`, then `--frame N --title` | loudness is measured and printed; check the line | `references/receipts.md`, 8c below |
+| 8b. Variants and platforms | a second hook | `hook_variant.sh <workdir> <clauses> <out> "<hook B>" "<spark B>"`; `YAP_PLATFORM=linkedin yapfull.sh ...` re-composes from the cut | outside the platform's length band: a warning | brand config `platforms` |
+| 9. Finalize | the Radar item id, pillar, episode | `finalize.sh <final> <footage_dir> <name> --radar-id <id>` (or `--standalone`) | refuses without an id: the edit record is the point | Contract in the script header |
+| 10. Measure | | the Radar's `log_perf.py --edits <output dir>`, `--posted <id> <url>` | | outlier-radar SKILL.md |
 
-### 0. Preflight
-```bash
-bash scripts/setup_fonts.sh        # one-time: libass ffmpeg + Montserrat/Anton + Bricolage/Space Mono
-python3 scripts/preflight.py       # asserts ffmpeg+libass, whisper-cli + model, Pillow, fonts
-```
-`auto-editor` is NOT required (the old flow used it; `yapcut.py` replaced it,
-see "Why yapcut").
+### Notes that survive from the incident history
 
-### 1. Survey the footage
-List clips; probe duration/resolution/rotation. **Do NOT pre-judge takes by
-length** (a key beat can live in a short clip). iPhone 4K is often landscape with
-`rotation:90` (really portrait); ffmpeg auto-rotates.
+- **Boundaries.** Whisper word times drift up to about 2 seconds mid-file. A boundary placed on
+  drifted times once swallowed the words "Don't write" while keeping the flubbed take it was
+  meant to remove. Re-transcribe a 5-second window around every intended cut.
+- **Noisy takes.** If the dead-air gate fails on a cut that should be tight, the cutter never
+  saw the pause: room tone sits above the silence gate. Measure the floor, denoise the cut
+  intermediate (`afftdn`), rebuild with `YAP_FROM_CUT=1`. Never hand-wave it (6b in gotchas.md).
+- **Loudness** is measured, corrected and verified in three passes with no round-number cap on
+  the gain; the safety rail is on the input (below -45 LUFS there is no speech to lift).
+- **The hook can never be cut off** (build_ass auto-fits), and that is exactly why the word
+  gate exists: the fitter removed the constraint that forced the craft decision, and
+  twelve-word three-line hooks reported success.
+- **Frame zero.** The muted feed judges the first frame. The first hook line is static from
+  0.00; only a second line types in. The frame-zero gate fails a build whose first frame
+  carries a cursor and one letter.
 
-### 2. Transcribe every clip
-```bash
-bash scripts/transcribe.sh "IMG_XXXX.MOV" .yap_build/transcripts/IMG_XXXX
-```
-Read all transcripts together. Transcript-first is the whole method.
+### 8c. Cover
 
-### 2b. Segment restart-heavy takes (the reliability tool)
-Phone takes have many restarts ("Brand used to be X. Brand used to be X traffic…").
-**Whisper word-times DRIFT** and will make surgical clause boundaries miss the
-duplicate. Instead list silence-accurate runs with per-run text and pick the clean
-pass:
-```bash
-python3 scripts/segmenter.py "IMG_XXXX.MOV"      # idx  start-end  text
-```
-Use these exact run boundaries as `keep_whole` clauses.
+Candidates from the caption-free cut, never the delivered file (a frame from the final bakes
+a caption word into the thumbnail). Eye contact and expression; real frames only. The default
+`clean` style sets bone type onto the dark t-shirt under the chin inside the centre 1080x1080
+(Instagram's grid crop), sentence case, left aligned, one accent rule; placement is measured
+per frame. The kicker comes from the brand config's `series.name` and the mark is drawn only
+when `series.mark_png` exists. For a show episode the title is the franchise question, not the
+claim hook.
 
-**Use them verbatim, and do not auto-fit them.** Nudging every boundary onto the
-nearest speech energy looks like a tidy-up and silently eats word endings (it cost
-five clipped lines across one batch, all of which passed every gate). Set
-`protect_tail` instead, and move a boundary by hand only to dodge a false start,
-only after a window re-transcription of that span. See "Clause boundaries" in
-`references/gotchas.md`. For long plans, write the rows compactly:
-```bash
-python3 scripts/mkclauses.py "/abs/IMG_XXXX.MOV" clauses.json <<'ROWS'
-1.20   9.76   hook       protect_tail
-12.24  14.78  the-turn   protect_tail
-ROWS
-```
+## Mode B: VO-to-picture storytelling
 
-### 2c. Catch stutters + restarts (automatic, never skip)
-Phone takes double phrases ("now use AI, now use AI, now use AI…"), repeat a
-word ("the the"), or restart a clause. These used to be caught by hand, clip by
-clip, and slipped through. Now run the detector on each clip's word JSON:
-```bash
-python3 scripts/stutter_check.py --words .yap_build/transcripts/IMG_XXXX.json
-```
-It catches adjacent restarts AND distant line re-reads (you miss a line and
-read it again seconds later): a 6+ word echo within 20s gates the build; short
-topic-phrase echoes and older callbacks are flagged MEDIUM
-(your subject noun phrase recurs legitimately, and a deliberate hook callback
-at the button should not die at a gate).
-**A MEDIUM still has to be adjudicated one by one, and the gate enforces that.**
-Pass `--accept-file <out>_stutter_ok.json`: anything not listed there fails the
-build, and the tool prints the exact key to paste once you have listened and
-judged it deliberate. This exists because on 2026-08-24 "Toronto's local...
-Toronto's local news ran it" was flagged MEDIUM by both detectors, in both runs,
-sat in a cluster with the DELIBERATE "CNBC ran it / Gizmodo ran it" anaphora, got
-waved through with them, and shipped. Read the `kind` column to tell the two
-shapes apart: `adjacent` means the halves are back to back, the aborted-restart
-shape; `+N filler` means real words sat between them, which is how anaphora
-reads. It prints every hit with timestamps,
-keeps the cleanest (usually last) delivery, and emits both **video cut-ranges** (subtract these from the
-clause in/out you write in step 4) and a **caption drop-list**. Exit code 2 =
-stutters found, so it gates the build. Pass `--emit-corrections
-<out>_corrections.json` to write the caption `drop` indices straight into the
-file step 7 reads. This is the automated half of the line audit
-(non-negotiable #2); you still eyeball it, but nothing ships with an
-uncaught repeat.
+The inverse of Mode A. Same brand config, captions, SFX, cover, finalize, and since 2026-09-09
+the same gates.
 
-### 2d. Persist to the footage library (never skip)
-Every clip this run touches gets a permanent tagged record, so the survey +
-transcript work is never thrown away and future content ideas can shop the shelf.
-```bash
-python3 "${YAP_LIBRARY:-$HOME/outlier-radar/footage-library}/library.py" prep "/path/to/footage"
-```
-(`YAP_LIBRARY` points at your footage-library folder; the default matches the
-standard `~/outlier-radar` workspace.)
-`prep` skips clips already in the library and writes a montage + transcript +
-stub per new clip to `.prep/`. Read each montage and transcript, then write the
-records (fill `kind`, `tags` {topics, actions, setting, background, people,
-objects, wardrobe, time_of_day, mood, shot_type}, `hooks` = quotable lines,
-`moments` = timecoded in/out per distinct action for b-roll, `reads_as` = what a
-COLD VIEWER sees in one second with zero backstory (b-roll only; this is the ONLY
-field cutaway matching may use, see "Cutaway legibility rule"), `notes` =
-restarts, stats quoted, pairing ideas) and:
-```bash
-python3 "${YAP_LIBRARY:-$HOME/outlier-radar/footage-library}/library.py" upsert records.json
-```
-After finalize (step 9), stamp what shipped:
-```bash
-python3 "${YAP_LIBRARY:-$HOME/outlier-radar/footage-library}/library.py" mark-used IMG_XXXX --edit clean-name
-```
+1. **Survey and script** (Part 1 binds). Probe the clips, get the takeaway, write the beat-by-beat
+   VO: one short spoken line per beat with a role (HOOK, CONTEXT, BEAT, TURN, BUTTON) and a
+   target duration; hook beat 1.5 to 2.5 seconds, later beats 3 to 4. **Mine long clips end to
+   end**: every new action inside a long take is a separate usable shot with its own in and
+   out. Persist the contact sheet to the footage library; `moments` carries the timecoded
+   per-action shots.
+2. **beats.json**: one clip per beat matched on what it literally shows (`reads_as`), the VO
+   line and its match written together. `push: true` only where a shot would otherwise sit dead.
+3. **Lock the picture**: `brollcut.py --beats beats.json --workdir .yap_build --out .yap_build/picture.mp4`
+   writes `picture.timeline.json`.
+4. **The guide**: `vo_guide.py --picture ... --timeline ... --out guide.mp4`. The creator plays
+   it and reads the lines aloud in time, one voice memo, starting on "1".
+5. **Finish**: `storyfull.sh <workdir> <picture.mp4> <vo.m4a|-> <out.mp4> "<hook|line two>"
+   "<spark>" [sfx.json] [brand-config] [corrections] [vo_offset]`. Picture length equals VO
+   length; chronology reads as day flow; read the full VO aloud once to catch three beats
+   starting "so I".
 
-### 3. Build the storyline (premise first)
-This step is editorial. Run it against Part 1 ("Premise first", "The shape", "The
-words"), not from this line. The output is an ordered line sequence with a role
-and a source timestamp per line, approved by the creator before you cut.
+## SFX and music (optional, both modes)
 
-Two things to write down here, because they are cheap now and expensive later:
-the **receipt** each spoken claim will get (see "Evidence inserts" below for the
-hierarchy) and the **cutaway** each line will carry (Part 1, "Cutaways earn their
-place"). A script that names a claim with no capturable receipt gets rewritten
-now, not discovered at step 8.
+`gen_sfx.py` builds a CC0 pack once (`assets/sfx/`, generated, never shipped). An `sfx.json`
+names a bed (`duck: true` sidechains it under the voice) and hits placed from the timeline: a
+whoosh on each cut, an impact on the hook word, a riser into a turn, a ding on a stat. Under-mix
+it. Mode B passes it to `storyfull.sh`; Mode A runs `sfxmix.py` on the finished clip.
 
-### 4. Write clauses.json (ordered source + in/out)
-```json
-[
-  {"src":"/abs/IMG_1.MOV","start":3.64,"end":6.58,"label":"hook","keep_whole":true},
-  {"src":"/abs/IMG_1.MOV","start":34.8,"end":37.0,"label":"stat","keep_whole":true,"gain_db":12},
-  {"src":"/abs/cta-creator.mp4","start":0.0,"end":9.5,"label":"cta"}
-]
-```
-- `keep_whole`: keep the span as-is, no internal silence processing (use for the
-  silence-accurate runs from segmenter, and for fragile quiet words).
-- `gain_db`: boost a quietly-spoken fragment so it survives + is audible.
-- `protect_tail`: keep a quiet final word (no tight trim). Omit on button/CTA
-  joins so they cut tight (tail-protection there causes a big pre/post-CTA pause).
-- Append the shared `cta_clip` as the final clause for a spoken-outro CTA.
+## Retention pass (gates, on the finished file)
 
-**Boundary placement rule (hard lesson from the Jun 29/Jul 5 batch):** NEVER
-take clause in/out times from a full-file word transcript: whisper DTW times
-drift up to ~2s mid-file, and a boundary placed on drifted times swallowed the
-words "Don't write" in a shipped video while keeping the flubbed take it was
-meant to remove. Before writing any story-cut boundary (restart removal, take
-selection, CTA trim), re-transcribe a ±5s window around the intended cut
-(`transcribe.sh` on a trimmed wav is seconds of work): window timings are
-accurate. Put the boundary in the pause between the anchor words, then read
-the joined sentence back after cutting (the line audit) to confirm nothing
-was swallowed or doubled.
+Four gates, automated where a machine can see them. **Frame zero** (gate): the full first hook
+line at 0.00, mid-action framing. **Re-hook** (gate): something changes on screen between about
+2 and 3.5 seconds. **Pattern-interrupt budget** (gate): no stretch over 5 seconds (6 past 60s)
+without a visual event, counted after discarding the cutter's own joins. **Loop or button**
+(eyeball): the last line hard-stops on the payoff or connects back to the first. A flagged
+static stretch is not a licence for a cutaway that fails the one-second test: use a punch-in.
+Which lever, and how much, is Part 1, "Density and receipts".
 
-### 5. Cut (single pass)
-```bash
-python3 scripts/yapcut.py --clauses clauses.json --workdir .yap_build --out .yap_build/full.mp4
-```
-One clean CFR 30fps encode: clause selection + dead-air removal + tight tails +
-alternating static crop (anti-stutter). Pause detection is a median-smoothed
-RMS envelope, immune to the mouth clicks that split a real 1.5s pause into
-sub-threshold chunks an instantaneous level gate cannot see. Flags: `--silence-db -42` (quiet indoor;
-raise toward -19 for noisy/outdoor), `--padr 0.12` / `--padl 0.10` (CAPS on a
-MEASURED boundary since 2026-08-27, not fixed pads: the level gate fires where the
-ENERGY crossed, not where the WORD ended, so each edge is found by walking the
-envelope out to `--edge-margin` (6dB over the take's floor), and the tail search
-may run `--tail-extra` 0.25s past padr. The walk bridges a stop consonant's silent
-closure, which is why the words that used to clip were all stops and nasals:
-landlord, them, it, entertainment, headcount. `--lead 0.03` is the silence kept
-outside a measured edge; the old fixed 0.10s lead-in was audible as the next word
-arriving late at every join), `--min-gap 0.55` (only pauses this long become cuts; 0.3-0.5s pauses
-are cadence, cutting them machine-guns the edit), `--min-seg 0.45` (no
-flash-frame segments; shorter runs get bridged, never across >0.75s of pause),
-`--min-cut 0.25` (a cut must remove at least this much to earn its visual
-jump), `--d 0.10`.
-**`--grade "eq=brightness=0.05:contrast=1.1:saturation=1.06"` for a dark take, and
-NEVER as a separate ffmpeg pass over the finished cut.** The chain is already three
-lossy generations (segments, concat, compose, plus burn_pips when there are
-receipts); grading the cut on its own adds a whole fourth encode of the entire
-video, and raising contrast on an already-compressed picture amplifies the
-artefacts that encode just introduced. Riding inside the segment pass costs
-nothing. On 2026-08-24 the two graded episodes were the two the creator called low
-quality. The same run also moved the intermediates to crf 12 and the delivered
-encodes to crf 16, which roughly doubled the cut-stage bitrate (5.8-6.4 -> 10.4-12.4
-Mbps on the same footage).
-`--auto-floor` (on by default via yapfull) measures each
-take's noise floor and raises the silence gate above it: without it, a take
-whose room tone sits above the fixed gate never reads as "silence" anywhere,
-so NOT ONE beat gets cut and every line-by-line pause ships. `--head-trim`
-drops the dead lead-in before the first word. It writes `keeps_<out>.json`
-(the final cut points) for the QA seam audit. Do NOT snap cuts to whisper word timings: DTW tokens tile
-the whole timeline (spans absorb pauses), so word-snapping degenerates into
-padding every cut with dead air.
+## Receipts
 
-### 5b. Cutaway legibility (Mode A b-roll inserts)
-Editorial. The rule and the three legal matches live in Part 1, "Cutaways earn
-their place or stay off". Match against what the clip actually shows (the
-library's `reads_as` field if you keep one). When nothing passes the one-second
-test, stay on the face.
-
-### 6. QA gate (automate it, don't eyeball randomly)
-`yapfull.sh` runs the fatal gates itself; this is what they are, and how to run
-any of them by hand when diagnosing:
-```bash
-ffmpeg -i full.mp4 -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null -   # canary: zero black flashes
-python3 scripts/seam_qa.py --keeps .yap_build/keeps_full.json --video full.mp4  # FATAL: no splice holes at joins
-python3 scripts/seam_evidence.py final.mp4 .yap_build/keeps_full.json    # is a seam failure real, or a gated mic?
-bash scripts/transcribe.sh full.mp4 .yap_build/w --words                # re-read line sequence (line audit)
-python3 scripts/stutter_check.py --words .yap_build/w.json               # FATAL: re-run on the CUT, must be clean
-python3 scripts/gap_check.py --video full.mp4                            # FATAL: no dead air survived the cut
-ffprobe -v error -show_entries stream=codec_type,duration -of csv=p=0 final.mp4  # FATAL: drift gate, |video - audio| within 2 frames
-```
-**DRIFT GATE (fatal, automated in yapcut.py + yapfull.sh 4d)**: the video and
-audio stream durations of the SHIPPED file must match within ~2 frames. Excess
-picture means the cut gained frames at joins and lips slide progressively off
-the voice, worse at every cut (both root causes + the fix live in
-`references/gotchas.md` under "Voice/picture drift"). Never work around a
-drift failure by retiming the final; fix the cut.
-gap_check transcribes the cut itself (punct-separate tokens): the caption
-transcription (-sow) glues pause time into word tokens and silencedetect reads
-room tone as sound, so both lie about pauses; inter-word gaps do not. If it
-fails, the cutter never saw the pause: that is the noisy-take symptom (6b),
-measure the floor and raise `--silence-db`, never hand-wave it.
-Plus a seam contact-sheet (frames at each cut) to scan for any leftover look-down,
-and confirm loudness ~-14 after compose. The **line audit** (non-negotiable #2)
-lives here: fix restart doublings (the stutter_check re-run on the cut must come
-back clean, or tighten the offending clause), clipped word tails (widen that
-clause boundary), dangling fragments. The retention + receipts gates run on the
-FINISHED file, after compose (see Retention pass).
-
-### 6b. Noisy takes (loud room tone)
-**The tell: gap_check fails on a cut that "should" be tight.** Room tone above
-`--silence-db` makes the cutter see one unbroken sound bed, so it cuts nothing
-and every real pause survives; a 1.3s hole once shipped exactly this way.
-A take filmed near a fan/AC also becomes a steady audible noise bed in the final:
-v2 cuts KEEP natural pauses (the old machine-gun cut used to chop the noise
-up), and single-pass loudnorm gives quiet stretches extra gain (~+10dB on the
-floor). Diagnose by measuring, not astats alone ("Noise floor dB" reads
-digital-silence padding; a file can report -97 while its real gaps sit at
--25): extract audio and check the quietest 0.25s windows, remembering those
-may be quiet SPEECH, not noise. Fix on the cut intermediate, then rebuild
-captions from it:
-```bash
-cp "$WD/full_<out>.mp4" "$WD/full_<out>.noisy.mp4"   # keep for re-tuning
-ffmpeg -i "$WD/full_<out>.noisy.mp4" -c:v copy \
-  -af "afftdn=nr=15:nf=-45:tn=1" -c:a aac -b:a 192k "$WD/full_<out>.mp4"
-YAP_FROM_CUT=1 bash scripts/yapfull.sh ...           # recompose + gates
-```
-nr=15 removes a stationary bed (-26dB floor -> -80 on the arc take) without
-gating pauses to dead silence. The creator's ears sign off: denoise can sound
-underwater; if it does, lower nr and re-run (one command, the .noisy copy is
-the source).
-
-### 7. Captions + hook + CTA, in the brand (one driver)
-```bash
-bash scripts/yapfull.sh .yap_build clauses.json output/clip.mp4 "HOOK|LINE2" "sparkword"
-```
-`yapfull.sh` runs steps 5-8 reading `brand-config.json`: word-by-word captions in
-the brand font/case (active word scales, no neon), an accent spark on the hook
-word, and the handle + contact block at the CTA tail. For caption fixes write a
-`<out>_corrections.json` (`{"fix":{"5":"Google"},"drop":[31]}`) keyed by the
-build word index (it skips empty tokens).
-
-**The hook can never be cut off.** `build_ass.py` measures the real rendered
-width with the actual font and auto-wraps plus auto-shrinks to a title-safe width
-(<=90% of 1080px, <=3 lines) on every run, so pass the whole line and it fits
-itself. Never hand-break a long hook. You may still force a break with `|`
-(`--hook "line one|line two"`) for a deliberate two-line look, and it is still
-width-checked.
-
-**Scripted runs (the creator read a written script): save the FULL spoken
-script, cold open included, to `<workdir>/<out>_script.txt` BEFORE running
-yapfull.** The caption gate (`caption_qa.py`) then diffs every burned word
-against it and blocks the build on anything the script never contained. Each
-flagged word gets adjudicated, and the list is short (~15): a real garble
-(whisper heard "ARK" for Arc, "Ferguson" for "first and") goes in
-`<out>_corrections.json` as a fix; a harmless on-camera ad-lib ("of these"
-for "of the") goes in `<out>_capqa_ok.json` (a JSON list of accepted words).
-Re-run with `YAP_FROM_CUT=1` (seconds, no re-cut). Numbers match across
-notations ("fifteen dollars" == "$15"), and the handle/contact block is
-allowlisted from brand-config. No script file = gate skips (freestyle yaps).
-
-### 8. Compose
-**Loudness is measured, corrected and verified, never assumed.** Pass 1 measures
-the cut, pass 2 renders the gained audio and MEASURES it, pass 3 corrects the
-limiter's residue. There is no round-number ceiling on the gain: a flat 12dB cap
-used to eat the target on every take the creator shoots (their lav sits near -28 LUFS and
-needs about +14.5dB), which shipped the whole 08-24 batch at -15.9 to -16.8 and
-the 08-17 batch at -16.2 to -17.7 before anyone noticed. The safety rail lives on
-the INPUT instead: below -45 LUFS there is no speech to lift, only room tone, so
-it refuses rather than amplifying noise. Check the printed `loudness:` line.
-
-`compose_ass.sh` (called by yapfull) burns the `.ass`, normalizes to -14 LUFS, and
-does the clean CFR re-encode.
-
-### 8c. Cover (post-ready thumbnail)
-```bash
-# candidates from the CAPTION-FREE cut, never the delivered file
-python3 scripts/cover.py --video .yap_build/full_<name>.mp4 --contact-sheet --out .yap_build/cov
-python3 scripts/cover.py --video .yap_build/full_<name>.mp4 --frame 34 \
-  --title "How does Apple sell?" --kicker "How whatever sells" --out output/clip.jpg
-```
-Pick eye-contact + expressive. Covers come from REAL frames only (no AI).
-
-**No scrim (locked 2026-08-07).** Instagram crops the grid thumbnail to the
-centre 1080x1080, so the title has to live inside that square and cannot move
-above the head to clear the face. The default `clean` style therefore sets bone
-type straight onto the dark t-shirt under the chin with an ink stroke, sentence
-case, left aligned, one tang rule. The old full-width blurred band is retired
-(`--style scrim` if you ever need it): it was muddy, it dulled the frame, and it
-sat across his eyes and mouth. Placement is measured per frame, not fixed, so a
-reframe or the camera drifting through the band cannot wreck legibility.
-
-Source the cover from `full_<name>.mp4`. Grabbing from the delivered file bakes a
-caption word or an evidence card into the thumbnail. For a show episode the title
-is the franchise question ("How does X sell?"), not the video's claim hook; long
-subjects auto-wrap to two balanced lines.
-
-### 9. Finalize (after sign-off)
-```bash
-bash scripts/finalize.sh final.mp4 "/path/to/footage" clean-name
-```
-
-## Why yapcut (replaced cut.py + auto-editor)
-auto-editor outputs a variable timebase; concatenating + re-encoding it dropped a
-1-frame **black flash at every jump cut**. `yapcut.py` does everything in one
-clean CFR pass. It also fixes the two things creators always flag:
-- **Dead air / look-down**: tight trailing pad cuts the frame where they glance at
-  the script.
-- **Jump-cut "stutter"** (a cut landing on a near-identical pose reads as "I said
-  it twice", even with clean audio): alternating static crop (1.00/1.06, hard cut,
-  NO animation) changes framing at every cut so the pose-match is masked.
-
-**Perfect-cuts rules (v2, learned from the Jun 29/Jul 5 batch):** the old
-defaults over-cut. Cutting a 0.3-0.5s breath saves ~0.2-0.4s but costs a
-pose-jump + zoom toggle; a batch audit showed 57% of joins were such micro-gap
-cuts, plus 4-frame flash segments and shaved word tails ("Follow", sentence-end
-payoff words). v2 therefore: cuts only at pauses >= 0.55s, no segment < 0.45s
-(bridged into a neighbour instead), cuts must remove >= 0.25s to exist,
-measured decay-aware boundaries (0.12/0.10 are the search caps, see step 5), and
-envelope-based pause detection (an instantaneous gate lets a
-single mouth click hide a 2-second gap; the median envelope does not). Zero
-dead space still means
-zero DEAD space: real pauses (>= 0.55s), restarts and stutters are cut hard;
-speech cadence is not.
-
-
-## Mode B: VO-to-picture storytelling / day-in-the-life
-The inverse of Mode A. The creator hands you loose b-roll (walking, working,
-coffee, screen, street) with no usable on-camera speech. You build the video by
-**locking picture to a script**, then the creator records the voiceover to a
-guide. Same brand-config, captions, SFX, cover.
-
-### B1. Survey + script the voiceover (Part 1 binds here too)
-Probe the clips (duration, what's in frame). Get the takeaway from the creator,
-then **YOU write the beat-by-beat VO script**: one short spoken line per beat,
-each with a role (HOOK / CONTEXT / BEAT / TURN / BUTTON) and a target on-screen
-duration. Hook beat short (1.5-2.5s), later beats breathe (3-4s). Premise first:
-the hook line opens a loop, the button pays it. Present the beat sheet, get a yes.
-
-**Mine long clips end to end, one file is many shots.** In day-in-the-life
-footage the creator lets the camera roll and does several things in one long
-take. Watch the WHOLE clip (a timecoded contact sheet across its full length,
-not a single thumbnail), and **whenever a NEW ACTION starts inside the clip,
-treat it as an intentional, separate usable shot** with its own in/out, not a
-throwaway. A 4-minute cooking clip is not "one chopping shot", it is chopping +
-plating + stepping back + tasting, each a candidate beat. Assume the new action
-was filmed on purpose. Never judge a long clip by its first few seconds or
-grab only one shot from it, walk its entire duration and pull every distinct
-moment into the shot pool before matching beats.
-
-Persist the contact sheet to the footage library exactly as in step 2d (Mode A);
-for b-roll the `moments` array carries the timecoded per-action shots, which is
-the whole value.
-
-### B2. Assign a clip to each beat + write beats.json
-Match each scripted beat to its best visual (the one whose action illustrates the
-line), pick an in-point, and set the play length from the beat's target duration.
-Mode B gets the picture for free, so the legibility law bites harder here: you
-are choosing a shot for every line, and a clip that only connects to its line
-via a metaphor is the default failure of this mode. Write the VO line and its
-`reads_as` match together, never the script first and the clips after.
-```json
-[
-  {"src":"/abs/IMG_1.MOV","start":2.0,"target_dur":2.2,"role":"hook","text":"VO line you read","push":true},
-  {"src":"/abs/IMG_2.MOV","start":11.0,"end":14.0,"role":"beat","text":"next line"},
-  {"src":"/abs/IMG_3.MOV","start":0.0,"target_dur":3.0,"role":"button","text":"closing line"}
-]
-```
-- `target_dur` (or `end`) = how long the clip plays = the pacing lever.
-- `push:true` = slow 12% push-in for life on a near-static shot. Default OFF:
-  a clip with its own motion never needs it, and push renders on a 2x
-  supersampled frame (slower encode), so spend it only where the shot would
-  otherwise sit dead.
-- `text` = the exact VO line for that beat (drives the guide + sync).
-
-### B3. Lock the picture + emit the timeline
-```bash
-python3 scripts/brollcut.py --beats beats.json --workdir .yap_build --out .yap_build/picture.mp4
-```
-Builds the silent (natural-audio-bed) vertical timeline and writes
-`.yap_build/picture.timeline.json` (per-beat assembled times) that drives the
-guide, captions, and SFX.
-
-### B4. Burn the record-to-picture guide -> creator records VO
-```bash
-python3 scripts/vo_guide.py --picture .yap_build/picture.mp4 \
-  --timeline .yap_build/picture.timeline.json --out guide.mp4 --font "Bricolage Grotesque"
-```
-`guide.mp4` = a 3s countdown then the picture with each beat's VO line burned
-over its clip. **Send it to the creator: they play it and read the lines aloud
-in time, recording a single voice memo.** Because the picture is locked, the take
-lands in sync. Tell them to start reading on "1".
-
-### B5. Finish (lay VO in, caption, brand, SFX, compose)
-```bash
-bash scripts/storyfull.sh .yap_build .yap_build/picture.mp4 vo.m4a output/clip.mp4 \
-  "HOOK|LINE2" "sparkword" sfx.json
-# vo = "-" to skip an external VO and keep the clips' own audio.
-# trailing arg = vo_offset seconds if the recording has leading silence.
-```
-`storyfull.sh` lays the VO over the picture (ducking each clip's natural sound
-under it), transcribes the VO for word-by-word brand captions, adds the hook +
-handle/contact block, mixes the SFX/music layer, and composes to -14 LUFS. Then
-do the cover (8c) and finalize (9) exactly as Mode A.
-
-**Mode B finishing rules (every run):**
-- **Picture length == VO length.** No picture past the last VO word: trim the
-  tail beat instead of letting the video run silent.
-- **Chronology reads as day-flow.** Never a daytime clip after a night clip;
-  when sync and chronology fight, day-flow + strong visuals win over tight
-  per-line sync.
-- **Catch repeated words across beats** (scripting them one by one hides that
-  three lines all start "so I"), read the full VO script aloud once before
-  locking picture.
-
-## SFX + music layer (optional, both modes)
-A generated, royalty-free pack (no downloads, no licensing) lives at
-`assets/sfx/`. Build it once:
-```bash
-python3 scripts/gen_sfx.py            # whoosh, swish, impact, riser, ding, click, bed_calm, bed_drive
-```
-Layer it with a `sfx.json` (Mode B: pass it to `storyfull.sh`; Mode A: run
-`sfxmix.py` on the finished clip):
-```json
-{
-  "music": {"file": "bed_calm", "gain_db": -22, "duck": true},
-  "hits": [
-    {"sfx":"whoosh","at":0.0,"gain_db":-8},
-    {"sfx":"impact","at":1.6,"gain_db":-5},
-    {"sfx":"swish","at":5.0,"gain_db":-10},
-    {"sfx":"ding","at":11.2,"gain_db":-12}
-  ]
-}
-```
-```bash
-python3 scripts/sfxmix.py --in output/clip.mp4 --sfx sfx.json --out output/clip_sfx.mp4
-```
-- **music.duck:true** sidechain-ducks the bed whenever the voice talks (keeps the
-  VO clear). `file` resolves a pack name OR an absolute path (drop in your own
-  music/SFX). Beds are subtle ambient pads, fine to BYO a licensed track instead.
-- **Place hits from the timeline**: a `whoosh`/`swish` on each cut (use the
-  `t_start` of each beat from `picture.timeline.json`), an `impact` on the hook
-  word landing, a `riser` into a turn, a `ding` on a stat/list beat.
-- **Taste**: under-mix it. SFX is seasoning, not the dish. One whoosh per real
-  cut, not per caption word. Final loudness still lands ~-14 (alimiter guards
-  clipping when hits stack on the voice).
-- Generated tones are CC0; this does NOT break the "no AI-generated assets" rule,
-  which is about VISUALS (covers, b-roll, hero frames stay real footage only).
-
-## Retention pass (gates, every video, both modes)
-
-The editor optimises the retention curve, not just a clean cut. Watch-through is
-the metric. Four gates, run on the FINISHED cut (after captions/overlays, before
-finalize). yapfull runs retention_check + pip_coverage automatically
-post-compose, reading the real hook-end from the .ass (a default hook window
-would count a phantom event); `YAP_ALLOW_STATIC=1` overrides retention for a
-deliberate slow burn. By hand:
-
-```bash
-python3 scripts/retention_check.py --video output/clip.mp4 \
-  --overlays .yap_build/<slug>_overlays.json --hook-end 5.2
-ffmpeg -i output/clip.mp4 -frames:v 1 .yap_build/frame0.png   # first-frame audit
-```
-
-1. **First-frame gate (eyeball frame0.png).** At 0.0s there must be motion or
-   mid-action framing (never settling in), the text hook readable in one
-   fixation, and something that differs from a generic talking head. If frame
-   zero could be any video in the feed, re-pick the hook clip in-point.
-2. **Re-hook gate (scripted).** Something must CHANGE on screen between ~2s and
-   ~3.5s: a cut, punch-in, text pop, or overlay landing with a raised stake.
-   The tool fails the build if the frame sits still through the window.
-3. **Pattern-interrupt budget (scripted).** No stretch longer than ~5s (short
-   form) or ~6s (60s+, pass `--max-gap 6`) without a visual event. The tool
-   prints every static stretch with a timestamp: fix each one by aiming an
-   overlay, counter, PiP evidence insert, or punch-in AT that timestamp, then
-   re-run. The longest static stretch is where people leave.
-4. **Loop-or-button ending (eyeball).** The last line either hard-stops on the
-   payoff or connects back to the first line so rewatches register. Never let
-   the energy trail off after the payoff.
-
-Which lever to reach for, and how much to season, is Part 1, "Density and
-receipts". **Precedence bites here:** a flagged static stretch is not a licence
-to drop in a cutaway that fails the one-second test. Use a punch-in.
-
-### Evidence inserts (receipts: logos, headlines, counters)
-**The receipts rule: every named brand/product and every stat gets something
-on screen while it is spoken.** This is not decoration, it is the credibility
-layer, and it is enforced: `pip_coverage.py` scans the cut transcript for
-claim moments and checks each against the overlays JSON; yapfull runs it on
-the finished file (a report by default, build-fatal when brand-config sets
-`"pip_strict": true`, which scripted/branded channels should).
-
-**The receipt hierarchy (locked 2026-07-13, creator-approved):**
-1. **Brand/product mention -> the official LOGO on a white rounded CHIP
-   (the locked look, 2026-07-13).** The chip gives uniform geometry across
-   mismatched logo shapes, guaranteed contrast on any footage, and its edge
-   reads as the object so a flat-bottomed mark never looks cut. Fetch + chip
-   in one command (Wikipedia/Wikimedia official SVGs, rasterized with real
-   alpha inside a contain box so no aspect ratio can clip):
-   ```bash
-   python3 scripts/logo_fetch.py --page "Perplexity AI" --box 213x150 \
-     --out .yap_build/evidence/chip_perplexity.png     # chip is the default
-   ```
-   Several brands named in one breath = a ROW of chips, each popping in
-   on its spoken word (staggered `enable=between(t,...)`), all holding to the
-   end of the list beat. `--bare` exists for special cases only.
-2. **Story/event -> the real article HEADLINE card.** The script's `sources`
-   carry the URL; headless-screenshot it, crop headline + byline + date (the
-   outlet name must stay visible), white card pad. Real screenshots only (no
-   AI, per Hard rules). A dead product or bot-walled site: its Wikipedia page
-   is a legitimate receipt.
-3. **Stat -> counter** (accent count-up) or the headline that contains it.
-
-**Building the cards: `scripts/evidence_card.py`.** Six types, one geometry, all
-brand-typeset transparent PNGs at the locked <=972px receipt width, so each drops
-straight into an `_overlays.json` pip entry:
-
-```bash
-# wrap a real screenshot (already cropped to the headline) in the white card
-python3 scripts/evidence_card.py capture --src raw/story.png \
-  --domain pcgamer.com --date "29 Jul 2026" --out .yap_build/evidence/kc_1.png
-# page refuses to be captured cleanly: typeset its own headline instead
-python3 scripts/evidence_card.py quote --headline "..." --dek "..." \
-  --domain forbes.com --date "21 Sep 2025" --out .yap_build/evidence/bn_S2.png
-# number and comparison beats: a built card beats a screenshot for phone legibility
-python3 scripts/evidence_card.py stat  --value '$5T' --label "market cap, a first" --domain cnbc.com --out c.png
-python3 scripts/evidence_card.py bars  --bar "2022|20|\$20B" --bar "2014|1|\$1B" --domain gulfnews.com --out c.png
-python3 scripts/evidence_card.py chips --chip "2.8T params" --chip "MXFP4" --domain huggingface.co --out c.png
-python3 scripts/evidence_card.py timeline --tick "Oct 2000|AdWords" --tick "2026|ChatGPT ads" --domain digiday.com --out c.png
-```
-
-Rules that ride along: **every figure on a built card must be VERBATIM from the
-source named in its pill** (reformatting a number is fine, sourcing one from the
-script is not); a `quote` card is still a real receipt because the words and the
-attribution are the page's own; and if a spoken stat has no reachable source it
-gets no card at all, flagged rather than invented. For a walled page, capture the
-verdict with `outlier-radar`'s `capture_gate.py` (reject, never repair) and feed
-the headline it returns into `quote`.
-
-**Placement (locked): logos and screenshot cards go BELOW the caption line,
-centered, in the y 1440-1650 band at 1080x1920, and ALL receipt ink must end
-above y=1650: the platform's bottom chrome (description, sound line) starts
-there and eats anything lower, which is how two square logos once shipped
-with their bottoms cut. Logo boxes are 215x150 (a square symbol fills the
-150, a wide wordmark centers); headline cards keep their TEXT above the line
-even if padding grazes it. Never over the face or eyes. The top band is just
-as bad (TikTok/Reels top chrome); counters may stay upper-third (`y: 420`)
-since they are glanceable. Keep receipts <= ~972px wide and clear of the
-burned CTA block window (last ~9.7s) and of source lower-thirds
-(pos 48,1500): sequence, don't stack.**
-```bash
-ffmpeg -i cut.mp4 -i .yap_build/evidence/card_headline.png -filter_complex \
-  "[0][1]overlay=(W-w)/2:1470:enable='between(t,9.8,13.4)'" -c:a copy out.mp4
-```
-Rules: one insert per claim, on screen only while the claim is spoken, add a
-`whoosh` SFX hit on entry. Log each insert in the overlays JSON (`{"type":"pip",
-"start":12.4,"end":15.6}`) so pip_coverage and retention_check count it. An
-evidence insert does two jobs at once: pattern interrupt + receipts, so when
-the retention tool also flags static stretches, aim the inserts there first.
-
-## Motion layers (typewriter hook, source tags, number count-ups)
-Driven by `build_ass.py` + `brand-config.json`, applied by `yapfull.sh`:
-- **Typewriter hook**: set `"hook_anim": "typewriter"` in brand-config (the reference creator = on). The
-  hook reveals character-by-character with a cursor, then holds with the accent spark on
-  the spark word. `"none"` = the old fade.
-- **Source lower-thirds + number count-ups**: per clip, drop a
-  `<workdir>/<out-slug>_overlays.json` (yapfull auto-applies it):
-  `[{"type":"source","text":"Source: Forrester, 2026","start":8.0,"end":12.0},
-    {"type":"counter","value":"23X","label":"vs everyone else","start":11.6,"end":14.2,"y":420}]`
-  Counter ticks 0->value in the accent then holds the exact `value` string (handles 23X,
-  $1B, 89%). **Text collision rule (hard): nothing may sit on the hook while
-  the hook is up.** `build_ass.py` measures the fitted hook block, writes it to
-  `cap_<out>.ass.meta.json` (with the caption band) for any raster PiP burner
-  to respect, and auto-pushes a counter clear of the hook band when their
-  windows overlap; the `y` you write is a suggestion, text always wins.
-  Use for the data/educational videos. The accent colour comes from
-  `accent_hex` even when captions are scale-only.
-All real/typeset, no AI-generated assets.
-
-## On-screen hook styles (native / minimal / branded)
-Two ways to burn the hook. The **inline ASS hook** (`build_ass.py --hook`, auto-fit so
-it never clips) is the default, fast path. For a designed, typography-driven hook, use
-`hook_styles.py`, which renders a transparent 1080x1920 PNG you overlay on the cut for
-the hook window (~0.15-5s). Three styles, all auto-shrink so nothing ever clips:
-```bash
-python3 scripts/hook_styles.py --style branded \
-  --setup "SETUP LINE|OPTIONAL SECOND" --payoff "the tension underneath" \
-  [--eyebrow POV] --brand brand-config.json --out .yap_build/hook.png
-# then burn it for the hook window:
-ffmpeg -i cut.mp4 -i .yap_build/hook.png -filter_complex \
-  "[0][1]overlay=0:0:enable='between(t,0.15,5.2)'" -c:a copy out.mp4
-```
-- **native** = looks typed in TikTok: SF NS Rounded Heavy, white + dark outline, balanced.
-- **minimal** = tight brand sans (`caption_font`), big statement + smaller context line,
-  no outline, subtle shadow only.
-- **branded** = the house style: SETUP big in a condensed display face (Anton) in the
-  brand `accent_hex`, uppercase, up to 2 lines; PAYOFF in an italic serif (Hoefler Text
-  Italic), white, ALWAYS one line. NO outline, NO shadow (font-classification contrast is
-  the point). Colours/fonts come from `brand-config.json`. Rules: the payoff never wraps
-  or clips; emphasis spans a phrase, not one word before a period.
+The law, the hierarchy (logo chip, headline card, counter), the placement band (receipt ink
+above y=1650, below the caption line, never over the face) and `pip_coverage.py` live in
+`references/receipts.md`, shared with the Radar. `evidence_card.py` (`capture`, `quote`, `stat`,
+`bars`, `chips`, `timeline`) writes the cards; `logo_fetch.py` fetches and chips a logo. Every
+figure on a card is verbatim from the source in its pill.
 
 ## Decisions to ask (and proven defaults)
+
 | Decision | Default |
 |---|---|
-| Which take | Two longest are usually the takes; ask if ambiguous. Never skip short clips. |
-| Takeaway/premise | Creator supplies it. If missing, ASK. |
-| Story shape/order/cuts | You build it premise-first, present the beat sheet, get a yes. |
-| Caption preset | brand-config (minimal scale-only highlight; bold/Anton only for YouTube repurposes). |
-| Hook length | One line if it fits, else two (`a|b`). |
-| Crop alternation | On (masks jump-cut stutter). Turn off only if the creator dislikes any framing change. |
+| Which take | The two longest are usually the takes; ask if ambiguous. Never skip short clips. |
+| Takeaway | The creator supplies it. If missing, ASK before cutting. |
+| Story shape | You build it premise-first, present the beat sheet, get a yes. |
+| Caption preset | brand config (minimal, scale-only highlight). |
+| Hook | One line if it fits (9 words or fewer), else two with `|`. Second hook as a variant when the platforms differ. |
+| Platform | TikTok by default; `YAP_PLATFORM=linkedin` for the ICP lane. |
+| Crop alternation | On (masks jump-cut stutter). Off only if the creator dislikes any framing change. |
 
 ## When it misbehaves
-`references/gotchas.md` (threshold tuning per noise floor, clipped quiet word,
-transcriber seam hallucinations, no-libass constraint, black-video fix) and
-`references/speech-and-repetition.md` (which repeats to cut vs keep). Read before
+
+`references/gotchas.md` (threshold tuning per noise floor, clipped quiet words, seam
+hallucinations, the no-libass constraint, voice-picture drift) and
+`references/speech-and-repetition.md` (which repeats to cut and which to keep). Read before
 improvising.
 
+## Why yapcut
+
+The old flow concatenated auto-editor output and dropped a one-frame black flash at every
+jump cut. `yapcut.py` does everything in one clean CFR pass, cuts only at pauses of 0.55s or
+more, bridges segments under 0.45s, requires a cut to remove 0.25s to exist, finds edges by
+walking the energy envelope out to a measured margin, and paces frames against the cumulative
+audio clock so lips never slide off the voice. Zero dead space means zero DEAD space: real
+pauses, restarts and stutters go; speech cadence stays.
+
 ## Hard rules
-Editorial hard rules (no AI-generated visuals, no dashes, receipts on every
-claim) live in Part 1. One operational rule lives here:
-- Run the batch **sequentially** in one process (the cutters are parallel-safe via
-  per-output scratch, but races still risk surprises). Never build ahead of the
-  gates.
+
+Editorial hard rules (no AI-generated visuals, no dashes, receipts on every claim) are Part 1.
+Operational: run the batch sequentially in one process and never build ahead of the gates.

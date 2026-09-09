@@ -40,7 +40,10 @@ Writes <workdir>/keeps_<out>.json (final cut points) for the QA seam audit.
 clauses: [{"src":"/abs.MOV","start":6.5,"end":16.6,"label":"hook",
            "protect_tail":false}, ...]
 """
-import argparse, json, math, os, shutil, struct, subprocess, wave as wavmod
+import argparse, json, math, os, shutil, struct, subprocess, sys, wave as wavmod
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
 
 HOP=0.010   # envelope hop, seconds
 
@@ -340,7 +343,7 @@ def main():
         f_video+=nfr
         af=((f"volume={gain}dB," if gain else "")
             +f"afade=t=in:st=0:d=0.004,afade=t=out:st={max(0.0,dur-0.004):.4f}:d=0.004")
-        z=ALT[i%len(ALT)]; W=round(1080*z); H=round(1920*z)
+        z=ALT[i%len(ALT)]; W=round(media.W*z); H=round(media.H*z)
         if W%2: W+=1
         if H%2: H+=1
         # --grade rides HERE, inside the segment pass, so a brightness lift costs
@@ -350,7 +353,7 @@ def main():
         # chain, and those were the two files the creator called low quality.
         grade=(a.grade+",") if a.grade else ""
         vf=(f"scale={W}:{H}:force_original_aspect_ratio=increase,"
-            f"crop=1080:1920,setsar=1,{grade}fps=30,"
+            f"crop={media.W}:{media.H},setsar=1,{grade}fps=30,"
             f"tpad=stop_mode=clone:stop_duration=0.3")
         # -ss/-to (not -t): input -t measures from the packet where reading
         # starts, not from the seek point, and shaves ~5-10ms of AUDIO per
@@ -385,21 +388,17 @@ def main():
         "-c:a","aac","-b:a","192k",a.out,"-hide_banner","-loglevel","error"],check=True)
     os.remove(tmpv); os.remove(tmpa)
     shutil.rmtree(segdir,ignore_errors=True)   # segments are spent once concatenated
-    dur=float(subprocess.run(["ffprobe","-v","error","-show_entries","format=duration",
-        "-of","csv=p=0",a.out],capture_output=True,text=True).stdout)
+    # probes go through yaplib.media: a failed ffprobe raises with its own
+    # stderr instead of turning into float('') on the next line.
+    dur=media.probe_duration(a.out)
     # DRIFT GATE: video and audio stream lengths must match. Any excess picture
     # means the per-segment frame pacing failed and lips will slide off the voice.
-    sd={}
-    for ln in subprocess.run(["ffprobe","-v","error","-show_entries",
-            "stream=codec_type,duration","-of","csv=p=0",a.out],
-            capture_output=True,text=True).stdout.strip().splitlines():
-        typ,d=ln.split(",")[0],ln.split(",")[1]
-        sd[typ]=float(d)
-    drift=sd.get("video",0)-sd.get("audio",0)
+    drift=media.drift(a.out)
     print(f"{len(keeps)} segments -> {a.out}  ({dur:.2f}s, video-audio drift {drift:+.3f}s)")
-    if abs(drift)>0.067:   # 2 frames; AAC edge padding accounts for < 1
-        raise SystemExit(f"DRIFT GATE FAILED: picture is {drift:+.3f}s vs voice "
-            f"(limit 0.067s). Do not ship; the cut stage is broken.")
+    if abs(drift)>media.DRIFT_LIMIT_CUT:   # 2 frames; AAC edge padding accounts for < 1
+        print(f"DRIFT GATE FAILED: picture is {drift:+.3f}s vs voice "
+              f"(limit {media.DRIFT_LIMIT_CUT:.3f}s). Do not ship; the cut stage is broken.")
+        sys.exit(2)
 
 if __name__=="__main__":
     main()

@@ -25,8 +25,12 @@ Exit codes: 0 all covered / no claims, 1 uncovered claims (report),
 """
 import argparse
 import json
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import words as ywords  # noqa: E402
 
 STOP = {"i", "im", "ive", "id", "ill", "ai", "ok", "okay", "pov", "diy",
         "asap", "tv", "b2b", "b2c", "qa", "faq", "us", "uk", "eu", "ceo",
@@ -37,23 +41,11 @@ SENT_END = re.compile(r"[.!?]\s*$")
 
 
 def tokens(words_json: str, corrections: str = "") -> list:
-    d = json.load(open(words_json))
-    out = []
-    for s in d.get("transcription", []):
-        t = s.get("text", "").strip()
-        if not t:
-            continue
-        o = s["offsets"]
-        out.append([o["from"] / 1000.0, o["to"] / 1000.0, t])
+    """[[start, end, text]] with the caption corrections applied by original
+    index (yaplib.words), so this gate sees the words the captions show."""
+    out = [list(w) for w in ywords.load_words(words_json)]
     if corrections:
-        try:
-            c = json.load(open(corrections))
-        except Exception:
-            return out
-        drop = set(c.get("drop", []))
-        fix = {int(k): v for k, v in c.get("fix", {}).items()}
-        out = [[a, b, fix.get(i, t)] for i, (a, b, t) in enumerate(out)
-               if i not in drop]
+        out = [list(w) for w in ywords.apply_corrections(out, corrections)]
     return out
 
 

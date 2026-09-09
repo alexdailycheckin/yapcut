@@ -8,15 +8,19 @@ A hole is a >=15ms stretch near-silent (<= --hole-db) while the surrounding
 zero by itself, a bad splice does.
 
 Usage: seam_qa.py --keeps .yap_build/keeps_full_x.json --video final.mp4
-Exit 1 if any join fails, so it can gate a build.
+Exit 2 if any join fails (Contract 1: 2 = FAIL), so gates.sh can fail the build;
+0 when every join is clean.
 """
-import argparse, json, math, os, struct, subprocess, sys, tempfile, wave
+import argparse, json, math, os, struct, sys, tempfile, wave
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
 
 def load_pcm(video):
     tmp=tempfile.NamedTemporaryFile(suffix=".wav",delete=False)
     tmp.close()
-    subprocess.run(["ffmpeg","-nostdin","-y","-i",video,"-ar","48000","-ac","1",
-        "-c:a","pcm_s16le",tmp.name,"-hide_banner","-loglevel","error"],check=True)
+    media.ffmpeg(["-i",video,"-ar","48000","-ac","1","-c:a","pcm_s16le",tmp.name],
+                 what="ffmpeg pcm extract")
     w=wave.open(tmp.name,"rb"); fr=w.getframerate()
     sm=struct.unpack(f"<{w.getnframes()}h",w.readframes(w.getnframes()))
     w.close(); os.unlink(tmp.name)
@@ -53,7 +57,7 @@ def main():
         if hole: bad+=1
         print(f"join{j} @{t:7.2f}s  floor {lo:6.1f} dB / peak {hi:6.1f} dB  {flag}")
     print(f"{len(joins)} joins, {bad} with splice holes")
-    sys.exit(1 if bad else 0)
+    sys.exit(2 if bad else 0)
 
 if __name__=="__main__":
     main()

@@ -37,68 +37,74 @@ Usage:
   evidence_card.py chips    --domain huggingface.co --chip "2.8T params" --chip "MXFP4" --out card.png
 """
 import argparse
+import os
 import pathlib
 import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-CARD_W = 972                  # locked receipt width in the 1080x1920 frame
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import ass as yass  # noqa: E402
+from yaplib import brand, fonts, media  # noqa: E402
+
+CARD_W = 972                  # locked receipt width in the 1080x1920 frame (media.W)
 PAD = 30
 RADIUS = 30
-FONTS = pathlib.Path.home() / "Library" / "Fonts"
 
-# The spark, used on ONE element per card. Resolved from brand-config.json so a
-# brand that moves its accent does not leave every built receipt on the old one:
-# these cards outlived a tangerine-to-red change still painting tangerine bars.
-# The old constant is the fallback when there is no brand file to read.
+# The spark, used on ONE element per card. Resolved from brand-config in
+# main() via configure() (yaplib.brand: --brand, else the --out's .yap_build,
+# else the workspace, else the shipped default). NOTHING is read at import any
+# more: the old module-level read went to the skill root only, so a creator who
+# kept the config in the workdir yapfull honoured got the default orange on
+# every receipt card. The constant below is the no-brand fallback.
 BONE = (255, 255, 251, 255)
 INK = (35, 35, 35, 255)
 MUTE = (120, 120, 118, 255)
 HAIR = (0, 0, 0, 38)
+TANG = (255, 90, 42, 255)
+
+# faces by FAMILY (brand caption_font for figures/headlines, label_font for
+# labels/pills), resolved once in configure(); None falls back to Pillow's default
+_FACES = {"display": None, "mono": None, "mono_bold": None}
 
 
-def _brand_accent(default=(255, 90, 42, 255)):
-    import json
-    p = pathlib.Path(__file__).resolve().parent.parent / "brand-config.json"
-    try:
-        h = (json.loads(p.read_text()).get("accent_hex") or "").lstrip("#")
-        if len(h) == 6:
-            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
-    except Exception:
-        pass
-    return default
+def configure(cfg):
+    global TANG
+    if not yass.is_none(cfg.get("accent_hex")):
+        TANG = yass.hex_to_rgba(cfg.get("accent_hex"), 255)
+    _FACES["display"] = fonts.first_font([(cfg.get("caption_font"), None), ("Montserrat Black", None),
+                                          ("Helvetica", None), ("Arial", None), ("DejaVu Sans", None)])
+    _FACES["mono"] = fonts.first_font([(cfg.get("label_font"), "400"), (cfg.get("label_font"), None),
+                                       ("Space Mono", "400"), ("Menlo", None), ("DejaVu Sans Mono", None)])
+    _FACES["mono_bold"] = fonts.first_font([(cfg.get("label_font"), "700"), ("Space Mono", "700"),
+                                            (cfg.get("label_font"), None), ("Menlo", None)])
 
 
-TANG = _brand_accent()
-
-
-def font(name: str, size: int):
-    """Brand faces, with a legible fallback rather than a crash: a missing font
-    should degrade the card, not fail the build at 2am."""
-    for cand in (FONTS / name, pathlib.Path("/System/Library/Fonts") / name):
-        if cand.exists():
-            return ImageFont.truetype(str(cand), size)
-    for fb in ("/System/Library/Fonts/SFNS.ttf",
-               "/System/Library/Fonts/Helvetica.ttc"):
-        if pathlib.Path(fb).exists():
-            return ImageFont.truetype(fb, size)
+def _face(key, size):
+    """A missing font degrades the card, it does not fail the build at 2am."""
+    p = _FACES.get(key)
+    if p:
+        try:
+            return ImageFont.truetype(p, size)
+        except OSError:
+            pass
     return ImageFont.load_default()
 
 
 def display(size):      # headline / figure face
-    return font("BricolageGrotesque-ExtraBold.ttf", size)
+    return _face("display", size)
 
 
 def mono(size):         # labels, source pills, dates: 400, see tracked()
-    return font("spacemono-400.ttf", size)
+    return _face("mono", size)
 
 
 def mono_light(size):
-    return font("spacemono-400.ttf", size)
+    return _face("mono", size)
 
 
 def mono_bold(size):    # only where the glyphs are large enough to survive it
-    return font("spacemono-700.ttf", size)
+    return _face("mono_bold", size)
 
 
 def tracked(d, xy, text, fnt, fill, sp=2.0):
@@ -387,7 +393,16 @@ def main():
     ap.add_argument("--tick", action="append", default=[],
                     help="timeline: 'when|what'")
     ap.add_argument("--chip", action="append", default=[], help="chips: text")
+    ap.add_argument("--brand", default="", help="explicit brand-config.json (default: yaplib.brand "
+                    "resolution from the --out directory's build, then the workspace)")
     a = ap.parse_args()
+
+    out_dir = os.path.dirname(os.path.abspath(a.out))
+    cfg = brand.load(a.brand or None, workdir=out_dir)
+    # evidence/ lives one level under .yap_build: look there too
+    if cfg["_path"] == brand.DEFAULT_FILE and not a.brand:
+        cfg = brand.load(None, workdir=os.path.dirname(out_dir))
+    configure(cfg)
 
     need = {"capture": ["src"], "quote": ["headline"], "stat": ["value"],
             "bars": ["bar"], "timeline": ["tick"], "chips": ["chip"]}[a.kind]

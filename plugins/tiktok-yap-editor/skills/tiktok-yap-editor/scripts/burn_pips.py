@@ -28,18 +28,17 @@ if there are no pip entries it just copies the stream through.
 Usage: burn_pips.py --video in.mp4 --overlays x_overlays.json --workdir WD
                     --out out.mp4 [--meta cap_x.ass.meta.json]
 """
-import argparse, json, os, subprocess, sys
+import argparse, json, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
 
 TOP_MARGIN = 60          # stay clear of the platform UI at the very top
 PAD = 20                 # min gap between a pip and any text block
 BOTTOM_LIMIT = 1880      # never off the bottom edge
 
 def img_size(path):
-    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
-        "-show_entries", "stream=width,height", "-of", "csv=p=0", path],
-        capture_output=True, text=True).stdout.strip()
-    w, h = out.split(",")[:2]
-    return int(w), int(h)
+    return media.image_size(path)
 
 def fit_pip(p, iw, ih, meta):
     """Return (w, y) honouring the text-collision rule. Never lets the pip
@@ -145,7 +144,7 @@ def main():
            "-c:v", "libx264", "-preset", "medium", "-crf", "16",
            "-pix_fmt", "yuv420p", a.out,
            "-hide_banner", "-loglevel", "error"]
-    subprocess.run(cmd, check=True)
+    media.run(cmd, what="ffmpeg pip burn")
     print(f"burn_pips: {len([p for p in pips])} pip(s) burned -> {a.out}")
 
 if __name__ == "__main__":

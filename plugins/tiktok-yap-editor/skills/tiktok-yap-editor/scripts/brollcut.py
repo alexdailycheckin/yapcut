@@ -24,13 +24,13 @@ beats.json (ordered):
 - gain_db trims that clip's natural audio (VO replaces it later; default keep low).
 - text is the VO line for that beat; carried into the timeline for the guide.
 """
-import argparse, json, os, subprocess
+import argparse, json, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
 
 def has_audio(path):
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a",
-                        "-show_entries", "stream=index", "-of", "csv=p=0", path],
-                       capture_output=True, text=True).stdout.strip()
-    return bool(r)
+    return media.has_audio(path)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -64,15 +64,15 @@ def main():
         # push runs zoompan on a 2x supersampled frame: at output resolution
         # zoompan quantizes x/y to whole pixels and the push visibly shakes;
         # sampling from 2160x3840 makes the steps sub-pixel and smooth.
+        W, H = media.W, media.H
         if b.get("push"):
-            vf = ("scale=2160:3840:force_original_aspect_ratio=increase,"
-                  "crop=2160:3840,setsar=1,fps=%d,"
+            vf = (f"scale={W * 2}:{H * 2}:force_original_aspect_ratio=increase,"
+                  f"crop={W * 2}:{H * 2},setsar=1,fps={a.fps},"
                   "zoompan=z='min(1.0+0.0009*on,1.12)':d=1:"
-                  "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=%d"
-                  % (a.fps, a.fps))
+                  f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={W}x{H}:fps={a.fps}")
         else:
-            vf = ("scale=1080:1920:force_original_aspect_ratio=increase,"
-                  "crop=1080:1920,setsar=1,fps=%d" % a.fps)
+            vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+                  f"crop={W}:{H},setsar=1,fps={a.fps}")
 
         cmd = ["ffmpeg", "-nostdin", "-y", "-ss", f"{s:.3f}", "-to", f"{e:.3f}",
                "-i", src]
@@ -88,12 +88,10 @@ def main():
                 "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2",
                 "-b:a", "192k", "-video_track_timescale", "30000",
                 o, "-hide_banner", "-loglevel", "error"]
-        subprocess.run(cmd, check=True)
+        media.run(cmd, what=f"ffmpeg beat {i}")
 
         # real encoded duration (push/fps rounding can shift it a touch)
-        real = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                                     "format=duration", "-of", "csv=p=0", o],
-                                    capture_output=True, text=True).stdout)
+        real = media.probe_duration(o)
         timeline.append({"idx": i, "role": b.get("role", "beat"),
                          "text": b.get("text", ""), "src": src,
                          "t_start": round(t, 3), "t_end": round(t + real, 3),
@@ -101,9 +99,8 @@ def main():
         t += real
         open(concat, "a").write(f"file '{os.path.abspath(o)}'\n")
 
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-f", "concat", "-safe", "0",
-                    "-i", concat, "-c", "copy", a.out,
-                    "-hide_banner", "-loglevel", "error"], check=True)
+    media.ffmpeg(["-f", "concat", "-safe", "0", "-i", concat, "-c", "copy", a.out],
+                 what="ffmpeg concat")
     tlpath = f"{wd}/{outbase}.timeline.json"
     json.dump(timeline, open(tlpath, "w"), indent=2)
     print(f"{len(beats)} beats -> {a.out}  ({t:.2f}s)")

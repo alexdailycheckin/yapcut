@@ -19,12 +19,31 @@ sfx.json:
 - file/sfx: a pack name (-> assets/sfx/<name>.wav) OR an absolute path (BYO music/sfx).
 - music.duck: sidechain-duck the bed whenever the voice is talking (default true).
 - gain_db on the bed is its resting level under speech; hits are one-shot at `at` seconds.
-Pack lives at <skill>/assets/sfx/ (run gen_sfx.py once to build it).
+Pack lives at <workspace>/assets/sfx/ (run gen_sfx.py once to build it; falls back to <skill>/assets/sfx/).
 """
-import argparse, json, os, subprocess
+import argparse, json, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
 
 SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PACK = os.path.join(SKILL, "assets", "sfx")
+
+def _pack_dir(create=False):
+    """<home>/assets/sfx first (survives plugin updates), else <skill>/assets/sfx."""
+    import sys as _s, os as _o
+    _s.path.insert(0, _o.path.dirname(_o.path.realpath(__file__)))
+    try:
+        from yaplib.home import radar_home
+        home = radar_home(required=False)
+    except Exception:
+        home = None
+    if home:
+        p = _o.path.join(str(home), "assets", "sfx")
+        if create or _o.path.isdir(p):
+            return p
+    return _o.path.join(SKILL, "assets", "sfx")
+
+PACK = _pack_dir()
 
 def resolve(name):
     if os.path.isabs(name) or os.path.exists(name):
@@ -36,15 +55,10 @@ def resolve(name):
     raise SystemExit(f"sfx not found: {name} (looked in {PACK})")
 
 def has_audio(path):
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a",
-                        "-show_entries", "stream=index", "-of", "csv=p=0", path],
-                       capture_output=True, text=True).stdout.strip()
-    return bool(r)
+    return media.has_audio(path)
 
 def duration(path):
-    return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                                 "format=duration", "-of", "csv=p=0", path],
-                                capture_output=True, text=True).stdout)
+    return media.probe_duration(path)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -116,7 +130,7 @@ def main():
         "-filter_complex", fc, "-map", "0:v", "-map", "[mix]",
         "-c:v", "copy", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "192k",
         "-t", f"{vdur:.3f}", a.out, "-hide_banner", "-loglevel", "error"]
-    subprocess.run(cmd, check=True)
+    media.run(cmd, what="ffmpeg sfx mix")
     print(f"sfx mixed ({n_in - 1} layer(s)) -> {a.out}")
 
 if __name__ == "__main__":

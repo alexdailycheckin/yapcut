@@ -29,12 +29,14 @@ Usage:
 Exit codes: 0 clean, 1 warnings only, 2 dead air found (build-gating).
 """
 import argparse
-import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import media  # noqa: E402
+from yaplib import words as ywords  # noqa: E402
 
 
 def transcribe_punct_separate(video: str, t0: float = None, t1: float = None) -> str:
@@ -80,26 +82,9 @@ def window_max_gap(video: str, e1: float, s2: float) -> float:
 
 def speech_tokens(words_json: str) -> list:
     """(start, end, text) for real spoken tokens; punctuation tiles are skipped
-    so their span counts as gap (whisper parks pause time inside '.' tokens)."""
-    d = json.load(open(words_json))
-    toks = []
-    for s in d.get("transcription", []):
-        t = s.get("text", "").strip()
-        if not re.search(r"[A-Za-z0-9]", t) or re.match(r"^[\[(].*[\])]$", t):
-            continue
-        o = s["offsets"]
-        toks.append((o["from"] / 1000.0, o["to"] / 1000.0, t))
-    return toks
-
-
-def probe_duration(video: str) -> float:
-    out = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "csv=p=0", video], capture_output=True, text=True)
-    try:
-        return float(out.stdout.strip())
-    except ValueError:
-        return 0.0
+    so their span counts as gap (whisper parks pause time inside '.' tokens).
+    One definition of a token for the whole editor: yaplib.words."""
+    return ywords.speech_tokens(words_json)
 
 
 def main() -> int:
@@ -139,7 +124,7 @@ def main() -> int:
             continue
         (fails if g >= a.fail else warns).append((e1, s2, t1, t2))
 
-    dur = probe_duration(a.video)
+    dur = media.probe_duration(a.video)
     tail = dur - toks[-1][1]
     if dur and tail > 1.2:
         warns.append((toks[-1][1], dur, toks[-1][2], "<end>"))
