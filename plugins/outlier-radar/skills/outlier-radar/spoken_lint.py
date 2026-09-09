@@ -110,6 +110,15 @@ INTERJ_PHRASE = {"me too", "of course", "no way", "for sure", "not really", "i k
 
 CONTRACTION = re.compile(r"\b\w+'(s|re|ll|ve|d|m|t)\b", re.I)
 ING_ED = re.compile(r"\b\w{4,}(ing|ed)\b", re.I)
+# Third-person singular present is a whole tense the closed list above cannot cover, and
+# missing it made the linter call correct sentences verbless. "It opens a browser, fills in
+# the forms, sends the emails and checks out" carries 4 finite verbs and scored as a
+# verbless_list before 2026-09-09, because not one of them is in VERBS and not one ends in
+# -ing or -ed. A subject pronoun followed by a word ending in -s is a verb often enough to
+# trust, and the asymmetry matters: a missed detection costs one warning, a false FAIL costs
+# a correct line, which the writer then mangles to satisfy a gate that was wrong.
+THIRD_PERSON_S = re.compile(
+    r"\b(it|he|she|they|we|you|i|that|this|which|who|there)\s+(\w{3,}s)\b", re.I)
 
 
 def is_speech_act(chunk: str) -> bool:
@@ -134,6 +143,8 @@ def has_verb(chunk: str) -> bool:
     if CONTRACTION.search(chunk):
         return True
     if ING_ED.search(chunk):
+        return True
+    if THIRD_PERSON_S.search(chunk):
         return True
     return False
 

@@ -2,6 +2,22 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.6.1 (outlier-radar)
+
+**`spoken_lint` could not see the present tense.** `has_verb()` tested a closed verb list,
+contractions, and `-ing` / `-ed` endings. Third-person singular present matched none of those,
+so "It opens a browser, fills in the forms, sends the emails and checks out" scored as a
+`verbless_list` at HIGH severity despite carrying 4 finite verbs.
+
+That is the expensive kind of lint bug. A missed detection costs one warning. A false FAIL
+costs a correct sentence, because the writer rewrites a good line to satisfy a gate that was
+wrong, and the batch gets worse while the table goes green.
+
+- `has_verb()` now also accepts a subject pronoun followed by a word ending in `-s`.
+- Verified against the 11 known fragment cases: exactly one changed, the false positive.
+  Every genuine verbless fragment ("30 mins, no deck.", "Short one, promise.", "Bigger
+  budget, smaller team, same target.") still fails.
+
 ## What's new in 3.6.0 (outlier-radar)
 
 **The gate now grades whether the week got made, not only how it reads.**
