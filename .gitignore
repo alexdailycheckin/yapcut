@@ -25,3 +25,7 @@ plugins/tiktok-yap-editor/skills/tiktok-yap-editor/brand-config.json
 # TikTok Yap Editor: the sfx pack is generated locally (gen_sfx.py) and music
 # beds are the creator's own media; neither ships.
 plugins/tiktok-yap-editor/skills/tiktok-yap-editor/assets/
+
+# The identifying half of the privacy denylist. Symlinked in from the
+# private mirror; publishing it would leak exactly what it guards.
+.githooks/private-patterns.txt

@@ -34,23 +34,35 @@ while IFS= read -r f; do
   esac
 done <<< "$STAGED"
 
-# 2. Private strings must never appear in staged CONTENT. Reach methods, the
-#    vault, Alex's machine paths. The Reach partner pill and byline are the
-#    deliberate exceptions and they never use these strings.
-# Widened 2026-09-09. The old list caught machine paths and missed everything
-# else: a [redacted] file cited by BARE NAME ([redacted vault file]), a named
-# customer's revenue metrics, and Reach's own brand tokens all reached a commit
-# and two of them reached the public remote. A denylist that only knows about
-# absolute paths is a denylist for one kind of accident.
-PATTERNS='[redacted]|[redacted]|[redacted]|[redacted]|~|Desktop/Claude/(Reach|outlier-radar/weeks|outlier-radar/performance)'
-# [redacted] files cited by bare filename.
-PATTERNS="$PATTERNS"'|personal-brand\.md|reach-ai\.md|reach-messaging\.md|gtm-linkedin-radar\.md|(^|[^a-z-])(now|decisions|preferences)\.md'
+# 2. Private strings must never appear in staged CONTENT.
+#
+# This denylist has two halves. The STRUCTURAL half is below in plaintext: it
+# names shapes, not people, so publishing it costs nothing. The IDENTIFYING
+# half (real customer names, vault filenames, the creator's machine path) is
+# itself the secret, and this repo is public.
+#
+# Until 2026-09-09 the identifying half lived here in plaintext while the gate
+# excused its own file from every scan, so the customer names it existed to
+# protect were readable on the public remote, and the failure message printed
+# the whole list on any trip. That half now lives in private-patterns.txt,
+# gitignored, symlinked in from the private mirror. The gate REFUSES to run
+# without it: a denylist that silently degrades to half its rules is worse
+# than no denylist, because it still prints reassurance.
+PRIV="$(dirname "$0")/private-patterns.txt"
+[ -f "$PRIV" ] || fail "missing .githooks/private-patterns.txt (gitignored, never published). Symlink it in from the private mirror; refusing to run a half-blind gate."
+PRIVATE_PATTERNS="$(grep -hvE '^[[:space:]]*(#|$)' "$PRIV" | paste -sd'|' - || true)"
+[ -n "$PRIVATE_PATTERNS" ] || fail "private-patterns.txt holds no patterns; refusing to run a half-blind gate"
+
+# Structural half, safe to publish: workspace paths that should never be quoted
+# in tracked prose.
+PATTERNS='Desktop/Claude/(Reach|outlier-radar/weeks|outlier-radar/performance)'
+# Generic vault filenames. The identifying ones load from private-patterns.txt.
+PATTERNS="$PATTERNS"'|(^|[^a-z-])(now|decisions|preferences)\.md'
 # Reach as an actor, an owner or a seller, rather than the partner pill. The
 # pill renders from PARTNER/attribution constants and never says these.
 PATTERNS="$PATTERNS"'|Reach (sells|pipeline|brand|block|wordmark|customer)|Reach'"'"'s (product|own|brand)|joining Reach|at Reach\b'
-# Named Reach customers. Add to this list when a new one is discussed anywhere
-# near this repo; naming one alongside its numbers is the worst case here.
-PATTERNS="$PATTERNS"'|[redacted customer]|[redacted customer]|[redacted customer]|[redacted customer]'
+# Identifying half, loaded from outside the tree.
+PATTERNS="$PATTERNS|$PRIVATE_PATTERNS"
 # --history: scan every reachable commit for the same patterns (the 3.4.4 scrub cleaned HEAD and
 # left a customer's figures in commit 15838a7; a staged-diff gate can never see that).
 if [ "$MODE" = "--history" ]; then
@@ -110,7 +122,7 @@ HITS=$(git diff --cached -U0 -- . ':(exclude).githooks/*' \
        | grep -E "^\+" | grep -Ev "^\+\+\+" | grep -En "$PATTERNS" || true)
 if [ -n "$HITS" ]; then
   echo "$HITS" | head -5 >&2
-  fail "staged content carries a private marker (patterns: $PATTERNS)"
+  fail "staged content carries a private marker (matched lines above)"
 fi
 
 exit 0
