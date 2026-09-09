@@ -5,7 +5,7 @@ Two modes:
 
 1) Contact sheet (pick the frame):
    python3 cover.py --video final.mp4 --contact-sheet --out .cover_cand [--interval 2]
-   Extracts a candidate frame every N seconds so you (and Alex) can pick the
+   Extracts a candidate frame every N seconds so you (and the creator) can pick the
    strongest one: clear face, eyes open, good expression, no mid-blink/mid-word.
 
 2) Build the cover:
@@ -19,7 +19,7 @@ Design:
 - **No scrim.** The default `clean` style puts bone type straight onto the black
   t-shirt under the chin, which is the darkest thing inside that square, with a
   modest ink stroke to carry it over the camera or a hand. Sentence case, left
-  aligned, one brand-accent rule under the line. Alex killed the old full-width blurred
+  aligned, one brand-accent rule under the line. the creator killed the old full-width blurred
   band on 2026-08-07: it was muddy, it dulled the frame, and at the old default
   y it sat across his eyes and mouth. `--style scrim` still reaches it.
 - Placement is measured, not fixed: `best_title_y` slides the block down the
@@ -82,7 +82,7 @@ BONE = (255, 255, 251, 255)
 INK = (35, 35, 35, 255)
 
 # The accent under the title. This used to be a hardcoded tangerine, which
-# silently outvoted brand-config: a creator who set accent_hex still got Alex's
+# silently outvoted brand-config: a creator who set accent_hex still got the creator's
 # orange rule on every cover. It is now the brand's accent, resolved in main()
 # from brand-config.json (or --accent), with the old constant as the fallback so
 # a call with no brand file behaves exactly as before.
@@ -110,7 +110,7 @@ def mono(size):
 
 
 def draw_title(img, title, title_y):
-    """LEGACY 'scrim' style, kept only for old calls. Alex killed it 2026-08-07:
+    """LEGACY 'scrim' style, kept only for old calls. the creator killed it 2026-08-07:
     the full-width blurred band was muddy, it dulled the whole frame, and at the
     default title_y it sat straight across his eyes and mouth, which breaks the
     standing rule that burned text never covers the face. Use draw_title_clean."""
@@ -240,7 +240,7 @@ def _wrap_n(dr, text, fnt, max_w, n):
     return lines[::-1]
 
 
-# Below this, two big lines read better than one small line. Alex's call
+# Below this, two big lines read better than one small line. the creator's call
 # 2026-08-31, after a batch shipped with "How does Tesla sell?" at 78 on one
 # line next to "How does MrBeast sell?" at 116 on two: the old loop exhausted
 # every one-line size before it ever tried wrapping, so the SHORTEST titles
@@ -249,7 +249,7 @@ def _wrap_n(dr, text, fnt, max_w, n):
 TITLE_TARGET = 116
 # Ceiling as well as a target: the set should read as ONE set, and a 128pt
 # Tesla next to a 114pt Pop Mart does not. 120 is what the biggest cover in the
-# 08-30 batch landed on, which is the size Alex pointed at. It also keeps the
+# 08-30 batch landed on, which is the size the creator pointed at. It also keeps the
 # block short enough to sit under the chin once the mark's room is reserved.
 TITLE_MAX = 120
 MAX_TITLE_LINES = 3

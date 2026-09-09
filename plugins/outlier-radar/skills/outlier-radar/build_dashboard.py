@@ -59,7 +59,7 @@ def _lane_label(key, default):
 PRIMARY_LABEL = _lane_label("primary_lane", "Industry")
 SECONDARY_LABEL = _lane_label("secondary_lane", "Viral videos")
 LEADERS_HDR = CFG.get("leaders_header") or "From leaders you study"
-# Attribution defaults, on every install. This is Alex's tool and Reach is the
+# Attribution defaults, on every install. This is the creator's tool and Reach is the
 # partner behind it, so the credit ships by default rather than only appearing
 # when a config happens to ask for it. Any installer can replace or clear both
 # (`byline`, `partner`, `partner_url`, `brand.partner_logo`, `partner_tagline`).
@@ -201,7 +201,7 @@ ACCENT_TEXT_DARK = (_bc.get("accent_text_dark")
                     or _hex(_mix(_ar, (255, 255, 255), 0.35)))
 
 # The partner pill: mark, name, link, and the one-line tagline beneath it.
-# LOCKED, not a config surface (Alex's call, 2026-08-13): the pill is the price
+# LOCKED, not a config surface (the creator's call, 2026-08-13): the pill is the price
 # of the free tool. Outlier Radar is built by alexmuresan.com in partnership
 # with Reach, and every install renders that credit. The source is open, so a
 # fork can strip it; the config deliberately cannot, and no key is read here.
@@ -690,7 +690,7 @@ function toggleTheme(){ applyTheme(document.documentElement.getAttribute("data-t
 function officeOf(w){ return (w.office&&w.office.length)?w.office:(w.food||[]); }
 /* Three sources feed the LinkedIn tab and they are not interchangeable.
    soloPosts  = linkedin[], written for the feed alone, no video behind them.
-   leaderPosts= gtm_linkedin[], mined from the leaders Alex studies.
+   leaderPosts= gtm_linkedin[], mined from the leaders the creator studies.
    twins      = a video script's twin, and only when it earned a slot. A twin the
                 selector cut still lives in the week file so the script keeps its
                 LinkedIn draft, but it is not part of this week's feed plan. */
@@ -970,7 +970,7 @@ function detailBlocks(x){
 }
 
 /* Three states, not two. The chip used to be binary on qa==="passed", so a post
-   that had cleared the gate and was only waiting on Alex's yes rendered as
+   that had cleared the gate and was only waiting on the creator's yes rendered as
    "Pre-QA", indistinguishable from one nothing had ever read. "Pre-QA" now fires
    only on a qa value the engine does not define, which is a bug worth seeing. */
 function qaChip(qa){

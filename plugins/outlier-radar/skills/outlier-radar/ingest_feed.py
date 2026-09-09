@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Weekly LinkedIn intake. Alex pastes a feed table, this turns it into store rows.
+Weekly LinkedIn intake. The creator pastes a feed table, this turns it into store rows.
 
 The loop it serves (his 2026-08-11 directive): at some point each week he hands over the
 activity-feed numbers, the engine studies them, and the LOCAL Radar gets small tuning
@@ -34,7 +34,7 @@ adding an alias, so each week's judgement is permanent and the same table always
 the same ids. Two earlier attempts to auto-match on text similarity both shipped wrong
 ids; see the note by RARE_DF.
 
-Organic posts (Alex's own, no Radar id) get an `x-<postdate>-<row>` alias and need
+Organic posts (the creator's own, no Radar id) get an `x-<postdate>-<row>` alias and need
 dimensions in post-meta.json before they can be ranked: linkedin_format, job, medium,
 repeatable, topic_class. Those are judgement calls a regex gets wrong, and a wrong
 dimension is worse than a missing one.
@@ -315,7 +315,7 @@ def main():
                     print(f"        {pid:<22} {sc:<6} shares {'+'.join(rare)}")
             else:
                 print("      no Radar post shares a distinctive token")
-            print(f"      if it is one of Alex's own posts, use: {mint}")
+            print(f"      if it is one of the creator's own posts, use: {mint}")
         print()
 
     if not commit:

@@ -1,6 +1,6 @@
 # Shorts craft, 2026 delta
 
-_Researched 2026-07-26 after Alex judged the batch "not a good output". This file holds
+_Researched 2026-07-26 after the creator judged the batch "not a good output". This file holds
 only what the existing docs MISS. Structure theory lives in
 video-scripting-as-a-science.md; this is what changed since it was compiled, plus the
 two failure modes our batch actually has. Sources at the bottom._

@@ -125,7 +125,7 @@ def load_items():
                     "carousel": tw.get("carousel"), "text_hook": tw.get("title"),
                 }
 
-    # The overlay. Alex's own organic posts have no Radar id and therefore no week-file
+    # The overlay. the creator's own organic posts have no Radar id and therefore no week-file
     # metadata, so without this they log as rows of "unknown" and the report learns nothing
     # from them. It also backfills dimensions the week files never carried (medium, origin,
     # repeatable) onto Radar twins without rewriting history.

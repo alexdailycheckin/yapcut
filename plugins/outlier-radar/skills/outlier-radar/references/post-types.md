@@ -1,34 +1,34 @@
 # Post-type library (the shape decides before the words do)
 
-_Added 2026-07-10 after Alex's note that scripts weren't bundled into proven post
+_Added 2026-07-10 after the creator's note that scripts weren't bundled into proven post
 types. The rule: SUBSTANCE CHOOSES THE SHAPE, then the script is written INTO that
 shape's beat map. Talking-head is the fallback, not the default, and it must be
 justified (if an artifact on screen would beat the face, use the artifact). Every
 script carries a `post_type` field, and `directions` must be the beat map of that
 type with rough timestamps, not generic staging notes._
 
-## PRODUCTION CEILING (Alex's standing constraint, 2026-07-11)
+## PRODUCTION CEILING (the creator's standing constraint, 2026-07-11)
 
-**The shot is always a talking head.** Phone, face to camera, one sitting. Alex has
+**The shot is always a talking head.** Phone, face to camera, one sitting. the creator has
 no time for production: no whiteboards, no props, no costumes, no sets, no actors,
 no b-roll days, no screen-recording sessions on camera. Every post type below is an
 EDIT-LAYER grammar: types differ in what the EDITOR burns onto talking-head footage
 (PiP artifacts, progressive diagram overlays, counters, cards, stamps, score,
-lower-thirds), never in what Alex films. Concretely:
+lower-thirds), never in what the creator films. Concretely:
 - **receipt-react / countdown / storytime / teardown / meta-ab:** talking head +
   PiPs and stamps. Already compliant.
-- **whiteboard-build:** Alex draws NOTHING. The editor builds the diagram as a
+- **whiteboard-build:** the creator draws NOTHING. The editor builds the diagram as a
   progressive overlay while he talks.
 - **screen-record-walkthrough:** talking head + screen-capture PiPs prepared at
-  edit time (Claude captures the screens, Alex never records his screen on camera).
+  edit time (Claude captures the screens, the creator never records their screen on camera).
 - **skit-pov (office lane):** ONE MAN, SAME SEAT. Characters are energy shifts and
   jump cuts with edit-layer lower-thirds. Multi-actor scenes get rewritten as
   first-person storyteller retellings ("let me tell you what happened at the QBR").
-- **day-in-life-vo:** SUSPENDED (requires a b-roll day). Only revive if Alex asks.
+- **day-in-life-vo:** SUSPENDED (requires a b-roll day). Only revive if the creator asks.
 - A prop is allowed only if it is within arm's reach at filming time, and the
   script must never depend on it (the PiP fallback is the default).
-`directions` must always read as: what Alex does with his face and voice + what the
-EDIT LAYER burns. If a direction requires Alex to stand up, it is wrong.
+`directions` must always read as: what the creator does with their face and voice + what the
+EDIT LAYER burns. If a direction requires the creator to stand up, it is wrong.
 
 ## Type-fit rule (run this before writing a word)
 
@@ -36,7 +36,7 @@ EDIT LAYER burns. If a direction requires Alex to stand up, it is wrong.
 - Framework / model / two-things-compared -> **whiteboard-build**
 - Rules / mistakes / benchmarks in a set -> **countdown-listicle**
 - Company story / autopsy / case study -> **storytime-receipts**
-- A system or workflow Alex actually runs -> **screen-record-walkthrough**
+- A system or workflow the creator actually runs -> **screen-record-walkthrough**
 - Pure hot take where the energy is the point -> **talking-head-rant** (justify it)
 - Recognition humour / characters -> **skit-pov** (office lane default)
 - A day or process better shown than said -> **day-in-life-vo** (Mode B, see script-anatomy)
@@ -57,7 +57,7 @@ EDIT LAYER burns. If a direction requires Alex to stand up, it is wrong.
 
 ### receipt-react
 The artifact (chart, screenshot, headline, dashboard) is the co-star, on screen
-from frame one; Alex reacts to it, points at it, circles it. His editor's PiP
+from frame one; the creator reacts to it, points at it, circles it. His editor's PiP
 evidence inserts carry this.
 - **Beat map:** 0-2s artifact full-screen + one-line shock read of it. 2-8s what
   you're looking at, source NAMED on screen. 8-20s the two or three details that
@@ -71,7 +71,7 @@ evidence inserts carry this.
   without its visible twin; do-this rendered as a card.
 
 ### whiteboard-build
-A diagram draws itself (napkin, whiteboard, or editor overlay) while Alex talks.
+A diagram draws itself (napkin, whiteboard, or editor overlay) while the creator talks.
 The lo-fi high-concept mechanic: crayon production, big idea.
 - **Beat map:** 0-2s FLASH the finished diagram ("this is why your content dies")
   then wipe it. Build piece by piece, one element per beat, each element = one
@@ -107,7 +107,7 @@ The SBH engine generalised: a story told through dated artifacts.
   stamped on screen; admiration tone (punch up or sideways).
 
 ### screen-record-walkthrough
-The actual screen doing the actual thing, Alex PiP. The hours-saved mechanic
+The actual screen doing the actual thing, creator PiP. The hours-saved mechanic
 (fastest-rising short-form format of the period).
 - **Beat map:** 0-2s the RESULT cold open ("this took four minutes"). Then the
   3-5 steps compressed, each step visibly happening on screen. One catch/nuance
@@ -133,7 +133,7 @@ the borrowed office mechanic (see mechanic-library office table). QA: the bit
 lands without sound (title card + visual carry it), insider-specific, no winking.
 
 ### teardown-react
-A real post, ad, or copy line on screen; Alex reads it, names the smell, rewrites
+A real post, ad, or copy line on screen; the creator reads it, names the smell, rewrites
 it live. Runs the Angle Machine six-beat teardown arc.
 - **Beat map:** the artifact + verdict cold open ("this post cost someone a
   pipeline"). Read the offending line. Name the smell (category-as-angle,

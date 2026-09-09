@@ -93,7 +93,7 @@ def audible_edge(dbs, t, direction, thr, max_travel, stop_at=None, gap_tol=0.09)
     where the sound genuinely stops or starts, tolerating a stop consonant's
     silent closure on the way.
 
-    Why this exists (2026-08-27, after Alex flagged clipped words that "only
+    Why this exists (2026-08-27, after the creator flagged clipped words that "only
     happen on some words"): the speech gate is a LEVEL gate, so it fires while a
     word is still clearly audible whenever that word ends in a low-energy
     phoneme. Measured over the 08-24 batch, 5 of 78 joins cut into a live tail by
@@ -347,7 +347,7 @@ def main():
         # ZERO extra generations. Grading the finished cut as a separate ffmpeg
         # run (what the 08-24 batch did to popmart and mrbeast) is a whole extra
         # lossy encode of the entire video on top of an already 3-generation
-        # chain, and those were the two files Alex called low quality.
+        # chain, and those were the two files the creator called low quality.
         grade=(a.grade+",") if a.grade else ""
         vf=(f"scale={W}:{H}:force_original_aspect_ratio=increase,"
             f"crop=1080:1920,setsar=1,{grade}fps=30,"

@@ -269,7 +269,7 @@ def load_targets():
 
 
 def load_rejections():
-    """Phrases Alex has explicitly killed. See voice-corpus/rejections.json for why this
+    """Phrases the creator has explicitly killed. See voice-corpus/rejections.json for why this
     is the only layer that accumulates his taste across sessions."""
     p = _radar_home() / "voice-corpus" / "rejections.json"
     if not p.exists():
@@ -281,7 +281,7 @@ def load_rejections():
 
 
 def check_rejected(it):
-    """FAIL on any phrase Alex has already rejected. Absolute, not a threshold: he said
+    """FAIL on any phrase the creator has already rejected. Absolute, not a threshold: they said
     it, so it does not ship again."""
     out = []
     text = ((it.get("spoken_hook") or "") + "\n" + (it.get("script") or it.get("body") or ""))
@@ -296,7 +296,7 @@ def check_rejected(it):
             out.append({"check": "rejected_phrase", "where": f"{it['id']}.script",
                         "severity": "high", "text": hit.group(0)[:90].strip(),
                         "fix": "rewrite",
-                        "why": f"Alex rejected this on {r.get('date','?')}: {r.get('why','')}"})
+                        "why": f"the creator rejected this on {r.get('date','?')}: {r.get('why','')}"})
     return out
 
 
@@ -306,7 +306,7 @@ def check_speech_shape(it, targets):
     Mechanical gates catch absolutes; degree is for the human read and the discrimination
     test. So these fire only on zero, never on a hand-picked ratio.
 
-    1. NO FAT TAIL. Alex's real speech runs to 98 words and 1.6% of his sentences pass 45.
+    1. NO FAT TAIL. The creator's real speech runs to 98 words and 1.6% of their sentences pass 45.
        The 8 scripts of 2026-08-30 held 128 sentences and not one over 45, while passing
        every old gate, because the old rule asked for `max >= 25`. The runaway sentence is
        the single most distinctive thing about how he talks.

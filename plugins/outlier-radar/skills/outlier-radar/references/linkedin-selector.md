@@ -8,7 +8,7 @@ How the week's substance becomes the right SHAPE and the right MIX on LinkedIn. 
 
 Video and text are not the same surface and do not reward the same thing. The FYP rewards watch-through on a hook. The feed rewards dwell, saves and early comment velocity. So the twin needs its own selection pass off the same substance, not a copied field.
 
-**Building that pass did not fix it, and the reason is worth recording.** On 2026-08-11 Alex looked at the same week on the dashboard and found five identical shapes, on a week the selector had already assigned four different ones. Two separate causes, and only the first was the one anybody expected:
+**Building that pass did not fix it, and the reason is worth recording.** On 2026-08-11 the creator looked at the same week on the dashboard and found five identical shapes, on a week the selector had already assigned four different ones. Two separate causes, and only the first was the one anybody expected:
 
 1. **The proposal was never written down.** `propose_format()` computed a format for every twin, printed it to stdout, and the write-back persisted `post_day`, `post_slot` and `post_why` only. The dashboard renders the week file, so it kept showing the inherited video type. A selector that reports a shape and does not save it changes nothing about what ships.
 2. **The mix was unreachable, not merely unmet.** Twins were gated 1:1 to the video slate, so LinkedIn could only ever ship what the show had commissioned. A five-company show week forced five company posts. No reshaping at publish time can produce a confession that nothing upstream wrote, which is why the relatability leg read 0 of 1 in every week on disk and not just that one.
@@ -17,7 +17,7 @@ Cause 2 is the real one, and it is a structural point rather than a bug: **gradi
 
 ## The objective function
 
-Alex's stated north star is engagement and account growth. Decomposed, follower growth on LinkedIn is:
+the creator's stated north star is engagement and account growth. Decomposed, follower growth on LinkedIn is:
 
 **reach to non-followers x conversion to follow**
 
@@ -27,7 +27,7 @@ That decomposition is the whole reason a mix exists, and it is worth being preci
 
 So the objective is **ICP-weighted growth**: net new followers times the share of them who are growth, marketing or GTM leaders. 200 followers at 20% ICP beats 500 at 2%. LinkedIn's follower demographics expose seniority, function and industry, so this is measurable rather than aspirational, and `log_perf.py --followers` records both numbers.
 
-If Alex would rather optimise raw growth, that is a one-line change to the follower report and a reweighting toward reach formats. It is his call. The default is ICP-weighted because it is the one consistent with the locked positioning.
+If the creator would rather optimise raw growth, that is a one-line change to the follower report and a reweighting toward reach formats. It is their call. The default is ICP-weighted because it is the one consistent with the locked positioning.
 
 ## Why a mix at all (the answer to "do we need this locked")
 
@@ -50,23 +50,23 @@ LinkedIn stopped being downstream of the video slate. Two lanes feed the same fi
 
 Both compete on the same score with no bonus for having a video attached, and **at most `TWIN_CAP` of the five may be twins** (default 3). The cap is the mechanism, so it is worth being exact about what it buys: without it, a research-heavy week's strongest items are all the same shape, they win every slot on merit, and the week ships one post five times. Mix is allocated before score, so the best reach post cannot take a slot the week owes to relatability.
 
-**A twin is a candidate, not an entitlement.** A twin that loses its slot is marked `twin_cut: true` and drops out of the feed plan. This costs nothing, and Alex made the argument himself: the script still films, and it still ships on TikTok, Reels, Shorts and YouTube, where reach is the job. LinkedIn is the only surface where the ICP is the job, so it is the only one that has to be curated rather than filled.
+**A twin is a candidate, not an entitlement.** A twin that loses its slot is marked `twin_cut: true` and drops out of the feed plan. This costs nothing, and the creator made the argument themselves: the script still films, and it still ships on TikTok, Reels, Shorts and YouTube, where reach is the job. LinkedIn is the only surface where the ICP is the job, so it is the only one that has to be curated rather than filled.
 
 **Where the missing shapes come from, and it differs by job.** When the mix is short, the selector names the job and says to commission it into `linkedin[]`, because that gap cannot be closed from the video slate by definition. The source depends on which leg is short, and conflating the two was the mistake on the first pass.
 
-**Playbook is its own leg, targeted at 2 of 5** (Alex, 2026-08-11). It used to sit inside `authority` next to teardowns, which meant a week could satisfy the mix with two analyses and ship nothing runnable. The useful leg is now a requirement rather than a preference, because "give people useful things they can actually apply themselves to win" is the point of the account, not a nice-to-have.
+**Playbook is its own leg, targeted at 2 of 5** (the creator's call, 2026-08-11). It used to sit inside `authority` next to teardowns, which meant a week could satisfy the mix with two analyses and ship nothing runnable. The useful leg is now a requirement rather than a preference, because "give people useful things they can actually apply themselves to win" is the point of the account, not a nice-to-have.
 
-**A playbook is sourced from what shipped on the market this week.** Not the show corpus, not Alex's notes. New tools, features, platform changes and dated deadlines the ICP has to act on, turned into moves they can run, with the same receipts gate as a reach post. This is fresh research every week and it is the one leg that requires it. The 2026-08-10 pair came from the Google Ads AI Max auto-upgrade dated 1 September and the agentic-buying shift, both verified against primary reporting the day they were written.
+**A playbook is sourced from what shipped on the market this week.** Not the show corpus, not the creator's notes. New tools, features, platform changes and dated deadlines the ICP has to act on, turned into moves they can run, with the same receipts gate as a reach post. This is fresh research every week and it is the one leg that requires it. The 2026-08-10 pair came from the Google Ads AI Max auto-upgrade dated 1 September and the agentic-buying shift, both verified against primary reporting the day they were written.
 
-**Relatability is targeted at ZERO, and the reason is honest rather than strategic.** A confession needs a failure that actually happened, and this engine cannot have one. Every attempt to fill the leg mined Alex's own work journal and produced posts he did not want and would not have written, twice. The format stays defined so a confession types correctly on the rare week Alex writes one himself, and the mix simply stops asking. A leg nothing can supply is not a target, it is a nag. The earlier `relatability_candidates()` prompt survives for that case but no longer fires, since the target is met at zero.
+**Relatability is targeted at ZERO, and the reason is honest rather than strategic.** A confession needs a failure that actually happened, and this engine cannot have one. Every attempt to fill the leg mined the creator's own work journal and produced posts they did not want and would not have written, twice. The format stays defined so a confession types correctly on the rare week the creator writes one themselves, and the mix simply stops asking. A leg nothing can supply is not a target, it is a nag. The earlier `relatability_candidates()` prompt survives for that case but no longer fires, since the target is met at zero.
 
 **A dated cutoff goes in `deadline`, never in the peg.** A news peg loses value as it ages, so the sort races the clock downward. A deadline gets more urgent as it approaches and the post is not weaker after it passes, it is wrong. Scored as news, the Google Ads playbook looked half-decayed and drifted down the order. The selector now sorts deadline items on days-until-cutoff and refuses to let one ship past its own date without saying so.
 
-**Never persist a computed value to the key that overrides the computation.** For a few hours on 2026-08-11 the selector wrote its chosen format back to `linkedin_format`, which `propose_format()` reads as a human declaration. Run two therefore treated run one's guess as Alex's instruction, and two pegged playbooks stayed typed as newsjacks through three separate attempts to fix the precedence, because the precedence was never reached. The computed shape now persists to `shape`; `linkedin_format` is the hand override and nothing but a human writes it.
+**Never persist a computed value to the key that overrides the computation.** For a few hours on 2026-08-11 the selector wrote its chosen format back to `linkedin_format`, which `propose_format()` reads as a human declaration. Run two therefore treated run one's guess as the creator's instruction, and two pegged playbooks stayed typed as newsjacks through three separate attempts to fix the precedence, because the precedence was never reached. The computed shape now persists to `shape`; `linkedin_format` is the hand override and nothing but a human writes it.
 
 **A runnable playbook outranks its own news peg.** The format tree used to check the peg first, so anything timely became a newsjack. That was harmless while playbook lived inside authority and fatal once it became its own leg. The peg decides WHEN to post, not WHAT the post is, and the test is whether every unit names a move.
 
-**Reach and authority both come off the show's own sweep.** Alex's directive, 2026-08-11: authority comes from the same research as reach, not from his notes, because his notes are anecdotal and may not be the best available material. What separates the two is the unit of analysis, not the rigour:
+**Reach and authority both come off the show's own sweep.** A standing call from the creator, 2026-08-11: authority comes from the same research as reach, not from their notes, because those notes are anecdotal and may not be the best available material. What separates the two is the unit of analysis, not the rigour:
 
 - **Reach** is one company on one news peg, with one unclaimed angle.
 - **Authority** is the pattern ACROSS companies, cross-cut from teardowns the show already verified and receipted. It makes no new factual claim, it synthesises. That is also why it enumerates naturally (one unit per pattern, two or three named companies each), why it is evergreen, and why it is the easiest carousel in the file to produce.
@@ -86,9 +86,9 @@ The inversion that fixes it: **the show's companies are the PROOF, not the subje
 
 It also cross-checks the declared `executable` flag. That flag is author-declared and easy to over-claim in good faith, which is exactly what happened on the first pass. When a post declares `executable: true` and reads diagnostic, the selector says so rather than silently trusting the declaration.
 
-**Relatability is the one leg research cannot fill, so the selector ASKS.** A confession needs a failure that actually happened, and only Alex knows whether one did. This is the same class as `arguable` and `friction_story`: declared, never inferred, because a regex that claimed to detect real friction would be worse than the question.
+**Relatability is the one leg research cannot fill, so the selector ASKS.** A confession needs a failure that actually happened, and only the creator knows whether one did. This is the same class as `arguable` and `friction_story`: declared, never inferred, because a regex that claimed to detect real friction would be worse than the question.
 
-Asked cold the answer is always no, since nobody recalls their own week on demand. So `relatability_candidates()` reads `work-journal/` over the 10 days to the anchor and puts the actual material on screen, ranked seeds before tensions and first person before third, because relatability needs Alex IN the story rather than observing it. Seeds carry the verbatim scene and a `naming` line stating what to abstract, so they are closer to ready than a raw tension.
+Asked cold the answer is always no, since nobody recalls their own week on demand. So `relatability_candidates()` reads `work-journal/` over the 10 days to the anchor and puts the actual material on screen, ranked seeds before tensions and first person before third, because relatability needs the creator IN the story rather than observing it. Seeds carry the verbatim scene and a `naming` line stating what to abstract, so they are closer to ready than a raw tension.
 
 **An empty relatability week is the expected case, not a failure.** The format library caps confession at once a fortnight, so answering "none" is a legitimate outcome and the slot goes to a second authority post. Shipping 2 reach / 3 authority / 0 relatability beats shipping a manufactured confession, which is the single most punished move on the platform.
 
@@ -104,7 +104,7 @@ Same principle as the video type-fit rule, different inputs, because the feed ca
 - A **saturated story can still carry an unclaimed angle**, and the two expire on different schedules. Amazon's $3 trillion was the loudest business story of its week, but the $19.8bn advertising line inside it was untouched. Declared as `angle_unclaimed`, scored separately from the peg, and the reason a 7-day-old story still earned the reach slot.
 - **Enumerated units** are the strongest signal available, because a post with three or more headed units is carousel-shaped, and format outweighs everything else on this surface.
 - An **ordering argument** beats a plain list, so if the claim is about sequence it becomes a reorder rather than a playbook. Conceding the items and attacking the order is much harder to scroll past.
-- **Real friction in a testimony piece** becomes a confession. This is the scarcest input in the engine and the one Alex under-supplies.
+- **Real friction in a testimony piece** becomes a confession. This is the scarcest input in the engine and the one the creator under-supplies.
 - **One verified counterintuitive number** with nothing to explain becomes a short post, because padding it to reach the band would destroy the only thing it had.
 
 **What the selector refuses to do.** Three properties need human judgment and are declared, never inferred: whether a claim is genuinely arguable, whether a list is an ordering argument, whether a story carries real failure. A regex cannot detect contrarianism, and a tool that pretends to is worse than one that asks. Undeclared items get flagged and score conservatively.
@@ -141,9 +141,9 @@ To pin a day by hand, set `"post_day_locked": true` on the twin. The selector ke
 
 ## The convergence loop (what makes this an algorithm rather than a rubric)
 
-The weights ship as **priors from platform research, not from Alex's data**, and they are labelled as such. That is the honest starting position, because as of 2026-08-10 there is nothing to learn from:
+The weights ship as **priors from platform research, not from the creator's data**, and they are labelled as such. That is the honest starting position, because as of 2026-08-10 there is nothing to learn from:
 
-- `performance.jsonl` holds 22 rows, every one recorded at 215 views on a single day because Alex reported all videos landing at 200 to 230. Zero variance, so zero signal.
+- `performance.jsonl` holds 22 rows, every one recorded at 215 views on a single day because the creator reported all videos landing at 200 to 230. Zero variance, so zero signal.
 - Those rows are also orphaned: their ids predate the current id scheme and no longer resolve to a week file, so their dimensions all report as unknown.
 - The LinkedIn lane was never logged at all, because `load_items()` read only the `distribution` and `office` lanes. Fixed 2026-08-10.
 

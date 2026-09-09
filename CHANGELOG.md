@@ -2,6 +2,30 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.4.5
+
+**The tracked doctrine no longer names a creator.** 101 references to one person by name
+had accumulated across 17 skill files: decisions attributed as "X's directive, 2026-08-11",
+production constraints written as what one person does with their face, a lint that failed
+on "phrases X has already rejected". All of it now reads as the creator, and the two knobs
+that genuinely belong to a person, the subject lane and the target mix, already read from
+`radar-config.json`, which is gitignored. The code was config-driven the whole time. The
+prose was not.
+
+**This mattered because of how the repo is wired, which is worth stating plainly.** This
+tree is simultaneously the public repo and the single source for a live install, so the
+plugin copy and the working copy cannot drift. The cost of that design is that there is no
+private tree to write personal notes into. `.gitignore` fences the data correctly, the
+config, the weeks, the dashboard, the performance log. Prose has no such fence, so every
+Alex-shaped comment written while fixing a bug published on the next release.
+
+**The gate now enforces it.** A staged plugin diff that names the creator is refused, with
+a message pointing at `radar-config.json`. Deliberate attribution is spelled differently
+and passes untouched: the owner and author fields, the byline, alexmuresan.com, the Reach
+partner pill. "Alex Hormozi" is excused by name, because he is a cited author rather than
+the creator, and a substitution that did not know the difference would have rewritten three
+citations in `video-scripting-as-a-science.md`.
+
 ## What's new in 3.4.4
 
 **Private material is out of the public repo, and the gate that missed it is wider.**

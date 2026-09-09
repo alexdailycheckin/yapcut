@@ -352,7 +352,7 @@ now, not discovered at step 8.
 [
   {"src":"/abs/IMG_1.MOV","start":3.64,"end":6.58,"label":"hook","keep_whole":true},
   {"src":"/abs/IMG_1.MOV","start":34.8,"end":37.0,"label":"stat","keep_whole":true,"gain_db":12},
-  {"src":"/abs/cta-alex.mp4","start":0.0,"end":9.5,"label":"cta"}
+  {"src":"/abs/cta-creator.mp4","start":0.0,"end":9.5,"label":"cta"}
 ]
 ```
 - `keep_whole`: keep the span as-is, no internal silence processing (use for the
@@ -400,7 +400,7 @@ lossy generations (segments, concat, compose, plus burn_pips when there are
 receipts); grading the cut on its own adds a whole fourth encode of the entire
 video, and raising contrast on an already-compressed picture amplifies the
 artefacts that encode just introduced. Riding inside the segment pass costs
-nothing. On 2026-08-24 the two graded episodes were the two Alex called low
+nothing. On 2026-08-24 the two graded episodes were the two the creator called low
 quality. The same run also moved the intermediates to crf 12 and the delivered
 encodes to crf 16, which roughly doubled the cut-stage bitrate (5.8-6.4 -> 10.4-12.4
 Mbps on the same footage).
@@ -505,7 +505,7 @@ allowlisted from brand-config. No script file = gate skips (freestyle yaps).
 **Loudness is measured, corrected and verified, never assumed.** Pass 1 measures
 the cut, pass 2 renders the gained audio and MEASURES it, pass 3 corrects the
 limiter's residue. There is no round-number ceiling on the gain: a flat 12dB cap
-used to eat the target on every take Alex shoots (his lav sits near -28 LUFS and
+used to eat the target on every take the creator shoots (their lav sits near -28 LUFS and
 needs about +14.5dB), which shipped the whole 08-24 batch at -15.9 to -16.8 and
 the 08-17 batch at -16.2 to -17.7 before anyone noticed. The safety rail lives on
 the INPUT instead: below -45 LUFS there is no speech to lift, only room tone, so
@@ -802,7 +802,7 @@ the retention tool also flags static stretches, aim the inserts there first.
 
 ## Motion layers (typewriter hook, source tags, number count-ups)
 Driven by `build_ass.py` + `brand-config.json`, applied by `yapfull.sh`:
-- **Typewriter hook**: set `"hook_anim": "typewriter"` in brand-config (Alex = on). The
+- **Typewriter hook**: set `"hook_anim": "typewriter"` in brand-config (the reference creator = on). The
   hook reveals character-by-character with a cursor, then holds with the accent spark on
   the spark word. `"none"` = the old fade.
 - **Source lower-thirds + number count-ups**: per clip, drop a

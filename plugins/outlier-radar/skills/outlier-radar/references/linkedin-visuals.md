@@ -79,7 +79,7 @@ speaker's name and role, and the show. Nothing else, and nothing invented.
   then reads outward for the context that makes it mean something. Where the split falls
   depends on where the number sits in the sentence, so it moves on every quote.
 
-**The one move: the big line stays verbatim.** Alex's card reads "around like 35 to 45%
+**The one move: the big line stays verbatim.** the creator's card reads "around like 35 to 45%
 of acquisition", filler included. Tidying that to "35-45%" kills it, because the filler
 is the proof that a person said it rather than a marketer wrote it. The line's job is to
 sound spoken.
@@ -89,7 +89,7 @@ card is a fabricated quote and does not ship. Same law as the receipts gate, app
 type.
 
 **Worked example, 2026-09-07.** Matt Swulinski, Head of Growth at Viktor, on 20VC, on
-the organic share of acquisition. Alex's personal brand rather than Reach: Bricolage
+the organic share of acquisition. the creator's personal brand rather than Reach: Bricolage
 Grotesque ExtraBold display, Space Mono 700 for eyebrow and footer, ground `#232323`,
 accent `#FF5A2A`, ink `#FFFFFB`, footer `ALEXMURESAN.COM`. Frame on top, one accent rule
 under it, three type tiers, mono attribution. Built 4:5 at 2000x2500 for the feed, with
@@ -169,7 +169,7 @@ favicons, a split that carries an argument, and one figure the map is arguing ab
   small marks in rows is what this shape is, and the alignment decisions follow from
   that, which is where the top-aligned plates ruling below came from.
 
-- **Title it plainly.** Alex's ruling, 2026-09-07, after a hook headline shipped and was
+- **Title it plainly.** the creator's ruling, 2026-09-07, after a hook headline shipped and was
   rejected in his words as "everyone else does something straight". A map is a reference
   and a reference names its subject, so "The organic UA stack" beats any line engineered
   to open a gap. The hook belongs in the post copy, where it can be rewritten after the
@@ -249,15 +249,15 @@ base image.
 ## The few things that are actually rules
 
 Everything above is a way of thinking. These five are not, because they are either
-platform facts or calls Alex made out loud.
+platform facts or calls the creator made out loud.
 
-1. **No competitor names anywhere on a brand-owned card.** Alex's ruling, 2026-09-07,
+1. **No competitor names anywhere on a brand-owned card.** the creator's ruling, 2026-09-07,
    set while building the map: AirOps and Omniscient Digital came off it and the content
    line was rebuilt from adjacent tools. A neutral data layer stays the owner's call:
    Ahrefs and Semrush were kept.
 2. **Top align logo plates wherever tiles sit in a row**, at a fixed offset from the
    tile top, so plates share one baseline. Centring them drifts with the role line count
-   and reads, in Alex's words, "all over the place".
+   and reads, in the creator's words, "all over the place".
 3. **Every card resolves to one number the reader can repeat.** Three equal claims and
    no lead is a card nobody quotes in a comment.
 4. **If the card doubles as a document cover, the cover rules still bind.** It states
@@ -283,7 +283,7 @@ graphic in the feed is therefore a VIDEO post sized like an image, autoplaying m
 deterministic `setFrame(t)` drives the whole timeline, so frames are reproducible.
 
 **Texture is a PNG luxury.** The kit paints two raster grain layers over every card and
-its catalogue treats both as mandatory. They came off this one at Alex's call: the texture
+its catalogue treats both as mandatory. They came off this one at the creator's call: the texture
 read as fuzz at full size, and at 256 colours it stopped being texture at all. Measured on
 a pure ground strip, noise fell from 7.52 to 2.23 sigma and the flattest patch went to
 0.00, which is genuinely flat. Every file got smaller, because flat areas compress and

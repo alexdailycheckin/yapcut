@@ -5,12 +5,12 @@ The objective half of QA. Replaces "the model grades its own read-aloud test".
 Three checks:
   1. FIDELITY  what share of the finished script's words came from the capture.
                Below 0.90 the model started ghostwriting again.
-  2. FINGERPRINT  does the script move like Alex talks, per references/voice-fingerprint.md.
+  2. FINGERPRINT  does the script move like the creator talks, per references/voice-fingerprint.md.
   3. LINKEDIN  the numeral law, the source law, and a legal qa value, run over the
                linkedin[] lane and every embedded twin body. Video-only until
                2026-08-13, which is why written posts could never leave pre-QA.
   4. SPOKEN    does it survive being said out loud. WARN ONLY. Added 2026-08-16 after
-               Alex rejected the 08-17 batch for reading as prose while passing every
+               the creator rejected the 08-17 batch for reading as prose while passing every
                cadence target: the numbers were tuned against the previous failure and
                the writer adapted. See the SPOKEN GATE block below for the delivery
                evidence behind each threshold.
@@ -147,7 +147,7 @@ def load_targets():
 
     Until this existed every band in this file was a guess, and one of them was doing
     active harm. `mean 9 to 13` was set from a pooled corpus that is 76% casual banter
-    (median 7). Alex's unscripted speech ABOUT WORK, which is what this show is, runs
+    (median 7). the creator's unscripted speech ABOUT WORK, which is what this show is, runs
     mean 17.8 and median 17. So for weeks the gate required sentences about half the
     length of how he actually talks about business, every batch was written to satisfy
     it, and he kept reporting that the results read as written prose with weird
@@ -219,7 +219,7 @@ def verdict(fp, fid=None, tri=None, floors=None):
 
 # ---- the SPOKEN gate (warn only) -------------------------------------------
 # Added 2026-08-16. The cadence half above is necessary and not sufficient: the whole
-# 08-17 batch passed mean, stdev, long-run and short-line and Alex still rejected it
+# 08-17 batch passed mean, stdev, long-run and short-line and the creator still rejected it
 # for sounding written. These are the axes cadence never looked at.
 #
 # The thresholds are delivery evidence, not taste. From the five filmed 08-10 reads
@@ -245,7 +245,7 @@ CONTRACTION_FLOOR = 0.55          # closing slots
 CONTRACTION_FLOOR_WHOLE = 0.35    # whole script, a looser sanity line
 
 FRANCHISE = re.compile(r"^so how does .+ actually sells?\?$", re.I)
-# the three approved takeaway openers (references/the-show.md, Alex 2026-08-02).
+# the three approved takeaway openers (references/the-show.md, creator's call 2026-08-02).
 # These are franchise glue like the device: they are SUPPOSED to repeat, so they are
 # exempt from the seam and lecture checks. Only ADJACENCY is policed.
 APPROVED_TAKEAWAY = re.compile(
@@ -577,7 +577,7 @@ def run_linkedin(d):
         for w in warns:
             print(f"        warn: {w}")
     print(f"{bad}/{len(rows)} failed the LinkedIn gate")
-    print("two-question gate (insider-entertaining AND usable, Alex 2026-08-19) is still a human read")
+    print("two-question gate (insider-entertaining AND usable, creator's call 2026-08-19) is still a human read")
     return bad
 
 
@@ -595,7 +595,7 @@ def run_week(path):
     print(f"{len(items)} scripts in {os.path.basename(path)}{note}\n")
     if TARGETS is None:
         # PRODUCTION SAFETY, added 2026-08-30. Falling back silently to the pre-2026-08-30
-        # constants would hand every new creator the exact defect that broke 8 of Alex's
+        # constants would hand every new creator the exact defect that broke 8 of the creator's
         # scripts: a mean band of 9 to 13 when his real work speech measures 17.8. The
         # numbers below were never measured against anyone's voice, so say so loudly rather
         # than let a creator write a whole batch to them believing they are grounded.
@@ -612,10 +612,10 @@ def run_week(path):
         # research has no capture by design. CADENCE is not. The original skip sent
         # `research` down the same branch as `format` and measured neither, which was
         # right until 2026-08-01, when the show became fully-authored research class
-        # written in Alex's voice. From then on the fingerprint targets applied to it and
+        # written in the creator's voice. From then on the fingerprint targets applied to it and
         # nothing checked them: on 2026-08-16 three of five episodes in weeks/2026-08-17
         # were shipping under stdev 6 with no sentence over 25 words, and the PostHog cut
-        # was rejected by Alex for reading badly out loud before any tool caught it.
+        # was rejected by the creator for reading badly out loud before any tool caught it.
         # So: `format` still skips (beats, often no prose at all), `research` now gets the
         # cadence half of the gate and skips only the capture-dependent half.
         cls = it.get("script_class", "testimony")

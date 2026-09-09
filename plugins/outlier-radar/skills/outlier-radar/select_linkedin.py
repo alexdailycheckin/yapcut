@@ -72,16 +72,16 @@ BAND_LO, BAND_HI, HARD_STOP, SHORT_MAX, DEAD_LO, DEAD_HI = 1300, 1900, 2500, 300
 # Follower growth = reach to non-followers x follow conversion. Reach posts bring
 # strangers, authority posts convert them and farm saves (a save is worth ~5x a like
 # in reach), relatability retains. Drop any leg and the funnel starves.
-# PLAYBOOK IS ITS OWN LEG as of 2026-08-11, on Alex's directive: give people useful things
+# PLAYBOOK IS ITS OWN LEG as of 2026-08-11, a standing call from the creator: give people useful things
 # they can actually apply themselves to win. It used to sit inside "authority" alongside
 # teardowns, which meant the mix could be satisfied by two analyses and ship nothing
 # runnable. Splitting it makes the useful leg a requirement rather than a preference.
 #
-# RELATABILITY IS TARGETED AT ZERO, also Alex's call, and the honest reason is that this
+# RELATABILITY IS TARGETED AT ZERO, also the creator's call, and the honest reason is that this
 # engine cannot source it. A confession needs a real failure and a model cannot have one.
-# Every attempt to fill the leg came from mining Alex's own journal, which produced posts
-# he did not want and would not have written. The format stays defined below, so a
-# confession still types correctly on the rare week Alex writes one himself, and the mix
+# Every attempt to fill the leg came from mining the creator's own journal, which produced posts
+# they did not want and would not have written. The format stays defined below, so a
+# confession still types correctly on the rare week the creator writes one themselves, and the mix
 # simply does not ask for one. A leg nothing can supply is not a target, it is a nag.
 # Both of these read from radar-config.json when present, because they are the
 # two knobs that are the CREATOR'S, not the method's: what subject lane the feed
@@ -119,7 +119,7 @@ TARGET_MIX = _SCFG.get("target_mix") or {"reach": 2, "playbook": 2, "authority":
 TWIN_CAP = 3
 
 # Starting weights. These are PRIORS from the research, not learned. log_perf.py
-# replaces them with Alex's own numbers once a dimension clears its minimum n.
+# replaces them with the creator's own numbers once a dimension clears its minimum n.
 WEIGHTS = {
     "carousel_shaped": 30,   # document posts ~6.60% vs ~2.00% text-only. Biggest single lever.
     "has_verified_number": 20,
@@ -163,10 +163,10 @@ JOB_WHY_SHORT = {
 }
 
 # Where each leg's substance comes from. Written down because getting this wrong is what
-# produced two weeks of bad posts: authority was drafted from Alex's work journal when it
+# produced two weeks of bad posts: authority was drafted from the creator's work journal when it
 # should have come off the same research as reach, and playbooks were drafted from the
 # show corpus when what his audience wanted was this week's releases.
-# THE LANE. Every leg stays inside it (Alex, 2026-08-11): GTM, growth, CMO, sales, social
+# THE LANE. Every leg stays inside it (the creator's call, 2026-08-11): GTM, growth, CMO, sales, social
 # media and organic marketing. He is a Head of Growth writing for his own peers.
 #
 # This exists because the playbook leg drifted twice. Both times it drifted the same way:
@@ -185,15 +185,15 @@ JOB_SOURCE = {
     "playbook": ("DEMAND, not supply. Find what the ICP is measurably stuck on, then build "
                  "the artefact that settles it. The three-way intersection is the whole "
                  "method: (1) what they are stuck on, evidenced by a survey number, (2) "
-                 "where that pain is worst inside Alex's lane, (3) where the CONSENSUS "
+                 "where that pain is worst inside the creator's lane, (3) where the CONSENSUS "
                  "ANSWER IS WRONG and you can prove it. Miss (3) and forty people wrote "
                  "the same post that week. Pitch every move at the READER'S OWN ALTITUDE: "
                  "a Head of Growth decides, delegates and defends, they do not open an "
-                 "admin panel. Not the show corpus, not Alex's notes."),
+                 "admin panel. Not the show corpus, not the creator's notes."),
     "authority": ("the show's own banked teardowns, cross-cut. The PATTERN across "
                   "companies rather than one company on one peg, so it makes no new "
                   "factual claim and stays evergreen."),
-    "relatability": ("Alex himself, and nothing else can supply it. Targeted at zero for "
+    "relatability": ("the creator themselves, and nothing else can supply it. Targeted at zero for "
                      "that reason. Do not mine the work journal for one."),
 }
 
@@ -236,7 +236,7 @@ IMPERATIVES = {
 def playbook_moves(body):
     """How many headed units are followed by something the reader can actually run.
 
-    Added 2026-08-11 after Alex flagged that the first authority post was typed
+    Added 2026-08-11 after the creator flagged that the first authority post was typed
     F1_playbook, passed every shape check, and still gave nobody anything to do. It
     cross-cut five patterns across thirteen companies and every unit was a DIAGNOSIS:
     true, useful to understand, impossible to act on before Monday.
@@ -248,7 +248,7 @@ def playbook_moves(body):
     headings.
     """
     # Two legal head shapes: numbered sentence case ("1. Agree the denominator."),
-    # the standard since Alex unlearned all-caps headers (2026-08-14), and the legacy
+    # the standard since the creator unlearned all-caps headers (2026-08-14), and the legacy
     # caps header, still recognised so old weeks keep parsing. A numbered head carries
     # its own verb; a caps head is checked on the line after it.
     lines = [l.strip() for l in body.split("\n") if l.strip()]
@@ -327,7 +327,7 @@ def propose_format(item, f):
     `linkedin_format` is a HUMAN override and nothing else writes to it. The computed
     result is persisted to `shape`, deliberately a different key: for a few hours on
     2026-08-11 the selector wrote its own answer back to `linkedin_format`, which this
-    function reads as a declaration, so run two treated run one's guess as Alex's
+    function reads as a declaration, so run two treated run one's guess as the creator's
     instruction and the tool could never revise itself. Two pegged playbooks stayed typed
     as newsjacks through three attempts to fix the precedence, because the precedence was
     never reached. Never persist a computed value to the key that overrides the computation.
@@ -388,7 +388,7 @@ def relatability_candidates(anchor, window=9):
     """Surface what the logged week holds, so the relatability question is warm.
 
     Relatability is the one leg that cannot be sourced from research. Reach and authority
-    both come off the show's sweep; a confession needs a real failure that only Alex knows
+    both come off the show's sweep; a confession needs a real failure that only the creator knows
     happened. So the selector asks rather than infers, exactly as it already does for
     `arguable` and `friction_story`, and a regex that tried to detect real friction would
     be worse than the question.
@@ -397,7 +397,7 @@ def relatability_candidates(anchor, window=9):
     remembers their own week on demand. So this reads work-journal/ over the window ending
     at the anchor and puts the actual candidates on screen. `content_seeds` carry the angle,
     the verbatim scene and a `naming` line stating what to abstract; `tensions` are the
-    rawer version of the same thing. Alex picks or says none, and neither answer is guessed.
+    rawer version of the same thing. the creator picks or says none, and neither answer is guessed.
     """
     try:
         d0 = datetime.date.fromisoformat(anchor)
@@ -422,7 +422,7 @@ def relatability_candidates(anchor, window=9):
                 out.append({"day": day, "angle": t, "naming": None, "kind": "tension"})
     # Seeds before tensions, then most recent first. A seed already carries the scene and
     # the naming line, so it is closer to a post; a tension is raw and needs the work.
-    # First person outranks both, because relatability needs Alex IN the story rather than
+    # First person outranks both, because relatability needs the creator IN the story rather than
     # observing it, and "I" in the angle is the cheapest honest proxy for that.
     def rank(c):
         first_person = re.match(r"^(I|My|We|Our)\b", c["angle"]) is not None
@@ -762,7 +762,7 @@ def main():
     if jobs.get("relatability", 0) < TARGET_MIX.get("relatability", 0):
         cands = relatability_candidates(d.get("week"))
         print("RELATABILITY: is there anything real to use this week?\n")
-        print("  Only Alex can answer this. A confession needs a failure that actually")
+        print("  Only the creator can answer this. A confession needs a failure that actually")
         print("  happened, and inventing one is the single most punished move on the")
         print("  platform. If the honest answer is no, say so: the slot goes to a second")
         print("  authority post and the week ships 2/3/0 rather than a manufactured story.")
@@ -802,7 +802,7 @@ def main():
         print(f"  OVER 2500 (reported ~35% engagement drop): {', '.join(over)}")
     print()
 
-    # A playbook that names no moves is an essay with headings. Alex's line, 2026-08-11:
+    # A playbook that names no moves is an essay with headings. the creator's line, 2026-08-11:
     # give people useful things they can actually apply themselves to win.
     weak = [(it.get("id"), f) for _, it, f, fmt, *_ in selected
             if fmt == "F1_playbook" and f["heads"] and f["moves"] < f["heads"]]
@@ -832,7 +832,7 @@ def main():
     if latent:
         print(f"  LATENT: {', '.join(latent)} carries a sequence argument written as prose.")
         print(f"  One slide per step would make the ordering visible and unlock the 3x.")
-        print(f"  Alex's call: that is a rewrite of live creative, not a mechanical fix.")
+        print(f"  the creator's call: that is a rewrite of live creative, not a mechanical fix.")
         print(f"  If yes, the tooling exists: linkedin-engine references/carousel-cards.md for")
         print(f"  the style, scripts/carousel.py to render from a spec. Depth cards must come")
         print(f"  from this item's own beats, never a fresh writing session.")
@@ -863,7 +863,7 @@ def main():
         # Losing a slot means different things in each lane. A cut TWIN still films and
         # still ships on every other platform, so nothing is lost. A cut SOLO has no video
         # behind it, so it carries to a future week instead. Same allocation, different
-        # consequence, and collapsing them would tell Alex a written post had been binned.
+        # consequence, and collapsing them would tell the creator a written post had been binned.
         for s, it, f, fmt, conf, job, why in cut:
             twin = it.get("linkedin")
             if isinstance(twin, dict):

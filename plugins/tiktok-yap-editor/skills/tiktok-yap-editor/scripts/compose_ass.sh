@@ -44,7 +44,7 @@ ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:
 #
 # THE GAIN CEILING IS NOT A ROUND NUMBER YOU PICK (fixed 2026-08-28). It used to
 # be a flat min(12.0), and that clamp silently ate the target on every single
-# take Alex shoots: his lav records around -28 LUFS, so reaching -14 needs about
+# take the creator shoots: their lav records around -28 LUFS, so reaching -14 needs about
 # +14.5dB, the clamp gave 12, and the whole 08-24 batch shipped 2 to 3dB thin
 # (-15.9 to -16.8 against -14). The Aug 17 batch did too, at -16.2 to -17.7, so
 # it had been quietly wrong for weeks. The rail it was trying to be, do not

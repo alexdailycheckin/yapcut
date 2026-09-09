@@ -18,7 +18,7 @@ on the preset: minimal scales the active word only (clean, on-brand default),
 bold/native also recolour it.
 
 PRESETS (pick with --preset, default minimal):
-  minimal  Dynamic Minimalism, Alex's default. Montserrat, white, NO neon, the
+  minimal  Dynamic Minimalism, the reference default. Montserrat, white, NO neon, the
            active word just scales up. Reads premium, structure stays invisible.
   bold     Hormozi-style for YouTube long-form repurpose. Anton, ALL CAPS, neon
            yellow active word, thick stroke, big pop. Use OFF the main feed.

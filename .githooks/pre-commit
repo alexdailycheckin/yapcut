@@ -49,6 +49,22 @@ PATTERNS="$PATTERNS"'|Reach (sells|pipeline|brand|block|wordmark|customer)|Reach
 # Named Reach customers. Add to this list when a new one is discussed anywhere
 # near this repo; naming one alongside its numbers is the worst case here.
 PATTERNS="$PATTERNS"'|[redacted customer]|[redacted customer]|[redacted customer]|[redacted customer]'
+# The creator as an actor in tracked doctrine. This tree IS the public repo AND
+# the live install, single-sourced, so prose has no .gitignore to hide behind:
+# 101 references to Alex by name had accumulated in the skill files. The rule is
+# that tracked doctrine names no creator; creator specifics belong in
+# radar-config.json and the other gitignored files. Deliberate attribution (the
+# owner/author fields, the byline, alexmuresan.com, the Reach partner pill) is
+# spelled differently and is not matched. "Alex Hormozi" is a cited author, not
+# the creator, so it is excused explicitly.
+ALEX_HITS=$(git diff --cached -U0 -- 'plugins' \
+       | grep -E "^\+" | grep -Ev "^\+\+\+" \
+       | grep -Ei '\balex\b' \
+       | grep -viE 'alexmuresan\.com|ALEXMURESAN|Alex Muresan|Alex Hormozi' || true)
+if [ -n "$ALEX_HITS" ]; then
+  echo "$ALEX_HITS" | head -5 >&2
+  fail "staged plugin content names the creator; tracked doctrine must be creator-agnostic (put specifics in radar-config.json)"
+fi
 # The hook itself carries the patterns (that is what a denylist is), so its own
 # diff is excluded from the content scan; path rules above still apply to it.
 HITS=$(git diff --cached -U0 -- . ':(exclude).githooks/*' \

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Catch stutters and restarts in a yap take so they never ship.
 
-Alex kept hitting the same defect: a take where he says a word twice ("the
+the creator kept hitting the same defect: a take where they say a word twice ("the
 the"), restarts a clause ("you're not bad at this ... you're not bad at this"),
 or the source has a triple restart ("now use AI, now use AI, now use AI in
 their buying process"). These were caught BY HAND, clip by clip. This makes it
