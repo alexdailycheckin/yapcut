@@ -2,6 +2,21 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.6.6 (outlier-radar)
+
+**Finishing the cover.** Inverting it in 3.6.5 cleared luminance, edge and flatness but left
+2 of 5 checks failing across every deck: RMS contrast 38 to 44 against a 55 floor, accent 0 to
+2% against a 4% floor. Two causes, both structural rather than stylistic.
+
+- **Cover type is now 150px, and the stat 210px**, up from the interior body size of 84px. On
+  a 1080px frame, 84px is a body size, so there was almost no bright mass to vary against the
+  dark ground. The scroll-stop rule is that the subject occupies 40 to 70% of the frame, and
+  on a text cover the type IS the subject.
+- **A full-width accent block** on the cover supplies the colour mass. Sized to clear the
+  floor even on a deck with no stat to blow up.
+
+Measured after: all 4 decks pass all 5 checks, RMS contrast 61 to 70, accent 9 to 14%.
+
 ## What's new in 3.6.5 (outlier-radar)
 
 **Every carousel this renderer has ever produced failed the feed floor on its cover, and

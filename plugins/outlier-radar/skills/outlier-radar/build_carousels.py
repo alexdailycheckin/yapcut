@@ -157,6 +157,20 @@ CSS = r"""
   @page{ size:1080px 1350px; margin:0; }
   html,body{background:var(--bg);}
   .slide.cover{background:var(--ink);color:var(--bg);}
+  /* The bar is not decoration. Inverting the cover fixed luminance, edge and flatness
+     but left RMS contrast at 36-41 against a 55 floor and accent at 0-2% against 4%,
+     because a near-black frame with small type has neither a bright mass nor a colour
+     mass. One full-width accent block supplies both, and it reads as a deliberate rule
+     rather than a patch. Sized so it clears the floor on a deck with no stat at all. */
+  /* Cover type is set MUCH larger than an interior slide. 84px on a 1080px frame is a
+     body size: it left RMS contrast at 38-44 against a 55 floor even on an inverted
+     ground, because there was almost no bright mass to vary against the dark. The
+     scroll-stop rule is that the subject occupies 40 to 70% of the frame, and on a text
+     cover the type IS the subject. */
+  .slide.cover h1{font-size:150px;line-height:0.98;}
+  .slide.cover .stat{font-size:210px;line-height:0.92;}
+  .slide.cover .main::after{content:"";display:block;width:100%;height:150px;
+    background:var(--hl);margin-top:64px;flex:none;}
   .slide.cover .kicker,.slide.cover .num{color:color-mix(in srgb,var(--bg) 62%,transparent);}
   .slide.cover h1,.slide.cover .nm{color:var(--bg);}
   .slide.cover .stat{color:var(--hl);}
