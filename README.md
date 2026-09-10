@@ -119,7 +119,7 @@ pass preflight.
 - `tests/`: a synthetic fixture that drives the editor end to end and the radar gates on the
   example week. `release.sh` is the one release command.
 
-## What's new in 3.6.4
+## What's new in 3.6.5
 
 **The audit release.** The engine used to optimise the one stage that was never the
 constraint: 157 scripts written, 22 posted, the loop run once. 3.5.0 asks who your audience is
