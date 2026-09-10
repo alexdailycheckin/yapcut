@@ -416,7 +416,7 @@ function scriptCard(x, isSecondLane, i){
     <div class="twin">
       <button class="btn ghost" onclick="const b=this.parentElement.querySelector('.twinwrap');b.classList.toggle('show');this.firstChild.textContent=b.classList.contains('show')?'Hide LinkedIn twin':'Show LinkedIn twin'"><span>Show LinkedIn twin</span></button>
       <div class="twinwrap collapse">
-        <div class="twinbody">${esc(x.linkedin.body)}</div>
+        <div class="twinbody">${esc(linkedinText(x.linkedin.body))}</div>
         <div class="twinmeta">
           <button class="btn" onclick="copyText(linkedinText(this.closest('.twin').querySelector('.twinbody').innerText),'LinkedIn twin copied, formatted for paste')">Copy twin</button>
           ${visualBlock(x.linkedin.visual)}
@@ -611,7 +611,7 @@ function liCard(x, srcTitle, i){
       <div class="cardops"><button class="btn" onclick="copyText(linkedinText(this.closest('.card').querySelector('.twinbody').innerText),'Post copied, formatted for paste')">Copy post</button></div>
     </div>
     ${srcTitle?`<p class="premise"><b>Written twin of this week's video</b></p>`:""}
-    <div class="twinbody" style="margin:14px 0 0 42px">${esc(x.body)}</div>
+    <div class="twinbody" style="margin:14px 0 0 42px">${esc(linkedinText(x.body))}</div>
     <div style="margin-left:42px">${visualBlock(x.visual)}${srcs(x.sources)?`<div style="margin-top:14px">${srcs(x.sources)}</div>`:""}</div>
     ${replyBlock(x)}
     ${tracker(x.id, true, LI_STATES)}

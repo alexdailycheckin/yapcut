@@ -190,6 +190,11 @@ CSS = r"""
   .byline .who{display:flex;flex-direction:column;line-height:1.15;}
   .byline .nm{font-family:var(--disp);font-weight:700;font-size:32px;color:var(--ink);letter-spacing:-.01em;}
   .byline .org{font-family:var(--mono);font-size:22px;color:var(--hl);letter-spacing:.02em;}
+  .stable{border-top:3px solid var(--ink);margin:8px 0 26px;}
+  .srow{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
+    padding:26px 0;border-bottom:3px solid var(--ink);}
+  .slab{font-size:38px;line-height:1.25;}
+  .sval{font-family:var(--disp);font-weight:700;font-size:68px;color:var(--hl);flex:none;}
   .swipe{font-family:var(--mono);font-size:26px;color:var(--hl);}
   h1{font-family:var(--disp);font-weight:700;line-height:1.03;letter-spacing:-.02em;}
   .big{font-size:112px;} .lead{font-size:84px;} .mid{font-size:60px;}
@@ -267,6 +272,11 @@ DARK_CSS = r"""
   .byline .who{display:flex;flex-direction:column;line-height:1.2;}
   .byline .nm{font-family:var(--body);font-weight:600;font-size:27px;color:var(--ink);}
   .byline .org{font-family:var(--mono);font-size:18px;color:var(--hl);letter-spacing:.03em;}
+  .stable{border-top:1px solid #ffffff26;margin:6px 0 24px;}
+  .srow{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
+    padding:26px 0;border-bottom:1px solid #ffffff26;}
+  .slab{font-size:34px;line-height:1.25;color:var(--dim);}
+  .sval{font-family:var(--disp);font-size:72px;color:var(--hl);flex:none;line-height:1;}
   .swipe{font-family:var(--mono);font-size:20px;color:#8a8580;letter-spacing:.14em;}
 """
 
@@ -318,6 +328,40 @@ def group(sentences, per=2, cap=4):
     return [sentences[i:i + per] for i in range(0, len(sentences), per)]
 
 
+def _numbered(sent):
+    """(number, label) when a sentence carries exactly one liftable figure, else None."""
+    ms = list(NUM_RE.finditer(sent))
+    ms = [m for m in ms if len(m.group(0)) >= 2]
+    if len(ms) != 1:
+        return None
+    m = ms[0]
+    label = (sent[:m.start()] + " " + sent[m.end():]).strip(" .,:;")
+    label = re.sub(r"\s{2,}", " ", label)
+    if not label or len(label.split()) > 9:
+        return None
+    return m.group(0), label
+
+
+def stat_rows(chunk):
+    """A chunk where most sentences carry one figure renders as a table, not paragraphs.
+
+    Added 2026-09-10. Until then every interior slide was prose, so a page of pure data
+    ('20 months old', '$70 million', '650 employees', 'roughly $108,000 per employee') read
+    as five equal-weight sentences and made the reader do the arithmetic the card exists to
+    do for them. The layout IS the argument on a data page.
+    """
+    pairs = [_numbered(s) for s in chunk]
+    got = [p for p in pairs if p]
+    if len(got) < 2 or len(got) < len(chunk) - 1:
+        return None
+    rows = "".join(
+        f'<div class="srow"><span class="slab">{esc(l)}</span>'
+        f'<span class="sval">{esc(n)}</span></div>' for n, l in got)
+    leftover = "".join(f'<p class="body">{hl(s)}</p>'
+                       for s, p in zip(chunk, pairs) if not p)
+    return f'<div class="stable">{rows}</div>{leftover}'
+
+
 def deck_from_script(x):
     """Derive an ordered list of (kicker, html_body, cue) slides from a script."""
     facet = (x.get("facet") or "").strip()
@@ -347,13 +391,17 @@ def deck_from_script(x):
     hlines = set(split_sentences(x.get("spoken_hook") or ""))
     body = [s for s in body if s not in hlines]
     for chunk in group(body, per=2, cap=4):
-        html = "".join(f'<p class="body">{hl(s)}</p>' for s in chunk)
-        slides.append(("", html, "swipe"))
+        # A blank kicker left the header empty on interior slides while the cover, the lesson
+        # and the close all had one, so the deck's header flickered on and off as you swiped.
+        html = stat_rows(chunk) or "".join(f'<p class="body">{hl(s)}</p>' for s in chunk)
+        slides.append((k_open, html, "swipe"))
 
     # n-1) the lesson: value line, eyebrowed
     val = x.get("value") or ""
     if val:
-        val = re.sub(r"^[A-Z\s]{3,}:\s*", "", val)  # strip a TYPE: prefix if present
+        # Strip a leading field label of any case. The old pattern only caught ALL CAPS, so
+        # "Reframe: AI did not remove humans..." shipped with the internal label on the card.
+        val = re.sub(r"^[A-Za-z][A-Za-z ]{2,20}:\s*", "", val).strip()
         slides.append(("The lesson",
                         f'<div class="label">Steal this</div><h1 class="lead">{hl(val)}</h1>',
                         "swipe"))
@@ -363,9 +411,13 @@ def deck_from_script(x):
     if cta:
         close = f'<h1 class="mid">{hl(cta)}</h1>'
     else:
-        close = ('<h1 class="lead">Your move.</h1><div class="spacer"></div>'
-                 '<p class="body">Save this. Then go use it this week.</p>')
-    slides.append(("Your move", close, "follow"))
+        # "Your move. Save this." is the stock CTA the creator's own gates ban, and it shipped
+        # on every deck with no cta set. End on the payoff instead: the last line of the
+        # script is the thing the deck was built to arrive at.
+        tail = body[-1] if body else ""
+        close = (f'<h1 class="mid">{hl(tail)}</h1>' if tail
+                 else f'<h1 class="mid">{hl(hook)}</h1>')
+    slides.append((k_open, close, "follow"))
     return slides
 
 

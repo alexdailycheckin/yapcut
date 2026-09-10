@@ -2,6 +2,28 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.1 (outlier-radar)
+
+**A data page now renders as a table instead of five equal sentences.** `stat_rows()` detects a
+chunk where most sentences carry exactly one liftable figure and lays it out as label/value
+rows. Before this, "20 months old / $70 million revenue rate / 650 employees / roughly
+$108,000 per employee" shipped as prose and made the reader do the arithmetic the card exists
+to do for them. On a data page the layout IS the argument.
+
+**Three fixes that had shipped on every deck ever built:**
+
+- **Blank kickers on interior slides.** The cover, the lesson and the close all had one and the
+  middle had none, so the header flickered on and off as you swiped.
+- **"Reframe:" on the lesson card.** The prefix stripper only matched ALL CAPS, so any
+  sentence-case field label went straight to print.
+- **"Your move. Save this. Then go use it this week."** The stock CTA the creator's own gates
+  ban, hard-coded as the default close on any item without a `cta`. The close now ends on the
+  last line of the script, which is the payoff the deck was built to arrive at.
+
+**The dashboard shows LinkedIn formatting instead of hiding it.** 3.7.0 converted markers on
+copy, but the preview still rendered the raw body, so bold and arrows were invisible until you
+pasted. Both preview surfaces now run through `linkedinText()`.
+
 ## What's new in 3.7.0 (outlier-radar)
 
 **Copy now hands LinkedIn text it can actually use.** LinkedIn strips every kind of rich
