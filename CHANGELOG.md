@@ -2,6 +2,28 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.0 (outlier-radar)
+
+**Copy now hands LinkedIn text it can actually use.** LinkedIn strips every kind of rich
+formatting on paste, so a "copy post" that returns plain text loses whatever structure the
+draft had. `linkedinText()` converts markers at copy time: `**bold**` and `*italic*` become
+Unicode mathematical alphanumerics, and a leading `- ` becomes the arrow bullet.
+
+Conversion happens on COPY, never in storage. The stored body has to stay real text, because
+check_fidelity, spoken_lint and hook_lint all read it, and a body full of Mathematical
+Sans-Serif Bold defeats every one of them.
+
+**Use the bold sparingly, and never on a number or the central claim.** Unicode bold is not
+text: screen readers announce it as gibberish or skip it, and parsers handle it badly. For a
+creator whose subject is AI search visibility that is an own goal, because the sentence you
+most want quoted is the one you just made unreadable to the thing quoting it.
+
+**A second carousel skin.** A workspace holding `assets/reach-system/` gets a dark skin: near
+black ground, a real `feTurbulence` fractal-noise grain, a soft bloom that alternates sides,
+serif display, jewel accent. Opt-in by the presence of those files rather than a config flag,
+because the skin cannot render without them and a flag that silently produces an unstyled deck
+is worse than no flag. `carousel.skin: "paper"` forces the light one back.
+
 ## What's new in 3.6.7 (outlier-radar)
 
 **The posting calendar printed the format instead of the post.** A solo LinkedIn post carries

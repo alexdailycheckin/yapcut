@@ -418,7 +418,7 @@ function scriptCard(x, isSecondLane, i){
       <div class="twinwrap collapse">
         <div class="twinbody">${esc(x.linkedin.body)}</div>
         <div class="twinmeta">
-          <button class="btn" onclick="copyText(this.closest('.twin').querySelector('.twinbody').innerText,'LinkedIn twin copied')">Copy twin</button>
+          <button class="btn" onclick="copyText(linkedinText(this.closest('.twin').querySelector('.twinbody').innerText),'LinkedIn twin copied, formatted for paste')">Copy twin</button>
           ${visualBlock(x.linkedin.visual)}
         </div>
       </div>
@@ -468,6 +468,47 @@ function postName(x){
     if(first) return first.length>72 ? first.slice(0,69).trimEnd()+"..." : first;
   }
   return "Post";
+}
+
+/* ---------- LinkedIn-ready text ---------- */
+/* LinkedIn strips every kind of rich formatting on paste, so "copy" has to hand over text
+   that is ALREADY styled at the character level. Markers in the body are converted here
+   rather than stored converted, because the stored body has to stay real text: the gates
+   read it, spoken_lint reads it, and a body full of Mathematical Sans-Serif Bold would
+   defeat all of them.
+
+   USE BOLD SPARINGLY, and never on a number or the central claim. Unicode bold is not
+   text. Screen readers announce it as gibberish or skip it, and parsers handle it badly,
+   which for a creator whose subject is AI search visibility is an own goal: the sentence
+   you most want quoted is the one you just made unreadable to the thing quoting it. */
+function liBold(t){
+  return t.replace(/[A-Za-z0-9]/g, c => {
+    const u = c.codePointAt(0);
+    if (u >= 65 && u <= 90)  return String.fromCodePoint(0x1D5D4 + u - 65);
+    if (u >= 97 && u <= 122) return String.fromCodePoint(0x1D5EE + u - 97);
+    if (u >= 48 && u <= 57)  return String.fromCodePoint(0x1D7EC + u - 48);
+    return c;
+  });
+}
+function liItalic(t){
+  return t.replace(/[A-Za-z]/g, c => {
+    const u = c.codePointAt(0);
+    if (u >= 65 && u <= 90)  return String.fromCodePoint(0x1D608 + u - 65);
+    if (u >= 97 && u <= 122) return String.fromCodePoint(0x1D622 + u - 97);
+    return c;
+  });
+}
+/* Markers: **bold**, *italic*, and a leading "- " or "* " becomes the arrow bullet the
+   creator already uses in his published posts. Numbered lists keep their numerals, per the
+   numeral law. */
+function linkedinText(t){
+  return (t || "")
+    .replace(/\*\*([^*\n]+)\*\*/g, (_, x) => liBold(x))
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, (_, p, x) => p + liItalic(x))
+    .split("\n")
+    .map(l => l.replace(/^\s*[-*]\s+/, "↳ "))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n");
 }
 
 /* ---------- posting calendar ---------- */
@@ -567,7 +608,7 @@ function liCard(x, srcTitle, i){
         <h3 class="ttl">${esc(title)}</h3>
         <div class="chips">${dayChip}${qaChip(x.qa)}${done?'<span class="chip posted">Posted</span>':''}${r.status==="scheduled"?'<span class="chip">Scheduled</span>':''}${cutChip}${typeChip}${jobChip}${x.hook_arch?`<span class="chip">${esc(x.hook_arch)}</span>`:""}</div>
       </div>
-      <div class="cardops"><button class="btn" onclick="copyText(this.closest('.card').querySelector('.twinbody').innerText,'Post copied')">Copy post</button></div>
+      <div class="cardops"><button class="btn" onclick="copyText(linkedinText(this.closest('.card').querySelector('.twinbody').innerText),'Post copied, formatted for paste')">Copy post</button></div>
     </div>
     ${srcTitle?`<p class="premise"><b>Written twin of this week's video</b></p>`:""}
     <div class="twinbody" style="margin:14px 0 0 42px">${esc(x.body)}</div>

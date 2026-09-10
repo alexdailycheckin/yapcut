@@ -205,10 +205,80 @@ CSS = r"""
   .rule{height:6px;width:120px;background:var(--hl);margin:40px 0;border-radius:9999px;}
   .spacer{height:40px;}
 """
+
+# ---- optional dark skin -----------------------------------------------------
+# A workspace holding assets/reach-system/ gets a second skin: near-black ground, real
+# fractal-noise grain, a soft bloom, serif display. Opt-in by the presence of those files
+# rather than by a config flag, because the skin cannot render without them and a flag that
+# silently produces an unstyled deck is worse than no flag. Set carousel.skin "paper" to
+# force the light one back on.
+SKIN_DIR = os.path.join(WS, "assets", "reach-system")
+SKIN = (CFG.get("carousel") or {}).get("skin") or ("reach" if os.path.isdir(SKIN_DIR) else "paper")
+
+
+def _skin_assets():
+    """((grain_svg, filter_id), bloom_uri). Any piece may be empty; the skin degrades."""
+    import base64 as _b64
+    grain, fid = "", ""
+    gp = os.path.join(SKIN_DIR, "grain-and-defs.svg")
+    if os.path.exists(gp):
+        m = re.search(r"<filter\b.*?</filter>", open(gp).read(), re.S)
+        if m:
+            grain = m.group(0)
+            f = re.search(r'id="([^"]+)"', grain)
+            fid = f.group(1) if f else ""
+    bloom = ""
+    bp = os.path.join(SKIN_DIR, "gradient-bloom-cyan.png")
+    if os.path.exists(bp):
+        bloom = "data:image/png;base64," + _b64.b64encode(open(bp, "rb").read()).decode()
+    return (grain, fid), bloom
+
+
+DARK_CSS = r"""
+  @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+  @font-face{font-family:'Romie';src:url('@ROMIE@') format('truetype');font-weight:500;}
+  :root{--bg:#0F0F0F;--ink:#E7E5E4;--hl:@JEWEL@;--dim:#A9A29D;
+    --disp:'Romie',Georgia,serif;--mono:'Space Mono',monospace;--body:'Hanken Grotesk',system-ui,sans-serif;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{margin:0;background:#0F0F0F;}
+  .slide{width:1080px;height:1350px;background:var(--bg);color:var(--ink);font-family:var(--body);
+    padding:70px 64px 56px;display:flex;flex-direction:column;position:relative;overflow:hidden;}
+  .slide>*:not(.bloom):not(.grain){position:relative;z-index:2;}
+  .bloom{position:absolute;width:820px;height:820px;right:-300px;top:-260px;opacity:.30;
+    filter:blur(46px);pointer-events:none;z-index:0;}
+  .slide:nth-of-type(even) .bloom{right:auto;left:-340px;top:auto;bottom:-300px;opacity:.20;}
+  .grain{position:absolute;inset:0;pointer-events:none;z-index:1;opacity:.5;}
+  .top{display:flex;justify-content:space-between;font-family:var(--mono);font-size:21px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--hl);margin-bottom:30px;}
+  .main{flex:1;display:flex;flex-direction:column;justify-content:center;}
+  h1{font-family:var(--disp);font-weight:500;line-height:1.03;letter-spacing:-.01em;}
+  .big{font-size:100px;} .lead{font-size:80px;} .mid{font-size:56px;}
+  .slide.cover h1{font-size:100px;}
+  .stat{font-family:var(--disp);font-size:150px;color:var(--hl);line-height:.92;display:block;}
+  .slide.cover .stat{font-size:180px;}
+  p{font-size:34px;line-height:1.45;color:var(--dim);margin-bottom:22px;}
+  p b,p strong{color:var(--ink);font-weight:600;}
+  .hl{color:var(--hl);}
+  .spacer{height:30px;}
+  .foot{display:flex;justify-content:space-between;align-items:flex-end;}
+  .byline{display:flex;align-items:center;gap:16px;}
+  .byline .pfp{width:72px;height:72px;object-fit:cover;border:1px solid var(--hl);padding:4px;}
+  .byline .li{width:40px;height:40px;flex:none;}
+  .byline .who{display:flex;flex-direction:column;line-height:1.2;}
+  .byline .nm{font-family:var(--body);font-weight:600;font-size:27px;color:var(--ink);}
+  .byline .org{font-family:var(--mono);font-size:18px;color:var(--hl);letter-spacing:.03em;}
+  .swipe{font-family:var(--mono);font-size:20px;color:#8a8580;letter-spacing:.14em;}
+"""
+
 CSS = (CSS.replace("@GOOGLE_IMPORT@", GOOGLE_IMPORT)
           .replace("@BG@", BG).replace("@INK@", INK).replace("@ACCENT@", ACCENT)
           .replace("@FONT_DISP@", FONT_DISP).replace("@FONT_BODY@", FONT_BODY)
           .replace("@FONT_MONO@", FONT_MONO))
+
+if SKIN == "reach":
+    _romie = os.path.join(WS, "assets", "fonts", "RomieTrial-Medium.ttf")
+    CSS = (DARK_CSS.replace("@ROMIE@", "file://" + _romie).replace("@JEWEL@", "#22CCEE"))
+
 
 NUM_RE = re.compile(r"(\$?\d[\d,\.]*\s?(?:%|B|bn|billion|million|M|k|K|x)?\b|\$\d[\d,\.]*)")
 
@@ -314,12 +384,26 @@ def render_deck(x):
         # the PDF, could not read it, and crashed rather than failing. The interior slides
         # stay light, because those are read after the swipe, not scrolled past.
         cls = "slide cover" if i == 1 else "slide"
-        sec.append(f"""<section class="{cls}">
+        skin_layers = ""
+        if SKIN == "reach":
+            (_g, _fid), _bloom = _skin_assets()
+            if _bloom:
+                skin_layers += f'<img class="bloom" src="{_bloom}" alt="">'
+            if _fid:
+                skin_layers += (f'<svg class="grain" viewBox="0 0 1080 1350" preserveAspectRatio="none">'
+                                f'<rect width="1080" height="1350" filter="url(#{_fid})" '
+                                f'fill="#ffffff" fill-opacity="0.30"/></svg>')
+        sec.append(f"""<section class="{cls}">{skin_layers}
   <div class="top"><span class="kicker">{esc(kicker)}</span><span class="num">{i:02d} / {total:02d}</span></div>
   <div class="main">{body}</div>
   <div class="foot">{BYLINE}{cue_html}</div>
 </section>""")
-    return f"<style>{CSS}</style>\n" + "\n".join(sec)
+    head = f"<style>{CSS}</style>"
+    if SKIN == "reach":
+        (_g, _fid), _b = _skin_assets()
+        if _g:
+            head += f'\n<svg width="0" height="0" style="position:absolute"><defs>{_g}</defs></svg>'
+    return head + "\n" + "\n".join(sec)
 
 
 def to_pdf(chrome, html_path, pdf_path):
