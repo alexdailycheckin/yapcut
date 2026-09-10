@@ -237,9 +237,15 @@ def deck_from_script(x):
 
     # 1) cover: text_hook as the punch, first number blown up if there is one
     hook = x.get("text_hook") or x.get("spoken_hook") or x.get("title") or ""
-    m = NUM_RE.search(hook)
+    # Lift the number into the display slot ONLY when the hook LEADS with it. Cutting a
+    # number out of the middle and gluing the halves back together produces a hole where a
+    # clause used to be: "Two AI studies disagree by 39 points." shipped as "Two AI studies
+    # disagree by points", and "The market paid $5 billion." as "The market paid". Both went
+    # to PDF on 2026-09-10 before anyone read the cover. A leading number is the only
+    # position where removing it leaves something that still parses.
+    m = NUM_RE.match(hook.lstrip())
     if m and len(m.group(0)) >= 3:
-        rest = (hook[:m.start()] + hook[m.end():]).strip(" ?.-–")
+        rest = hook.lstrip()[m.end():].strip(" ?.-")
         cover = f'<div><span class="stat hl">{esc(m.group(0))}</span></div>'
         if rest:
             cover += f'<div class="spacer"></div><h1 class="lead">{esc(rest)}</h1>'

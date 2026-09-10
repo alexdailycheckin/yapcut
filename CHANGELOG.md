@@ -2,6 +2,21 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.6.4 (outlier-radar)
+
+**The carousel cover cut numbers out of the middle of sentences.** The cover lifted the first
+number it found into the big accent slot and rebuilt the headline from the two halves either
+side of it. When the number sat mid-sentence, the headline shipped with a hole in it:
+
+- "Two AI studies disagree by 39 points." rendered as **"Two AI studies disagree by points"**
+- "Wonderful sells engineers. The market paid $5 billion." rendered as **"Wonderful sells
+  engineers. The market paid"**
+
+Both reached PDF on 2026-09-10 before a human read a cover.
+
+- The number is now lifted only when the hook LEADS with it, which is the only position where
+  removing it leaves a clause that still parses. Any other position renders the hook whole.
+
 ## What's new in 3.6.3 (outlier-radar)
 
 **The carousel byline never used the author block.** `radar-config.json` has carried
