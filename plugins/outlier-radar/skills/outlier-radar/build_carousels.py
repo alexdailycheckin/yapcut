@@ -109,7 +109,39 @@ def find_chrome():
 # LinkedIn mark, inline so the deck stays self-contained (no external image).
 LI_SVG = ('<svg class="li" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" '
           'fill="#0A66C2" aria-label="LinkedIn"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>')
-BYLINE = f'<span class="byline">{LI_SVG}<span class="nm">{_html.escape(NAME)}</span></span>'
+# The byline carries a PHOTO and a TITLE when radar-config supplies them, not just a name.
+# A creator's face is the only part of a branded card that is unarguably theirs, and a deck
+# that ships with a platform glyph where the face should be is indistinguishable from anyone
+# else's deck in the same template. carousel.brand_author has held {name, org, photo} since
+# 2026-08-14 and this line ignored all three of them until 2026-09-10.
+_AUTHOR = (CFG.get("carousel") or {}).get("brand_author") or {}
+_A_NAME = _AUTHOR.get("name") or NAME
+_A_ORG = _AUTHOR.get("org") or ""
+_A_PHOTO = _AUTHOR.get("photo") or ""
+
+
+def _photo_uri(path):
+    """Inline as a data URI so the deck stays self-contained, same rule as the LinkedIn mark."""
+    if not path or not os.path.exists(path):
+        return ""
+    import base64, mimetypes
+    mime = mimetypes.guess_type(path)[0] or "image/png"
+    with open(path, "rb") as fh:
+        return f"data:{mime};base64," + base64.b64encode(fh.read()).decode()
+
+
+_A_URI = _photo_uri(_A_PHOTO)
+if _A_URI:
+    _mark = f'<img class="pfp" src="{_A_URI}" alt="">'
+    _who = (f'<span class="who"><span class="nm">{_html.escape(_A_NAME)}</span>'
+            + (f'<span class="org">{_html.escape(_A_ORG)}</span>' if _A_ORG else "")
+            + '</span>')
+    BYLINE = f'<span class="byline">{_mark}{_who}</span>'
+else:
+    # no photo configured: fall back to the platform mark rather than shipping a bare name
+    BYLINE = f'<span class="byline">{LI_SVG}<span class="nm">{_html.escape(NAME)}</span></span>'
+    print("carousel byline: no carousel.brand_author.photo in radar-config, "
+          "falling back to the LinkedIn mark")
 
 # ---- deck styling (tokens filled from the config's brand block) -------------
 CSS = r"""
@@ -135,7 +167,10 @@ CSS = r"""
   .foot{display:flex;justify-content:space-between;align-items:center;}
   .byline{display:flex;align-items:center;gap:14px;}
   .byline .li{width:40px;height:40px;flex:none;}
+  .byline .pfp{width:64px;height:64px;flex:none;border-radius:50%;object-fit:cover;}
+  .byline .who{display:flex;flex-direction:column;line-height:1.15;}
   .byline .nm{font-family:var(--disp);font-weight:700;font-size:32px;color:var(--ink);letter-spacing:-.01em;}
+  .byline .org{font-family:var(--mono);font-size:22px;color:var(--hl);letter-spacing:.02em;}
   .swipe{font-family:var(--mono);font-size:26px;color:var(--hl);}
   h1{font-family:var(--disp);font-weight:700;line-height:1.03;letter-spacing:-.02em;}
   .big{font-size:112px;} .lead{font-size:84px;} .mid{font-size:60px;}
