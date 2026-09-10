@@ -2,6 +2,25 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.6.5 (outlier-radar)
+
+**Every carousel this renderer has ever produced failed the feed floor on its cover, and
+nothing caught it.** Measured 2026-09-10 across 4 freshly built decks: mean luminance 242
+against a 200 ceiling, near-flat frame 94 to 97% against a 55% ceiling, accent coverage under
+1% against a 4% floor, RMS contrast 36 to 46 against a 55 floor. Five checks out of five,
+every deck.
+
+Two failures stacked to hide it. `visual_lint` was handed the PDF the renderer emits, could
+not decode it, and raised `PIL.UnidentifiedImageError` instead of failing the asset, so the
+cover was never graded. And a cream card with black type looks correct in isolation, which is
+how it survived every human review.
+
+The creator's own numbers agreed the whole time: his carousels ran a 581 median impressions
+against 880 for text over 19 posts. The format was never the problem. The cover was.
+
+- **Slide 1 now inverts:** ink field, paper type, accent on the stat and the swipe cue.
+  Interior slides stay light, because they are read after the swipe rather than scrolled past.
+
 ## What's new in 3.6.4 (outlier-radar)
 
 **The carousel cover cut numbers out of the middle of sentences.** The cover lifted the first

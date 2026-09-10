@@ -156,6 +156,11 @@ CSS = r"""
   *{margin:0;padding:0;box-sizing:border-box;}
   @page{ size:1080px 1350px; margin:0; }
   html,body{background:var(--bg);}
+  .slide.cover{background:var(--ink);color:var(--bg);}
+  .slide.cover .kicker,.slide.cover .num{color:color-mix(in srgb,var(--bg) 62%,transparent);}
+  .slide.cover h1,.slide.cover .nm{color:var(--bg);}
+  .slide.cover .stat{color:var(--hl);}
+  .slide.cover .org,.slide.cover .swipe{color:var(--hl);}
   .slide{width:1080px;height:1350px;background:var(--bg);color:var(--ink);
     padding:90px 96px;display:flex;flex-direction:column;
     page-break-after:always;position:relative;overflow:hidden;font-family:var(--body);}
@@ -287,7 +292,15 @@ def render_deck(x):
     for i, (kicker, body, cue) in enumerate(slides, 1):
         cue_html = ('<span class="swipe">Follow for more &rarr;</span>' if cue == "follow"
                     else '<span class="swipe">swipe &rarr;</span>')
-        sec.append(f"""<section class="slide">
+        # Slide 1 is the only frame that competes in the feed, so it INVERTS: ink field,
+        # paper type. Every deck this renderer has ever produced failed all 5 feed-floor
+        # checks on its cover (2026-09-10: mean luminance 242 against a 200 ceiling, 94%
+        # near-flat, accent under 1%), because a cream card with black type is beautiful
+        # open and invisible at thumbnail size. visual_lint never caught it: it was handed
+        # the PDF, could not read it, and crashed rather than failing. The interior slides
+        # stay light, because those are read after the swipe, not scrolled past.
+        cls = "slide cover" if i == 1 else "slide"
+        sec.append(f"""<section class="{cls}">
   <div class="top"><span class="kicker">{esc(kicker)}</span><span class="num">{i:02d} / {total:02d}</span></div>
   <div class="main">{body}</div>
   <div class="foot">{BYLINE}{cue_html}</div>
