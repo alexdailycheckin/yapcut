@@ -2,6 +2,19 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.6.3 (outlier-radar)
+
+**The carousel byline never used the author block.** `radar-config.json` has carried
+`carousel.brand_author` with `{name, org, photo}` since 2026-08-14. `build_carousels.py` read
+none of it and rendered a platform glyph plus a bare name, so every deck was visually
+interchangeable with any other deck built from the same template.
+
+- The byline now renders the configured photo as a circular avatar, with the name and the org
+  stacked beside it. The photo is inlined as a data URI so the deck stays self-contained, the
+  same rule the LinkedIn mark already followed.
+- No `brand_author.photo` configured falls back to the platform mark and prints why, rather
+  than silently shipping a bare name.
+
 ## What's new in 3.6.2 (outlier-radar)
 
 **The same blind spot, the other half of English.** 3.6.1 taught `has_verb()` third-person
