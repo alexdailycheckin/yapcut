@@ -329,37 +329,87 @@ def group(sentences, per=2, cap=4):
 
 
 def _numbered(sent):
-    """(number, label) when a sentence carries exactly one liftable figure, else None."""
-    ms = list(NUM_RE.finditer(sent))
-    ms = [m for m in ms if len(m.group(0)) >= 2]
-    if len(ms) != 1:
+    """(value, label) for a sentence built around one figure, else None.
+
+    The label is the UNIT PHRASE that follows the number, not the sentence with the number
+    cut out of it. Cutting leaves a hole: "The company is 20 months old" became "The company
+    is months old", and "Roughly $108,000 of revenue per employee" became "Roughly of revenue
+    per employee". Same defect as the cover headline, same fix. A stat row reads
+    "20 / months old", so the words after the figure ARE the label.
+    """
+    ms = [m for m in NUM_RE.finditer(sent) if len(m.group(0)) >= 2]
+    if not ms:
         return None
-    m = ms[0]
-    label = (sent[:m.start()] + " " + sent[m.end():]).strip(" .,:;")
-    label = re.sub(r"\s{2,}", " ", label)
-    if not label or len(label.split()) > 9:
+    m = max(ms, key=lambda x: len(x.group(0)))
+    after = re.sub(r"^(of|in|a|an|the|per)\b\s*", "",
+                   sent[m.end():].strip(" .,:;"), flags=re.I)
+    # A comma ends the label. "across 35 markets, tuned to the local language" gave
+    # "markets, tuned", which is half a label and half the next clause.
+    after = re.split(r"[,;:]", after)[0]
+    words = [w for w in re.split(r"\s+", after) if w]
+    label = " ".join(words[:4]).strip(" .,:;")
+    if len(label.split()) < 1:
+        before = sent[:m.start()].strip(" .,:;")
+        label = " ".join(before.split()[-4:])
+    # Trim trailing function words. A label ending "revenue rate with about" is a sentence
+    # fragment wearing a label's clothes, and it reads worse than the prose it replaced.
+    for _ in range(3):
+        label = re.sub(r"\s*\b(that|which|and|with|but|about|of|for|to|in|on|at|from|by|than|"
+                       r"a|an|the|is|was|are)\b$", "", label, flags=re.I).strip(" .,:;")
+    # A label that OPENS with a conjunction belongs to a sentence carrying two figures
+    # ("usually runs 3 or 4 times that number"). Neither figure is the subject, so it is prose.
+    if re.match(r"^(or|and|to|than)\b", label, flags=re.I):
+        return None
+    if not label or len(label) < 3 or len(label.split()) > 4:
         return None
     return m.group(0), label
 
 
-def stat_rows(chunk):
-    """A chunk where most sentences carry one figure renders as a table, not paragraphs.
+def data_run(sents):
+    """(start, end) of the longest run where most sentences carry a figure, else None.
 
-    Added 2026-09-10. Until then every interior slide was prose, so a page of pure data
-    ('20 months old', '$70 million', '650 employees', 'roughly $108,000 per employee') read
-    as five equal-weight sentences and made the reader do the arithmetic the card exists to
-    do for them. The layout IS the argument on a data page.
+    The run is found across the WHOLE body before chunking, because a stat table is a property
+    of the argument, not of an arbitrary 2-sentence slice. Chunking first meant the decision
+    was made on pairs and never saw the run.
     """
-    pairs = [_numbered(s) for s in chunk]
-    got = [p for p in pairs if p]
-    if len(got) < 2 or len(got) < len(chunk) - 1:
-        return None
-    rows = "".join(
-        f'<div class="srow"><span class="slab">{esc(l)}</span>'
-        f'<span class="sval">{esc(n)}</span></div>' for n, l in got)
-    leftover = "".join(f'<p class="body">{hl(s)}</p>'
-                       for s, p in zip(chunk, pairs) if not p)
-    return f'<div class="stable">{rows}</div>{leftover}'
+    flags = [bool(_numbered(x)) for x in sents]
+    best = (0, 0)
+    i = 0
+    while i < len(flags):
+        if not flags[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(flags) and (flags[j + 1] or (j + 2 < len(flags) and flags[j + 2])):
+            j += 1
+        # A ratio, not a hard count of exceptions. "At most 1 non-numeric line" failed the
+        # first real data page by exactly one: the run held 4 figures across 6 sentences, with
+        # "Do that division." and one two-number sentence sitting between them. Prose
+        # interjections are normal inside a data run and they render under the table.
+        span = j - i + 1
+        hits = sum(flags[i:j + 1])
+        if hits >= 3 and hits / span >= 0.6:
+            if j - i > best[1] - best[0]:
+                best = (i, j)
+        i = j + 1
+    return best if best[1] > best[0] else None
+
+
+def stat_table(sents):
+    """Label/value rows. The layout IS the argument on a data page."""
+    rows, extra, seen = [], [], set()
+    for x in sents:
+        got = _numbered(x)
+        if got and got[0] in seen:
+            got = None            # the same figure twice is one row, not two
+        if got:
+            seen.add(got[0])
+            n, l = got
+            rows.append(f'<div class="srow"><span class="slab">{esc(l)}</span>'
+                        f'<span class="sval">{esc(n)}</span></div>')
+        else:
+            extra.append(f'<p class="body">{hl(x)}</p>')
+    return f'<div class="stable">{"".join(rows)}</div>{"".join(extra)}'
 
 
 def deck_from_script(x):
@@ -390,11 +440,26 @@ def deck_from_script(x):
     body = split_sentences(x.get("script") or "")
     hlines = set(split_sentences(x.get("spoken_hook") or ""))
     body = [s for s in body if s not in hlines]
-    for chunk in group(body, per=2, cap=4):
-        # A blank kicker left the header empty on interior slides while the cover, the lesson
-        # and the close all had one, so the deck's header flickered on and off as you swiped.
-        html = stat_rows(chunk) or "".join(f'<p class="body">{hl(s)}</p>' for s in chunk)
-        slides.append((k_open, html, "swipe"))
+    # Pull the data run out as its own slide first, then prose-chunk what is left either side.
+    run = data_run(body)
+    segments = []
+    if run:
+        a, b = run
+        if body[:a]:
+            segments.append(("prose", body[:a]))
+        segments.append(("stats", body[a:b + 1]))
+        if body[b + 1:]:
+            segments.append(("prose", body[b + 1:]))
+    else:
+        segments.append(("prose", body))
+    for kind, seg in segments:
+        if kind == "stats":
+            # A blank kicker left interior headers empty while the cover, lesson and close all
+            # had one, so the header flickered on and off as you swiped.
+            slides.append((k_open, stat_table(seg), "swipe"))
+            continue
+        for chunk in group(seg, per=2, cap=3):
+            slides.append((k_open, "".join(f'<p class="body">{hl(s)}</p>' for s in chunk), "swipe"))
 
     # n-1) the lesson: value line, eyebrowed
     val = x.get("value") or ""

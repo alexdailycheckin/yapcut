@@ -2,6 +2,25 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.2 (outlier-radar)
+
+**The stat table now actually fires, and its labels read.** 3.7.1 shipped `stat_rows()` and it
+never once triggered. Three separate faults, each found only by rendering a real deck:
+
+- It bailed on any sentence carrying two figures, and a real data page is full of them
+  ("It runs a $70 million revenue rate with about 650 employees"), so nothing ever qualified.
+- The decision was made per 2-sentence chunk, after grouping. A data run is a property of the
+  argument, so it is now found across the whole body BEFORE chunking.
+- The run gate allowed at most one non-numeric line. The first real data page had two
+  interjections and failed by exactly one. It is a ratio now.
+
+Then the labels themselves were wrong, in the same way the cover headline was wrong before
+3.6.4: built by cutting the figure out of the sentence, which left "The company is months old"
+and "Roughly of revenue per employee". A stat row reads "20 / months old", so the label is the
+UNIT PHRASE after the figure. Trailing function words are trimmed, a label opening with a
+conjunction is rejected as prose, a comma ends the label, and a figure that appears twice
+renders one row.
+
 ## What's new in 3.7.1 (outlier-radar)
 
 **A data page now renders as a table instead of five equal sentences.** `stat_rows()` detects a
