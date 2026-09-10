@@ -454,6 +454,22 @@ function visualBlock(v){
   return `<div class="block" style="margin-top:14px"><div class="lab">Asset · ${meta}</div>${v.why?`<p class="psy">${esc(v.why)}</p>`:""}<div class="promptbox">${esc(v.prompt||"")}</div><button class="btn" style="margin-top:8px" onclick="copyText(this.previousElementSibling.innerText,'Higgsfield prompt copied')">Copy Higgsfield prompt</button></div>`;
 }
 const LI_STATES=["idea","scheduled","posted"];
+/* A calendar cell has to say WHICH post, and a solo LinkedIn post carries no title, so the
+   old fallback chain ended at x.type and printed "text" or "single-image" in the slot. A
+   format label is never the answer to "which one is this": the whole week reads as a column
+   of "text, single image, text". Fall through to the hook, then the opening line of the
+   body, and only ever say "Post" when the item is genuinely empty. */
+function postName(x){
+  if(x.title) return x.title;
+  if(x.text_hook) return x.text_hook;
+  const b=(x.body||"").trim();
+  if(b){
+    const first=b.split("\n").find(l=>l.trim());
+    if(first) return first.length>72 ? first.slice(0,69).trimEnd()+"..." : first;
+  }
+  return "Post";
+}
+
 /* ---------- posting calendar ---------- */
 const CAL_DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const CAL_MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -481,7 +497,7 @@ function calendarBlock(w){
     if(x.linkedin.post_day) rows.push({p:x.linkedin, title:x.title||x.linkedin.title||"Post"});
   });
   soloPostsOf(w).concat(leaderPostsOf(w)).forEach(x=>{
-    if(x.post_day && t(x.id).status!=="ignored") rows.push({p:x, title:x.title||x.type||"Post"});
+    if(x.post_day && t(x.id).status!=="ignored") rows.push({p:x, title:postName(x)});
   });
   if(!rows.length) return "";
 

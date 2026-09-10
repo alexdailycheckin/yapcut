@@ -2,6 +2,15 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.6.7 (outlier-radar)
+
+**The posting calendar printed the format instead of the post.** A solo LinkedIn post carries
+no `title`, and `calendarBlock` fell through to `x.type`, so the week rendered as a column of
+"text", "single-image", "text". A format label never answers "which post is this".
+
+- New `postName()` falls through title, then `text_hook`, then the first line of the body,
+  truncated. It only says "Post" when the item is genuinely empty.
+
 ## What's new in 3.6.6 (outlier-radar)
 
 **Finishing the cover.** Inverting it in 3.6.5 cleared luminance, edge and flatness but left
