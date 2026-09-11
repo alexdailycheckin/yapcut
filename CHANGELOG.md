@@ -2,6 +2,32 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.0 (outlier-radar)
+
+**The renderer can draw.** It knew four shapes: a headline, a paragraph, a stat row and the
+byline avatar. That is why every deck read as text on a background no matter how good the
+background got. Added: `panel()`, `bar_chart()` and an `icon()` set, drawn from the design
+tokens rather than pasted in as assets, and driven by figures already parsed out of the
+script, so nothing new has to be written for them to fire.
+
+**Two parser bugs that were silently flattening data pages:**
+
+- `split_sentences` could not split before a DIGIT. The lookahead accepted an uppercase
+  letter, a quote or a currency symbol, so "48% run hybrid. 35% have a consumption component.
+  18% charge on outcomes." parsed as ONE sentence. A creator with a numeral law writes
+  sentences opening with numbers constantly, so this flattened exactly the pages that most
+  needed splitting.
+- `NUM_RE` dropped the percent sign. Its unit group was followed by `\b`, and no word boundary
+  exists between "%" and a space, so every percentage in the deck parsed as a bare number.
+  That also made percentages look unit-less, and therefore comparable to bare counts.
+
+**A chart has to earn the axis.** Same unit is not the same as comparable: in one script "67%"
+is a price rise, "37%" is a plan to reprice, and "48 / 35 / 18%" are shares of one pie. Bars
+now require an EXPLICIT shared unit and CONSECUTIVE sentences, because a writer listing
+comparable quantities puts them next to each other. A chart that puts unrelated figures on one
+axis does not just look wrong, it asserts something false, and more confidently than the prose
+did.
+
 ## What's new in 3.7.2 (outlier-radar)
 
 **The stat table now actually fires, and its labels read.** 3.7.1 shipped `stat_rows()` and it

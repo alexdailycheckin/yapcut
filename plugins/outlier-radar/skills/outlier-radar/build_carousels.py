@@ -277,6 +277,17 @@ DARK_CSS = r"""
     padding:26px 0;border-bottom:1px solid #ffffff26;}
   .slab{font-size:34px;line-height:1.25;color:var(--dim);}
   .sval{font-family:var(--disp);font-size:72px;color:var(--hl);flex:none;line-height:1;}
+  .panel{border:1px solid #ffffff26;border-radius:20px;padding:34px 32px;margin-bottom:26px;
+    background:#ffffff08;}
+  .plabel{font-family:var(--mono);font-size:19px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--hl);margin-bottom:24px;}
+  .bars{display:flex;flex-direction:column;gap:22px;}
+  .brow{display:grid;grid-template-columns:250px 1fr auto;align-items:center;gap:20px;}
+  .blab{font-size:27px;color:var(--dim);line-height:1.2;}
+  .btrack{height:34px;background:#ffffff12;border-radius:4px;overflow:hidden;}
+  .bfill{display:block;height:100%;background:var(--hl);border-radius:4px;}
+  .bval{font-family:var(--disp);font-size:44px;color:var(--ink);line-height:1;}
+  .ico{width:34px;height:34px;color:var(--hl);}
   .swipe{font-family:var(--mono);font-size:20px;color:#8a8580;letter-spacing:.14em;}
 """
 
@@ -290,7 +301,11 @@ if SKIN == "reach":
     CSS = (DARK_CSS.replace("@ROMIE@", "file://" + _romie).replace("@JEWEL@", "#22CCEE"))
 
 
-NUM_RE = re.compile(r"(\$?\d[\d,\.]*\s?(?:%|B|bn|billion|million|M|k|K|x)?\b|\$\d[\d,\.]*)")
+# The percent branch comes FIRST and carries no \b. A word boundary cannot exist between
+# "%" and a following space, both being non-word characters, so the old single-branch
+# pattern matched "48" and dropped the sign on every percentage in the deck. That made
+# percentages unit-less, which in turn made them look comparable to bare counts.
+NUM_RE = re.compile(r"(\$?\d[\d,\.]*\s?%|\$?\d[\d,\.]*\s?(?:bn|billion|million|B|M|k|K|x)?\b|\$\d[\d,\.]*)")
 
 
 def esc(s):
@@ -315,7 +330,12 @@ def split_sentences(text):
     if not text:
         return []
     text = re.sub(r"\s*\n+\s*", " ", str(text))
-    parts = re.split(r"(?<=[.?!…])\s+(?=[A-Z\"'‘“£$])", text)
+    # The lookahead must include a DIGIT. Without it a sentence beginning with a numeral never
+    # starts a new sentence, so "48% run hybrid. 35% have a consumption component. 18% charge
+    # on outcomes." parsed as ONE sentence and the whole list collapsed to a single figure.
+    # The creator's numeral law means sentences open with numbers constantly, so this was
+    # silently flattening exactly the data pages that most needed splitting.
+    parts = re.split(r"(?<=[.?!…])\s+(?=[A-Z0-9\"'‘“£$])", text)
     return [p.strip() for p in parts if p.strip()]
 
 
@@ -326,6 +346,122 @@ def group(sentences, per=2, cap=4):
     n = max(1, min(cap, (len(sentences) + per - 1) // per))
     per = (len(sentences) + n - 1) // n
     return [sentences[i:i + per] for i in range(0, len(sentences), per)]
+
+
+# ---- drawable elements ------------------------------------------------------
+# Boxes, bars, a chart and icons, drawn from the design tokens rather than pasted in as
+# assets. The renderer used to know exactly 4 shapes: a headline, a paragraph, a stat row and
+# the byline avatar. That is why every deck read as text on a nice ground. These are the
+# vocabulary, and they are driven by figures already parsed out of the script, so no new field
+# has to be written for them to fire.
+
+_UNIT = re.compile(r"(\$|%|x\b|£|€)", re.I)
+
+
+def _unit_of(v):
+    m = _UNIT.search(v)
+    return m.group(1).lower() if m else ""
+
+
+def _magnitude(v):
+    """Comparable size of a figure string, scaling k/m/bn suffixes."""
+    n = re.sub(r"[^\d.]", "", v)
+    if not n:
+        return 0.0
+    try:
+        f = float(n)
+    except ValueError:
+        return 0.0
+    low = v.lower()
+    if "bn" in low or "billion" in low:
+        f *= 1e9
+    elif "m" in low and "million" in low or low.rstrip().endswith("m"):
+        f *= 1e6
+    elif low.rstrip().endswith("k"):
+        f *= 1e3
+    return f
+
+
+def chartable(sents):
+    """The longest run of CONSECUTIVE sentences sharing one explicit unit, else None.
+
+    Same unit is not the same as comparable. In one script "67%" is a price rise, "37%" is a
+    plan to reprice, and "48% / 35% / 18%" are shares of one pie. Charting all five on one axis
+    because they end in the same symbol asserts a relationship that is not there.
+
+    Consecutiveness is the signal that survives. A writer listing comparable quantities puts
+    them next to each other; a figure that belongs to a different argument has prose between
+    it and the list.
+    """
+    best, cur, unit = [], [], None
+    for x in sents:
+        g = _numbered(x)
+        u = _unit_of(g[0]) if g else None
+        if g and u and u == unit:
+            cur.append(g)
+        elif g and u:
+            if len(cur) > len(best):
+                best = cur
+            cur, unit = [g], u
+        else:
+            if len(cur) > len(best):
+                best = cur
+            cur, unit = [], None
+    if len(cur) > len(best):
+        best = cur
+    return best if len(best) >= 3 else None
+
+
+def bar_chart(pairs):
+    """Horizontal bars when the figures share a unit and are worth comparing.
+
+    Two or more values of the same unit ARE a comparison, and a comparison drawn is read in a
+    glance where a comparison listed has to be computed. Falls back to None when the units are
+    mixed, because a bar next to a bar implies they are the same kind of thing.
+    """
+    if len(pairs) < 2:
+        return None
+    units = {_unit_of(v) for v, _ in pairs}
+    # An EXPLICIT shared unit, never an absent one. Bare numbers are not comparable just
+    # because neither carries a symbol: "67" (a percentage rise), "150" (a survey sample) and
+    # "12" (months) all read as unit-less and would have been drawn as three bars of one
+    # quantity. A chart that puts unrelated figures on one axis does not merely look wrong,
+    # it asserts something false, and it asserts it more confidently than the prose did.
+    if len(units) != 1 or not next(iter(units)):
+        return None
+    mags = [_magnitude(v) for v, _ in pairs]
+    if min(mags) <= 0 or max(mags) / min(mags) > 500:
+        return None
+    top = max(mags)
+    rows = []
+    for (v, l), m in zip(pairs, mags):
+        pct = max(6.0, 100.0 * m / top)
+        rows.append(f'<div class="brow"><span class="blab">{esc(l)}</span>'
+                    f'<span class="btrack"><span class="bfill" style="width:{pct:.1f}%"></span></span>'
+                    f'<span class="bval">{esc(v)}</span></div>')
+    return f'<div class="bars">{"".join(rows)}</div>'
+
+
+ICONS = {
+    "up": '<path d="M4 20 L12 8 L20 20" />',
+    "flag": '<path d="M6 21V4h12l-3 4 3 4H6" />',
+    "warn": '<path d="M12 3 L22 20 H2 Z M12 10v4 M12 17v.5" />',
+    "eye": '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3"/>',
+}
+
+
+def icon(name, cls="ico"):
+    d = ICONS.get(name)
+    if not d:
+        return ""
+    return (f'<svg class="{cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            f'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{d}</svg>')
+
+
+def panel(inner, label=""):
+    """A bordered block. The system's cards put data inside a panel, never loose on the page."""
+    head = f'<div class="plabel">{esc(label)}</div>' if label else ""
+    return f'<div class="panel">{head}{inner}</div>'
 
 
 def _numbered(sent):
@@ -454,9 +590,24 @@ def deck_from_script(x):
         segments.append(("prose", body))
     for kind, seg in segments:
         if kind == "stats":
+            # NB: the loop variable must not be `x`, which is this function's own parameter
+            # holding the item. Shadowing it made deck_from_script crash on the next line that
+            # touched the item, with a bare "'str' object has no attribute 'get'".
+            prose, seen_v = [], set()
+            for sent in seg:
+                g = _numbered(sent)
+                if g and g[0] not in seen_v:
+                    seen_v.add(g[0])
+                elif not g:
+                    prose.append(sent)
+            drawn = bar_chart(chartable(seg) or [])
+            body_html = drawn or stat_table(seg)
+            if drawn:
+                body_html = panel(drawn, "the numbers") + "".join(
+                    f'<p class="body">{hl(t)}</p>' for t in prose)
             # A blank kicker left interior headers empty while the cover, lesson and close all
             # had one, so the header flickered on and off as you swiped.
-            slides.append((k_open, stat_table(seg), "swipe"))
+            slides.append((k_open, body_html, "swipe"))
             continue
         for chunk in group(seg, per=2, cap=3):
             slides.append((k_open, "".join(f'<p class="body">{hl(s)}</p>' for s in chunk), "swipe"))
