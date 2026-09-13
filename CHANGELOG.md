@@ -2,6 +2,28 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.1 (outlier-radar)
+
+**A tracking row the engine cannot read is worse than a missing one.** `tracking.jsonl` is
+written by `log_perf.py` and keyed on `event` (filmed, posted, ignored). Write it by hand with
+some other key and nothing errors: the report still prints its counts, all zeros, which reads
+as "nothing shipped" rather than "this file is in the wrong shape". That is exactly what
+happened to one week's batch, hand-written with a `state` key. Eighteen rows went unread, two
+posted posts showed as queued, and the miss survived a full weekly run because the only signal
+was eighteen identical warnings nobody reads to the bottom of.
+
+Both readers now name it instead:
+
+- `log_perf.py --report` counts the rows it could not read, says they are invisible to the
+  report and to the dashboard, lists the keys they actually carry, and prints the three
+  commands that write the file properly.
+- `build_dashboard.py` collapses the per-row wall into one warning with the count, the first
+  few line numbers and the same key list, and says what the consequence is: that work renders
+  as queued on the page.
+
+Neither guesses. A `state` key is not silently mapped onto `event`, because a reader that
+repairs a broken writer hides the broken writer.
+
 ## What's new in 3.8.0 (outlier-radar)
 
 **The renderer can draw.** It knew four shapes: a headline, a paragraph, a stat row and the

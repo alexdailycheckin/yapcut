@@ -538,6 +538,18 @@ def _report():
             c[e.get("event")] += 1
         print(f"tracking: {c['filmed']} filmed, {c['posted']} posted, {c['ignored']} ignored events "
               f"({len({e.get('id') for e in tr})} ids) in performance/tracking.jsonl")
+        # A row the engine cannot read is worse than a missing row: the counts above
+        # still print, all zeros, and read as "nothing shipped" instead of "the file
+        # is in the wrong shape". That is exactly what happened to the 2026-09-07
+        # batch, hand-written with a "state" key against an engine that reads "event",
+        # so say it in the one place anyone looks.
+        bad = [e for e in tr if e.get("event") not in TRACK_EVENTS]
+        if bad:
+            keys = sorted({k for e in bad for k in e if k not in ("id", "at")})
+            print(f"   BROKEN: {len(bad)} of {len(tr)} row(s) carry no event in {TRACK_EVENTS}"
+                  f" and are invisible to this report and to the dashboard.\n"
+                  f"   They carry: {', '.join(keys)}. Only log_perf writes this file:\n"
+                  f"   python3 log_perf.py --filmed <id> | --posted <id> <url> | --ignored <id>")
     else:
         print("tracking: no performance/tracking.jsonl yet. Mark work as it happens:\n"
               "   python3 log_perf.py --filmed <id>   --posted <id> <url>   --import <export.json>")

@@ -338,7 +338,7 @@ def load_tracking(ws):
     p = os.path.join(ws, "performance", "tracking.jsonl")
     if not os.path.exists(p):
         return {}, 0
-    events = []
+    events, unreadable = [], []
     with open(p, encoding="utf-8") as fh:
         for n, line in enumerate(fh, 1):
             line = line.strip()
@@ -353,9 +353,19 @@ def load_tracking(ws):
                 warn(f"tracking.jsonl line {n}: no id, skipped")
                 continue
             if ev.get("event") not in EVENT_STATUS:
-                warn(f"tracking.jsonl line {n}: unknown event {ev.get('event')!r}, skipped")
+                unreadable.append((n, ev))
                 continue
             events.append((str(ev.get("at") or ""), n, ev))
+    if unreadable:
+        # One line, not one per row. A wall of identical warnings is how 18 rows
+        # written with a "state" key instead of "event" went unread for a week.
+        keys = sorted({k for _n, e in unreadable for k in e if k not in ("id", "at")})
+        lines = ", ".join(str(n) for n, _e in unreadable[:6])
+        more = f" (+{len(unreadable) - 6} more)" if len(unreadable) > 6 else ""
+        warn(f"tracking.jsonl: {len(unreadable)} row(s) carry no event in "
+             f"{tuple(EVENT_STATUS)} and were SKIPPED, so that work shows as queued on "
+             f"the page. Lines {lines}{more}; they carry: {', '.join(keys)}. "
+             f"Only log_perf.py --filmed/--posted/--ignored writes this file.")
     events.sort(key=lambda e: (e[0], e[1]))
     seed = {}
     for _at, _n, ev in events:
