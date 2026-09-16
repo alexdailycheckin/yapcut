@@ -2,6 +2,22 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.2 (outlier-radar)
+
+**A drawn initial reads as a placeholder beside a brand that owns a mark.** `carousel.py` built
+the `brand_header` chip by taking the first letter of the label and setting it in a rounded
+square. That was right while the kit shipped neutral and wrong the moment a deck carried real
+artwork, because the card then advertised a logo the brand does not use. `brand_header` now
+also accepts `{"logo": path, "height": N, "y": N}` and pastes the artwork centred at the top.
+A string still draws the old chip, so no existing spec moves. A reversed lockup needs a dark
+band behind it and the script does not check for one, because the band colour is the spec's
+call, not the renderer's.
+
+**The footer baseline was hardcoded at 128px from the bottom of the card.** On a framed card
+that left the byline avatar 5px off the frame line, which reads as a crop rather than as a
+margin, and no spec could reach it. It is now `footer_baseline`, defaulting to 128 so every
+deck already shipped renders identically.
+
 ## What's new in 3.8.1 (outlier-radar)
 
 **A tracking row the engine cannot read is worse than a missing one.** `tracking.jsonl` is

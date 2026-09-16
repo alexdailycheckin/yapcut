@@ -461,8 +461,20 @@ def render(card, cfg, base_dir):
         d.rectangle([fi, fi, c["w"] - fi, c["h"] - fi],
                     outline=rgb(frame.get("color", p["accent"])), width=frame.get("width", 3))
 
-    if cfg.get("brand_header"):
-        label = cfg["brand_header"]
+    hdr = cfg.get("brand_header")
+    # A dict with "logo" pastes a real lockup centred at the top instead of drawing the
+    # letter chip. The chip was always a stand-in, and a drawn initial reads as a
+    # placeholder beside a brand that owns a mark. A reversed lockup needs a dark header
+    # band behind it, which is the spec's call and not this script's.
+    if isinstance(hdr, dict) and hdr.get("logo"):
+        lock = Image.open(hdr["logo"]).convert("RGBA")
+        lh = hdr.get("height", t["header"] + 16)
+        lw = max(1, round(lock.width * lh / lock.height))
+        lock = lock.resize((lw, lh), Image.LANCZOS)
+        img.paste(lock, ((c["w"] - lw) // 2, hdr.get("y", 96)), lock)
+        d = ImageDraw.Draw(img)
+    elif hdr:
+        label = hdr
         f_h = bold(t["header"])
         chip = t["header"] + 16
         wpx = d.textlength(label, font=f_h)
@@ -480,7 +492,7 @@ def render(card, cfg, base_dir):
     if cfg.get("brand_author"):
         a = cfg["brand_author"]
         f_a = mono(t["footer_name"])
-        ay = c["h"] - 128
+        ay = c["h"] - cfg.get("footer_baseline", 128)
         ax = M
         if a.get("photo"):
             av = 72
@@ -500,7 +512,8 @@ def render(card, cfg, base_dir):
         f_mark = mono(t["brand_mark"])
         track = t["eyebrow_track"]
         wpx = d.textlength(mark, font=f_mark) + track * max(0, len(mark) - 1)
-        tracked(d, (c["w"] - M - int(wpx), c["h"] - 126), mark, f_mark, muted, track)
+        tracked(d, (c["w"] - M - int(wpx), c["h"] - cfg.get("footer_baseline", 128) + 2),
+                mark, f_mark, muted, track)
 
     g = cfg.get("grain")
     if g:
