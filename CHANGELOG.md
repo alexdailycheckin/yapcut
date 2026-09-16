@@ -2,6 +2,24 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.3 (outlier-radar)
+
+**A post the sweep did not commission had no way into the week.** Anything built outside the
+weekly run, a deck from a one-off question or a reaction to something that landed on a
+Wednesday, could only reach `linkedin[]` by hand. A `linkedin[]` item carries 25 fields and
+the dashboard is keyed on `id`, so a near-miss does not error: the card renders without
+tracking, or drops out of the lane silently. `add_post.py` is the one supported door. It
+appends a schema-valid item, records in `selector_note` that a human put it there, and
+refuses a duplicate id.
+
+**Built assets were invisible from the page that decides what to post.** The dashboard is
+where the creator picks the week's posts, and the deck those posts ship with lived in a
+folder they had to go hunting for. Week files carried a path anyway: a bare `carousel`
+string on some items, `visual.path` on others, hand-written over about a month and read by
+nothing. Posts now render an Assets block with a `file://` link and a copyable path, from
+the canonical `assets` field and from both of those older shapes. Relative paths resolve
+against the workspace root, which `build_dashboard.py` now passes to the page.
+
 ## What's new in 3.8.2 (outlier-radar)
 
 **A drawn initial reads as a placeholder beside a brand that owns a mark.** `carousel.py` built

@@ -453,6 +453,43 @@ function visualBlock(v){
   const meta=[v.format,v.model,v.aspect].filter(Boolean).map(esc).join(" · ");
   return `<div class="block" style="margin-top:14px"><div class="lab">Asset · ${meta}</div>${v.why?`<p class="psy">${esc(v.why)}</p>`:""}<div class="promptbox">${esc(v.prompt||"")}</div><button class="btn" style="margin-top:8px" onclick="copyText(this.previousElementSibling.innerText,'Higgsfield prompt copied')">Copy Higgsfield prompt</button></div>`;
 }
+/* Where the built asset actually lives on disk. The dashboard is where the creator decides
+   what to post, so a deck they cannot open from here is a deck they go hunting for.
+
+   Reads the canonical `assets` written by add_post.py, and two shapes that were hand-written
+   into week files for a month before anything consumed them: a bare `carousel` path string
+   and `visual.path`. Those are read rather than migrated because the files already exist and
+   the creator wrote them expecting exactly this. */
+function assetsPath(x){
+  if(!x) return "";
+  const a=x.assets;
+  if(typeof a==="string" && a.trim()) return a.trim();
+  if(a && typeof a==="object" && a.path) return String(a.path).trim();
+  if(typeof x.carousel==="string" && x.carousel.trim()) return x.carousel.trim();
+  if(x.visual && typeof x.visual.path==="string" && x.visual.path.trim()) return x.visual.path.trim();
+  return "";
+}
+/* Relative paths are stored against the workspace root so a week file survives the
+   workspace moving; the page gets that root from ui-config to rebuild an openable URL. */
+function assetsAbs(p){
+  if(!p) return "";
+  if(p.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(p)) return p;
+  const root=(UI.workspace||"").replace(/\/+$/,"");
+  return root ? root+"/"+p : p;
+}
+function assetsBlock(x){
+  const rel=assetsPath(x); if(!rel) return "";
+  const abs=assetsAbs(rel);
+  const label=(x.assets && x.assets.label) || abs.replace(/\/+$/,"").split("/").pop() || abs;
+  /* file:// so the browser opens the folder. Chrome refuses file:// navigation from some
+     contexts and says nothing, which is why the path is also copyable: Cmd+Shift+G in
+     Finder always works. */
+  const href="file://"+encodeURI(abs).replace(/#/g,"%23");
+  return `<div class="block" style="margin-top:14px"><div class="lab">Assets</div>`
+       + `<p class="psy"><a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a></p>`
+       + `<button class="btn" style="margin-top:8px" data-path="${esc(abs)}" `
+       + `onclick="copyText(this.dataset.path,'Asset path copied')">Copy path</button></div>`;
+}
 const LI_STATES=["idea","scheduled","posted"];
 /* A calendar cell has to say WHICH post, and a solo LinkedIn post carries no title, so the
    old fallback chain ended at x.type and printed "text" or "single-image" in the slot. A
@@ -612,7 +649,7 @@ function liCard(x, srcTitle, i){
     </div>
     ${srcTitle?`<p class="premise"><b>Written twin of this week's video</b></p>`:""}
     <div class="twinbody" style="margin:14px 0 0 42px">${esc(linkedinText(x.body))}</div>
-    <div style="margin-left:42px">${visualBlock(x.visual)}${srcs(x.sources)?`<div style="margin-top:14px">${srcs(x.sources)}</div>`:""}</div>
+    <div style="margin-left:42px">${visualBlock(x.visual)}${assetsBlock(x)}${srcs(x.sources)?`<div style="margin-top:14px">${srcs(x.sources)}</div>`:""}</div>
     ${replyBlock(x)}
     ${tracker(x.id, true, LI_STATES)}
   </div>`;

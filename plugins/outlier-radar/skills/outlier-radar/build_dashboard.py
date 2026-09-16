@@ -442,8 +442,11 @@ def render(ws, cfg, weeks, campaigns, seed):
         "__WEEKS_JSON__": json_for_script(weeks),
         "__CAMPAIGNS_JSON__": json_for_script(campaigns),
         "__TRACKING_JSON__": json_for_script(seed),
+        # workspace: assets paths in a week file are stored relative to it, so the page
+        # needs the absolute root to build a file:// link the browser can follow.
         "__UI_JSON__": json_for_script({
-            "primary_label": primary, "secondary_label": secondary, "leaders_hdr": leaders}),
+            "primary_label": primary, "secondary_label": secondary, "leaders_hdr": leaders,
+            "workspace": os.path.abspath(ws)}),
     }
 
     html = (read_part("template.html")[:-1]
