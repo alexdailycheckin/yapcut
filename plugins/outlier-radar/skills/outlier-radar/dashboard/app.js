@@ -12,7 +12,12 @@ const UI = readJson("ui-config", {});
 const KEY = "outlier-radar-tracking";
 const SEED_KEY = KEY+":seeded";
 const AMMO_KEY = "outlier-radar-ammo";
-const BLANK = {status:"idea", views:"", link:"", notes:"", carousel:false};
+const BLANK = {status:"idea", views:"", link:"", notes:"", carousel:false, body:null};
+/* body: the post as it actually went out. The week file is what the selector wrote;
+   what gets POSTED is edited right up to the moment it ships, and tracking a body
+   nobody published measures the wrong thing. An edit here overrides the embedded
+   text everywhere the page reads it, and "Save week file" writes it back to disk so
+   the next build inherits it instead of silently reverting. */
 let TAB = "dist";
 let FILM_ID = null;
 /* Both tracking calls are guarded. The theme calls below always were; these two
@@ -56,6 +61,7 @@ function save(){
   }
 }
 function t(id){return track[id] || Object.assign({}, BLANK);}
+function bodyOf(x){ const b=t(x.id).body; return (b==null||b==="") ? (x.body||"") : b; }
 function setT(id, patch){track[id] = Object.assign(t(id), patch); save(); render(); if(FILM_ID) syncFilmFoot();}
 function toggleCarousel(id){setT(id,{carousel:!t(id).carousel}); toast(t(id).carousel?"Flagged for a carousel":"Carousel flag removed");}
 function setTab(x){TAB=x; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on", b.dataset.t===x)); render();}
@@ -645,14 +651,67 @@ function liCard(x, srcTitle, i){
         <h3 class="ttl">${esc(title)}</h3>
         <div class="chips">${dayChip}${qaChip(x.qa)}${done?'<span class="chip posted">Posted</span>':''}${r.status==="scheduled"?'<span class="chip">Scheduled</span>':''}${cutChip}${typeChip}${jobChip}${x.hook_arch?`<span class="chip">${esc(x.hook_arch)}</span>`:""}</div>
       </div>
-      <div class="cardops"><button class="btn" onclick="copyText(linkedinText(this.closest('.card').querySelector('.twinbody').innerText),'Post copied, formatted for paste')">Copy post</button></div>
+      <div class="cardops"><button class="btn" onclick="editBody('${x.id}')">Edit</button><button class="btn" onclick="copyText(linkedinText(this.closest('.card').querySelector('.twinbody').innerText),'Post copied, formatted for paste')">Copy post</button></div>
     </div>
     ${srcTitle?`<p class="premise"><b>Written twin of this week's video</b></p>`:""}
-    <div class="twinbody" style="margin:14px 0 0 42px">${esc(linkedinText(x.body))}</div>
+    <div class="twinbody" id="tb-${x.id}" style="margin:14px 0 0 42px">${esc(linkedinText(bodyOf(x)))}</div>
+    ${t(x.id).body!=null?`<div class="lab" style="margin:8px 0 0 42px;color:var(--accent)">Edited here &middot; not yet in the week file</div>`:""}
     <div style="margin-left:42px">${visualBlock(x.visual)}${assetsBlock(x)}${srcs(x.sources)?`<div style="margin-top:14px">${srcs(x.sources)}</div>`:""}</div>
     ${replyBlock(x)}
     ${tracker(x.id, true, LI_STATES)}
   </div>`;
+}
+
+/* Edit the post body in place. Textarea rather than contenteditable: the body is plain
+   text with hard line breaks and contenteditable turns pasted text into markup. */
+function editBody(id){
+  const card=document.getElementById("licard-"+id); if(!card) return;
+  const host=card.querySelector(".twinbody"); if(!host || host.dataset.editing) return;
+  const item=findItem(id) || {id:id};
+  const ta=document.createElement("textarea");
+  ta.className="bodyedit"; ta.value=bodyOf(item);
+  ta.style.cssText="width:calc(100% - 42px);margin:14px 0 0 42px;min-height:280px;"
+    +"font:inherit;line-height:1.55;padding:14px;border-radius:8px;"
+    +"background:var(--wash,#1b1b1a);color:inherit;border:1px solid var(--accent);resize:vertical";
+  host.dataset.editing="1"; host.style.display="none";
+  host.parentNode.insertBefore(ta, host.nextSibling);
+  const bar=document.createElement("div");
+  bar.style.cssText="margin:8px 0 0 42px;display:flex;gap:8px;align-items:center";
+  bar.innerHTML='<button class="btn" data-a="save">Save</button>'
+    +'<button class="btn" data-a="revert">Revert to week file</button>'
+    +'<button class="btn" data-a="cancel">Cancel</button>';
+  ta.parentNode.insertBefore(bar, ta.nextSibling);
+  ta.focus();
+  bar.onclick=e=>{
+    const a=e.target.dataset && e.target.dataset.a; if(!a) return;
+    if(a==="save"){ const v=ta.value.trim(); setT(id,{body: v===((item.body||"").trim())?null:v});
+      toast("Post body saved in this browser. Use Save week file to put it on disk."); }
+    else if(a==="revert"){ setT(id,{body:null}); toast("Reverted to the week file text"); }
+    else { host.dataset.editing=""; host.style.display=""; ta.remove(); bar.remove(); }
+  };
+}
+
+/* Write the edited bodies back into the week file. The page is a file:// document with no
+   server, so this is the only honest route: rebuild the week JSON with the overrides
+   applied and hand it to the filesystem. showSaveFilePicker writes in place on Chromium;
+   everywhere else it falls back to a download the creator drops over weeks/<week>.json.
+   Either way the next build_dashboard.py run inherits the text rather than reverting it. */
+async function saveWeekFile(){
+  const w=curWeek(); if(!w) return;
+  const out=JSON.parse(JSON.stringify(w));
+  let n=0;
+  ["linkedin","gtm_linkedin","distribution","office","food"].forEach(lane=>{
+    (out[lane]||[]).forEach(item=>{
+      const b=track[item.id] && track[item.id].body;
+      if(b!=null && b!==""){ item.body=b; n++; }
+      const tw=item.linkedin;
+      if(tw && tw.id){ const tb=track[tw.id] && track[tw.id].body;
+        if(tb!=null && tb!==""){ tw.body=tb; n++; } }
+    });
+  });
+  if(!n){ alert("No edited bodies in this week yet.\n\nClick Edit on a post, change it, then Save."); return; }
+  await saveJson(JSON.stringify(out,null,2)+"\n", w.week+".json",
+    n+" edited post(s) written. Put this file at weeks/"+w.week+".json, then rerun build_dashboard.py.");
 }
 
 function inspCard(x){

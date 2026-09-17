@@ -28,6 +28,7 @@ __STYLE__
       <button onclick="closeMenu();exportForBlog()"><b>Week for blog</b><span>Save Filmed and Posted scripts to a JSON the weekly routine turns into an AEO post.</span></button>
       <button onclick="closeMenu();exportCarousels()"><b>Carousel queue</b><span>Save scripts flagged Carousel, then run build_carousels.py to render the PDFs.</span></button>
       <button onclick="closeMenu();exportPerformance()"><b>Performance</b><span>Save the merged tracking (what tracking.jsonl seeded plus your edits here), then run log_perf.py --import on the file.</span></button>
+      <button onclick="closeMenu();saveWeekFile()"><b>Save week file</b><span>Write post bodies you edited here back into weeks/&lt;week&gt;.json, so the next build keeps your text instead of the drafted one.</span></button>
     </div>
   </details>
   <button class="iconbtn" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">&#9790;</button>

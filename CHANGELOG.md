@@ -2,6 +2,23 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.4 (outlier-radar)
+
+**The dashboard showed a post body it could not change.** The week file holds what the
+selector wrote. What actually gets posted is edited right up to the moment it ships, and
+the page rendered `body` read-only, so the tracked text drifted from the published text
+and the ledger measured a post nobody sent. Every LinkedIn card now has an Edit button.
+The edited body joins the tracked record beside status and link, so it survives a reload,
+overrides the embedded text everywhere the page reads it, and carries a marker until it
+reaches disk.
+
+**Export gained Save week file.** The page is a file:// document with no server, so the
+edits are rebuilt into the week JSON and handed to the filesystem: written in place
+through showSaveFilePicker on Chromium, downloaded to drop over `weeks/<week>.json`
+everywhere else. Either route means the next `build_dashboard.py` inherits the creator's
+text rather than reverting it. Revert to week file undoes an edit without hunting for the
+original.
+
 ## What's new in 3.8.3 (outlier-radar)
 
 **A post the sweep did not commission had no way into the week.** Anything built outside the
