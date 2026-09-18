@@ -2,6 +2,49 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.0 (outlier-radar)
+
+**A week of verified facts is not an episode.** The 2026-09-07 batch shipped eight scripts
+that passed every gate in this engine and read as a pile of true statistics, and the creator
+rejected the whole batch after filming it. The cause traces to 3.4.3, which loosened the show
+from six fixed beats to two so that nobody would fill six boxes mechanically. That was the
+right problem to fix. The cost was that the beat naming what the viewer already believes
+became part of the optional middle, and it went.
+
+**The belief was written. It was in the wrong place.** Four of the five episodes contained the
+sentence, placed last: "that was a reasonable test in 2025", "HubSpot did nothing wrong".
+Stated after the receipts, a belief is a summary of them. Stated before them, the identical
+receipts become a demolition. Curiosity fires on a gap, so a gap opened after the information
+has landed is not a gap. Moving one sentence up fixes an episode without rewriting a word of
+it, which is why this is a structure defect and not a copy defect.
+
+**The show now runs five moves:** the receipt in frame one, THE BELIEF, the break, the
+mechanism, the verdict. Three are fixed and the break is free in order, count and wording, so
+3.4.3's point survives. The belief is fixed as a FUNCTION and never as a sentence, so no
+spoken catchphrase returns: a phrase forced onto an episode it does not fit spends the opening
+line on a promise the episode never keeps. The shape carries the franchise instead. The
+first-run interview stops offering a turn line and a takeaway line as defaults, and asks
+instead for an episode the candidate phrase would not survive.
+
+**It is a gate, not a paragraph.** This tree has already run the experiment on prose: the
+2026-08-28 rewrite rules lived in a filming-pack header rather than in a file that executes,
+and the next run could not see them. So `research` items now require a `belief` field, copied
+verbatim out of `spoken_hook` or `script`, and `check_fidelity.py` locates that sentence and
+fails a week whose belief sits after half the numbers. Verbatim matching is load-bearing: the
+first version of the check scored the field against the script by content-word overlap and
+passed both bad 2026-09-07 episodes, because a belief's words appear all over an episode about
+that subject. The regression test runs it both ways.
+
+**`references/the-language-layer.md` ships.** The spoken-word spec, companion to
+`video-scripting-as-a-science.md`, which has shipped since 3.0.0. It sets how every line
+sounds: money word last, source attributed before the claim, no mid-sentence clauses, "you"
+outnumbering "I", and the spoken filler KEPT, because a written-copy standard cuts filler on
+sight and in speech that filler is the texture of a person thinking in real time. Nothing
+referenced it until now, which is how a 17KB spec goes unused for two months.
+
+The dashboard marks the belief in place inside the read, because where it sits is the thing
+worth seeing.
+
 ## What's new in 3.8.4 (outlier-radar)
 
 **The dashboard showed a post body it could not change.** The week file holds what the
