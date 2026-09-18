@@ -2,6 +2,22 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.2 (outlier-radar)
+
+**The order test failed correctly placed beliefs.** It measured the belief's position against
+every numbered sentence in the hook AND the script. Move 1 is the receipt and it is supposed
+to carry a number, so an episode whose hook held two figures put the median at sentence 2 and
+a belief sitting at the top of the body failed. Caught on the 2026-09-13 rewrite, twice. The
+test now runs inside the script alone, which is where the receipts walk lives and the only
+place an order exists to check.
+
+**A belief spoken only in the hook is legal.** The receipt and the belief can share the
+opening breath, and there is nothing to order in that case.
+
+**A two-sentence belief now says so.** The field is matched sentence by sentence, so a belief
+written as two sentences could never match and reported "not a paraphrase", which is not what
+was wrong with it. The message names both causes.
+
 ## What's new in 3.9.1 (outlier-radar)
 
 **The voice profile called itself provisional forever.** `derive_voice_targets.py` wrote a

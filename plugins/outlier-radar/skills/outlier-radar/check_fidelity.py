@@ -712,16 +712,35 @@ def check_belief_order(it, where, fails, warns):
         fails.append(f"{where}: no belief field. Move 2 of the five moves is missing, so "
                      f"the receipts have nothing to break and the episode is a list")
         return
-    sents = _sentences((it.get("spoken_hook") or "") + " " + (it.get("script") or ""))
-    norms = [_norm(x) for x in sents]
+    # The order test runs inside the SCRIPT, never across hook plus script. Move 1 is
+    # the receipt and it is SUPPOSED to carry a number, so counting the hook's digits
+    # drags the median to sentence 1 or 2 and fails a belief that is correctly placed
+    # at the top of the body. Measured on the 2026-09-13 rewrite, which the first
+    # version of this check failed twice for exactly that reason.
+    body = _sentences(it.get("script") or "")
+    hook = _sentences(it.get("spoken_hook") or "")
     target = _norm(belief)
-    idx = next((i for i, n in enumerate(norms) if n and n == target), None)
-    if idx is None:
-        idx = next((i for i, n in enumerate(norms) if target and target in n), None)
-    if idx is None:
-        fails.append(f"{where}: belief is not spoken. The field must be the exact sentence "
-                     f"as it appears in spoken_hook or script, not a paraphrase of it")
+    if not target:
         return
+
+    def locate(sents):
+        norms = [_norm(x) for x in sents]
+        i = next((j for j, n in enumerate(norms) if n and n == target), None)
+        if i is None:
+            i = next((j for j, n in enumerate(norms) if n and target in n), None)
+        return i
+
+    idx = locate(body)
+    if idx is None:
+        # A belief spoken only in the hook is legal: the receipt and the belief can
+        # share the opening breath. There is nothing to order in that case.
+        if locate(hook) is not None:
+            return
+        fails.append(f"{where}: belief is not spoken. The field must be ONE sentence, "
+                     f"appearing word for word in script or spoken_hook, not a paraphrase "
+                     f"of it and not two sentences joined")
+        return
+    sents = body
     if len(sents) < 4:
         return
     digits = [i for i, x in enumerate(sents) if i != idx and re.search(r"\d", x)]
@@ -730,8 +749,8 @@ def check_belief_order(it, where, fails, warns):
     mid = statistics.median(digits)
     if idx > mid:
         fails.append(f"{where}: ORDER TEST. The belief is sentence {idx + 1} of "
-                     f"{len(sents)}, after half the numbers (median sentence "
-                     f"{mid + 1:.0f}). A belief stated after the receipts is a summary of "
+                     f"{len(sents)} in the script, after half its numbers (median "
+                     f"sentence {mid + 1:.0f}). A belief stated after the receipts is a summary of "
                      f"them; stated before them it turns the same receipts into a "
                      f"demolition. Move it to move 2")
 
