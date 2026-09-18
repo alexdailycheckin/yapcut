@@ -2,6 +2,24 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.5 (outlier-radar)
+
+**`segment_corpus.py --strict` rebuilds from source files alone.** Guard 2 keeps any line in
+an existing `corpus-*.txt` that no source file reproduces, so a hand-filed line is never
+silently lost. The cost surfaced twice on 2026-09-18: removing a source file does not remove
+its words, because deleting the source turns its lines from derived into orphaned and guard 2
+then preserves them forever. An editorial marker survived every rebuild that way, and then
+three quarantined files kept 449 words in the corpus after being pulled. Removing a source is
+a deliberate act and it now removes the text. Guard 2 stays the default; `--strict` is the
+switch to throw after quarantining anything.
+
+**Why this matters more than it looks.** The corpus is not data the engine reports on, it is
+the specification the engine writes against, and `voice_brief.py` prints it verbatim into
+every script prompt. A word of unknown authorship in there is indistinguishable from the
+creator's own voice at the point where it does damage. The 2026-07-26 audit in this workspace
+already found 71 of 71 teleprompter reads were the creator reading the engine's scripts, so
+measuring them measured the engine; the same trap reopened through a different door.
+
 ## What's new in 3.9.4 (outlier-radar)
 
 **The blind test put the creator's own writing on the generated side.** A week file holds what

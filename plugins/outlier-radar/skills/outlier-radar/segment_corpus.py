@@ -82,6 +82,7 @@ SOURCES = (
     ("voice-corpus/manual/*.md", "work"),
     ("voice-corpus/granola/*.md", "banter"),
 )
+STRICT = False
 BUCKETS = ("work-spoken", "work-typed", "banter-spoken", "personal-spoken")
 THIN_WORDS = 4000
 
@@ -126,9 +127,19 @@ def words_in(text):
     return len(re.findall(r"[A-Za-z']+", text))
 
 
-def merge_existing(path, derived):
+def merge_existing(path, derived, strict=False):
     """Guard 2. Returns (text_to_write or None to leave the file alone, kept_words, kept_lines).
-    Every existing line no source reproduces is kept after the derived text."""
+    Every existing line no source reproduces is kept after the derived text.
+
+    `strict` turns guard 2 OFF and rebuilds from sources alone. Guard 2 exists so a
+    hand-filed line is never silently lost, but it has a cost that bit twice on
+    2026-09-18: material PULLED from the corpus does not leave, because deleting its
+    source file makes its lines orphaned rather than derived, and guard 2 then
+    preserves them forever. Removing a source is a deliberate act, and it has to
+    actually remove the words. Use --strict after quarantining anything, then check
+    the diff."""
+    if strict:
+        return derived, 0, 0
     if not path.exists():
         return derived, 0, 0
     existing = path.read_text(encoding="utf-8")
@@ -144,6 +155,12 @@ def merge_existing(path, derived):
 
 
 def main():
+    global STRICT
+    STRICT = "--strict" in sys.argv
+    if STRICT:
+        sys.argv.remove("--strict")
+        print("--strict: guard 2 is OFF, rebuilding from source files alone. "
+              "Anything not in a source file is dropped.\n")
     H = radar_home()
     vc = H / "voice-corpus"
     vc.mkdir(parents=True, exist_ok=True)
@@ -181,7 +198,7 @@ def main():
     for k, files in buckets.items():
         derived = "\n".join(t for _, t in files if t)
         p = vc / f"corpus-{k}.txt"
-        text, kept_words, kept_lines = merge_existing(p, derived)
+        text, kept_words, kept_lines = merge_existing(p, derived, strict=STRICT)
         if text is not None:
             p.write_text(text + "\n", encoding="utf-8")
         final = p.read_text(encoding="utf-8") if p.exists() else ""
