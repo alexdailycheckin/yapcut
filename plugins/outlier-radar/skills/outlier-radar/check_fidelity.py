@@ -678,6 +678,64 @@ def _check_post(post, where, fails, warns):
                     warns.append(f"{where}: held[{i}] has no fact")
 
 
+# ---------------------------------------------------------------------------
+# The order test (added 2026-09-18). The show's five moves put THE BELIEF at
+# move 2, before the receipts walk. A belief stated after the receipts is a
+# summary of them; the same belief stated before them turns the identical
+# receipts into a demolition. Curiosity fires on a gap, and a gap opened after
+# the information has landed is not a gap.
+#
+# This exists as a gate rather than as prose because the workspace already ran
+# the experiment: the 2026-08-28 rewrite rules lived in a filming-pack header
+# instead of in a file that executes, and the next run could not see them.
+# ---------------------------------------------------------------------------
+
+def _sentences(text):
+    return [x.strip() for x in re.split(r'(?<=[.!?])\s+', text or "") if x.strip()]
+
+
+def _norm(t):
+    return re.sub(r"[^a-z0-9 ]", "", (t or "").lower()).strip()
+
+
+def check_belief_order(it, where, fails, warns):
+    """Move 2 exists, is spoken verbatim, and lands before the receipts walk.
+
+    `belief` must be the exact sentence as spoken, not a paraphrase of it. An
+    earlier version of this check matched the field against the script by
+    content-word overlap and passed both 2026-09-07 episodes whose belief was
+    written last, because the field's words appear all over an episode about
+    that subject. Fuzzy matching cannot run an order test.
+    """
+    belief = (it.get("belief") or "").strip()
+    if not belief:
+        fails.append(f"{where}: no belief field. Move 2 of the five moves is missing, so "
+                     f"the receipts have nothing to break and the episode is a list")
+        return
+    sents = _sentences((it.get("spoken_hook") or "") + " " + (it.get("script") or ""))
+    norms = [_norm(x) for x in sents]
+    target = _norm(belief)
+    idx = next((i for i, n in enumerate(norms) if n and n == target), None)
+    if idx is None:
+        idx = next((i for i, n in enumerate(norms) if target and target in n), None)
+    if idx is None:
+        fails.append(f"{where}: belief is not spoken. The field must be the exact sentence "
+                     f"as it appears in spoken_hook or script, not a paraphrase of it")
+        return
+    if len(sents) < 4:
+        return
+    digits = [i for i, x in enumerate(sents) if i != idx and re.search(r"\d", x)]
+    if len(digits) < 2:
+        return
+    mid = statistics.median(digits)
+    if idx > mid:
+        fails.append(f"{where}: ORDER TEST. The belief is sentence {idx + 1} of "
+                     f"{len(sents)}, after half the numbers (median sentence "
+                     f"{mid + 1:.0f}). A belief stated after the receipts is a summary of "
+                     f"them; stated before them it turns the same receipts into a "
+                     f"demolition. Move it to move 2")
+
+
 def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
     if not isinstance(it, dict):
         fails.append(f"{where}: item is not an object")
@@ -688,6 +746,8 @@ def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
         warns.append(f"{where}: no title")
     if cls != "format" and not (it.get("script") or it.get("beats")):
         warns.append(f"{where}: no script and no beats")
+    if cls == "research":
+        check_belief_order(it, where, fails, warns)
     qa = it.get("qa")
     if qa is None:
         warns.append(f"{where}: no qa value")

@@ -14,6 +14,11 @@ on-screen hook for mute viewers, no consultant-speak, no em/en dashes).
 2. **visual_hook** - what you physically show or do in the first 1-2 seconds (a prop, a screen, an action, a pattern interrupt). If it is pure talking head, say so ("straight to camera, high energy").
 3. **spoken_hook** - the opening 1-2 lines said out loud (it is usually two short lines, and reading it in two breaths is fine). It is NOT a separate thing to record: on the dashboard the whole read is laid out like a movie script in three labelled sections, **HOOK** (this field, rendered BOLD) then **SCRIPT** then **CTA (optional)**, each one sentence per line. Write the hook to flow straight into the script and never repeat it at the top of `script`. It is for the ear; the `text_hook` (for the eye) can and often should differ.
 4. **script** - the VERBATIM words to read out loud: the body that follows the hook section. Must follow tension -> value beats -> payoff. Written to be SPOKEN (contractions, short sentences, rhythm), not read like an essay. Do NOT restate the spoken_hook here; start from the next beat. The dashboard renders it as the **SCRIPT** section, one sentence per line, teleprompter style.
+4b. **belief** (`research` items, the show) - move 2 of the five moves in
+   `the-show-template.md`: the sentence naming what the viewer already believes, stated as
+   if it were true, BEFORE any receipt lands. Copy it verbatim out of `spoken_hook` or
+   `script`. `check_fidelity.py` locates it and fails the week when it sits after half the
+   numbers, because a belief stated after the receipts is a summary of them.
 5. **directions** - stage directions: b-roll, cuts, on-screen text cues, props, where to punch in. Clearly NOT spoken. Shown in a separate styled box on the dashboard.
 6. **value** - one sentence stating the PAYOFF and its TYPE. Value is not always educational. Prefix with the type so it's explicit on the dashboard:
    - **Educational** - viewer learns or can do something (drives saves, authority)
@@ -139,6 +144,8 @@ A script is `qa: "passed"` only if every box is true. Otherwise it is `qa: "pre-
 - [ ] Body delivers a clear PAYOFF of some type (educational, insight, relatable, entertainment, or shock) - the `value` line is fillable, NOT necessarily educational
 - [ ] If it is an educational/insight video: at least one concrete proof (a number, a name, a step). If it is entertainment/relatable/shock: the bit actually lands
 - [ ] Clear payoff that closes the loop the hook opened
+- [ ] Show episodes: `belief` is filled, spoken verbatim, and sits BEFORE the receipts walk
+- [ ] Read the beats aloud with the connectors spoken: every join is "but" or "therefore", never "and then"
 - [ ] A single CTA at the end, OR a deliberate hard-stop button ending (CTA is optional, never two CTAs)
 - [ ] `script` is verbatim speech only; all "do this" lives in `directions`
 - [ ] Reads naturally out loud in 30-45 seconds

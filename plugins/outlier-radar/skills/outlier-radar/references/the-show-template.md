@@ -54,13 +54,16 @@ Show mode is an OPTION. Offer it; a "not now" skips it entirely and the config k
    question you can't help asking?" Their answer, in their words, is the verdict
    engine. Sharpen it WITH them until it is one line.
 4. **The name, theirs.** Generate 3-5 show-name candidates FROM their lens and niche
-   vocabulary (never from another creator's show), plus matching turn-line candidates
-   (the question spoken at the same beat every episode). They pick or rewrite; the
-   exact wording locks. If nothing lands, keep exploring: the name is the franchise,
-   do not settle it for them.
-5. **The takeaway beat.** Propose 2-3 takeaway phrasings in their voice (the line that
-   opens the copyable-lesson beat). They approve the exact wordings; rotation if more
-   than one; never improvised on camera.
+   vocabulary (never from another creator's show). They pick or rewrite; the exact wording
+   locks. If nothing lands, keep exploring: the name is the franchise, do not settle it for
+   them.
+5. **A spoken turn line, only if one fits every episode.** Offer it as optional and say what
+   it costs: a phrase forced onto an episode it does not fit spends the opening line on a
+   promise the episode never keeps. Ask them to name an episode their candidate phrase would
+   NOT survive. If one comes to mind easily, leave `turn_line` empty and let the shape and a
+   burned mark carry the franchise. Leave `takeaway_lines` empty by default: the lesson lands
+   as a consequence of the story, and a line announcing it is the least story-like move
+   available.
 6. **The beats.** Which corners of THEIR industry should the weekly news sweep cover?
    Default to their niche's trade press and communities, not tech or marketing news.
 7. **Cadence + wildcard taste.** Episodes per week, news/wildcard split (default 3+2),
@@ -70,16 +73,75 @@ Close the journey by writing the config, then BUILD AND OPEN THE DASHBOARD so th
 see where everything will land (the bundled example week renders until their first
 real week exists).
 
-## The fixed skeleton (the recognisable shape)
+## The shape (five moves, functions fixed, wording free)
 
-| Beat | Time | Job |
-|---|---|---|
-| 1. The news open | 0-4s | Headline screenshot ON SCREEN in frame one. One varied jab about what happened. Never the same syntax two episodes running. |
-| 2. The turn | 4-8s | The creator's own turn line from config, exact wording every time. Title card lands on the same beat. |
-| 3. The assumption | 8-15s | What everyone thinks the answer is, stated as if true. Then crack it. |
-| 4. The receipts walk | 15-45s | 2-3 moves maximum, but/therefore chained, escalating. Every number, brand and claim gets its artifact on screen within a second of being spoken. |
-| 5. The takeaway | 45-55s | One mechanism the viewer can copy, in plain words. Opens with the creator's approved takeaway line(s) from config; if a rotating family, never the same one twice in a row. |
-| 6. The verdict close | 55-65s | The creator's POV through their lens, one line, then end on a punchline or a callback. Hard stop on the payoff. No CTA by default. |
+The show is recognisable by what each move DOES, never by a sentence it says. A spoken
+catchphrase is optional and usually a liability, because an episode that cannot carry the
+phrase spends its opening line on a promise it never keeps. That puts the franchise load on
+the shape.
+
+The unit is hook, retain, reward. These five moves are that unit with the retain half written
+down, because the retain half is the half that goes missing.
+
+| # | Move | Time | What it has to DO | Status |
+|---|---|---|---|---|
+| 1 | The receipt | 0-4s | The headline, number or artifact ON SCREEN in frame one, spoken flat. Prove the click before making any argument. | FIXED |
+| 2 | The belief | 4-12s | Say what the viewer already believes about this, in their words, as if it were true. | FIXED as a function |
+| 3 | The break | 12-45s | The receipts that make the belief untenable. 2 to 4 moves, but/therefore chained, escalating. Every number, brand and claim gets its artifact on screen within a second of being spoken. | FREE |
+| 4 | The mechanism | 45-55s | Why it happened, named, arriving as the consequence of move 3 in the same breath. One thing the viewer can carry. | FIXED as a function |
+| 5 | The verdict | 55-65s | The creator's POV through their lens, one line, money word last. Hard stop on the payoff. No CTA by default. | FIXED |
+
+FREE means the order, count and wording are the writer's call, and an episode that gets from
+the belief to the verdict in a different order should run that way. FIXED as a function means
+the move happens every episode and its wording is never the same twice.
+
+### Move 2 is the load-bearing one
+
+Muller's misconception research is the best-evidenced structure available: clear expository
+video made students more confident without making them more correct, and presenting the common
+misconception FIRST nearly doubled post-test scores. The grammar is in
+`the-language-layer.md` part 5: state the wrong belief in the viewer's own words, as if true,
+then crack it.
+
+It is general, which is the point. A turn line phrased as one question ("how does this company
+actually sell?") only fits episodes about that question. A belief exists in every episode:
+about a price rise, a traffic collapse, a measurement claim, the creator's own mistake. There
+is always something the viewer walked in holding.
+
+Three ways move 2 fails:
+
+- **A question instead of a statement.** A question hands the viewer no belief to lose.
+- **A strawman.** The belief has to be one the viewer recognises as theirs. A belief nobody
+  holds breaks nothing.
+- **An announcement.** "Here is what everyone gets wrong about this" announces a belief
+  instead of stating one. State it flat, as if you agree, and let move 3 do the work.
+
+### The order test
+
+A belief stated after the receipts is a summary of them. The same belief stated before them
+turns the identical receipts into a demolition. The wording barely changes and the effect
+changes completely, because curiosity fires on a gap and a gap opened after the information
+has landed is not a gap. Episodes that read as stat piles almost always have the belief
+written somewhere near the end.
+
+### The list test
+
+Read the five moves aloud with the connectors spoken. Every beat joins the next with "but" or
+"therefore". Any "and then" is a rewrite order, not a style note (Parker and Stone). A run of
+true facts joined by "and then" is a list, and lists bore.
+
+### Move 4 carries no announcement line
+
+The lesson arrives as a consequence of the story, in the same breath. An opening line that
+says a lesson is coming ("here is what you can learn from this") is the least story-like move
+available: it tells the viewer to start taking notes at the exact moment the story should be
+paying off. If `show.takeaway_lines` is empty in config, that is deliberate and correct.
+
+### Move 5 is planned before the episode is written
+
+Peak-end: the audience judges the whole video by its emotional peak and its last line. Hoyos
+plans the last line before filming, after measuring a single trailing second cost her 20 to 25
+points of retention. Write move 5 and move 1 first, then fill the middle.
 
 ## Series memory: callback, promise, follow-up (added 2026-09-09)
 

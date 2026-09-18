@@ -48,6 +48,24 @@ PY
 python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-bad.json" --schema-only >/dev/null 2>&1
 [ $? = 2 ] && ok "illegal qa value exits 2" || bad "illegal qa value did not exit 2"
 rm -f "$WS/weeks/0000-00-00-bad.json"
+# the order test: a belief written after the receipts must be rc 2, and the same
+# belief moved back to move 2 must pass. This is the 2026-09-07 regression.
+python3 - "$WS" <<'ORD'
+import json, sys, os
+ws = sys.argv[1]; d = json.load(open(os.path.join(ws, "weeks", "0000-00-00-example.json")))
+it = d["distribution"][0]
+b = it["belief"]
+it["script"] = it["script"].replace(b + " ", "").rstrip() + " " + b
+json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-late.json"), "w"))
+it["belief"] = "You think you will sort your taxes out later in the year."
+json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-para.json"), "w"))
+ORD
+python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-late.json" --schema-only >/tmp/yapcut-order.log 2>&1
+rc=$?
+if [ "$rc" = 2 ] && grep -q "ORDER TEST" /tmp/yapcut-order.log; then ok "belief after the receipts exits 2"; else bad "order test did not fire (rc $rc)"; fi
+python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-para.json" --schema-only >/dev/null 2>&1
+[ $? = 2 ] && ok "paraphrased belief exits 2" || bad "paraphrased belief did not exit 2"
+rm -f "$WS/weeks/0000-00-00-late.json" "$WS/weeks/0000-00-00-para.json"
 # no workspace: exit 2, never the skill folder
 ( cd /tmp && env -u YAPCUT_HOME -u OUTLIER_RADAR_HOME -u LEAD_MAGNET_HOME HOME=/tmp/yapcut-nohome python3 "$RADAR/yapcut_home.py" >/dev/null 2>&1 ); [ $? = 2 ] && ok "no workspace exits 2" || bad "no workspace did not exit 2"
 

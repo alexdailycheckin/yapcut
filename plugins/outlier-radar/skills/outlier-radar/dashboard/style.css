@@ -171,6 +171,10 @@
   .sent{margin:0 0 9px;font-size:15.5px;line-height:1.5}
   .sent:last-child{margin-bottom:0}
   .sent.hook{font-weight:700;font-size:17px;font-family:var(--display);letter-spacing:-.01em;line-height:1.35}
+  /* move 2: the belief. Marked in place, because where it sits is the point. */
+  .sent.belief{border-left:3px solid var(--accent,#c9a227);padding-left:10px;font-style:italic}
+  .sent.belief::after{content:"move 2";float:right;font-style:normal;font-size:10px;
+    letter-spacing:.08em;text-transform:uppercase;opacity:.55}
   .dirbox{background:var(--surface2);border-radius:12px;padding:14px 16px;white-space:pre-wrap;color:var(--muted);font-size:13.5px;line-height:1.55;border-left:3px solid var(--line-strong)}
   .valbox{background:var(--ok-soft);border-radius:12px;padding:13px 16px;font-size:14px;line-height:1.5;border-left:3px solid var(--ok)}
   .ctabox{background:var(--accent-soft);border-radius:12px;padding:13px 16px;font-size:14px;line-height:1.5;border-left:3px solid var(--accent)}

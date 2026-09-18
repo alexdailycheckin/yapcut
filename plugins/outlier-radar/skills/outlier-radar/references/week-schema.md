@@ -30,6 +30,12 @@ Required: `id`, `title`, `script_class` (`testimony`, `format`, `research`), `te
 `spoken_hook`, `script`, `value`, `sources[]` (`{label, url, published}`), `qa`, `psych`,
 `intent` (`educational` or `storytelling`), `tam` (`wide` or `narrow`).
 
+`research` items also require **`belief`**: move 2 of the five moves, the sentence naming
+what the viewer already believes, copied VERBATIM from `spoken_hook` or `script`. A
+paraphrase fails, because `check_fidelity.py` uses the field to locate the sentence and run
+the order test: a belief sitting after half the numbers fails the week. Copy the sentence,
+never restate it.
+
 Also carried: `borrows`, `carries`, `hook_family`, `hook_styles[]` (from
 `hook-psychology.md`), `visual_hook`, `directions`, `cta` (optional), `facet`, `post_type`,
 `source_origin`, `plug` (`receipt`, `cta`, `pitch`), `note`, `shot_list`, `capture{}`

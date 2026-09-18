@@ -22,7 +22,7 @@ they can say, how they actually talk) and works to that.
 | onboarding a new creator | First run, below |
 | running the week | Weekly routine, below; `references/week-schema.md` for the file it writes |
 | writing hooks | `references/hook-psychology.md` (six triggers), `references/hook-library.md` (15 families) |
-| writing a script | `references/script-anatomy.md`; the voice stack, below |
+| writing a script | `references/script-anatomy.md` (parts and QA), `references/the-language-layer.md` (how every line sounds); the voice stack, below |
 | writing the show | `references/the-show-template.md` |
 | writing or shaping LinkedIn | `references/save-mechanics.md`, `references/format-library.md`, `references/linkedin-selector.md`, `references/linkedin-visuals.md` (five visual shapes) |
 | verifying and capturing receipts | `references/receipts.md`, `references/receipt-sources.md` |
@@ -205,6 +205,14 @@ read, the honest test of whether a batch sounds like the person.
 The supply of speech caps everything downstream. Thirty-five sentences cannot ground a voice;
 a corpus grows by harvesting calls, not by recalibrating floors.
 
+Grounding sets the words. `references/the-language-layer.md` sets the sentences: money word
+last, source attributed before the claim, no mid-sentence clauses, "you" outnumbering "I",
+contractions always, and the spoken filler KEPT, because the `copywriting` skill cuts filler
+on sight for written copy and in speech that filler is the texture of a person thinking in
+real time. Two numbers from the corpus profile decide whether a batch is speech or prose: the
+share of sentences past 45 words, and the filler rate per thousand. A batch at zero on both
+is prose, whatever its mean and stdev say.
+
 ## The performance loop
 
 Written into the loop, not opt-in: step 0 above. `log_perf.py` is the ledger
@@ -220,12 +228,25 @@ creator says a post popped, autopsy it, mark the mechanic PROVEN, brief 3 to 4 v
 ## Show mode
 
 When `show.enabled` is true the primary lane becomes THE SHOW under the creator's own name
-and lens: `episodes_per_week` teardowns from the week's news in their industry, on the shape
-in `references/the-show-template.md`. Two parts are fixed (the receipt in frame one, the
-verdict through the creator's lens); the middle exists to get from one to the other. Every
-spoken fact verified with a URL or cut; every claim a screenshot receipt captured with
-`capture_gate.py`; a callback to last week and a promise for next week. The secondary lane and
-the trend sweep continue as garnish.
+and lens: `episodes_per_week` teardowns from the week's news in their industry, on the five
+moves in `references/the-show-template.md`. Three of the five are fixed: the receipt in frame
+one, THE BELIEF the viewer already holds stated as if it were true before any receipt lands,
+and the verdict through the creator's lens. The break between them is free in order, count
+and wording.
+
+**The order test, and it is the one that fails silently.** A belief stated after the receipts
+is a summary of them. The same belief stated before them turns the identical receipts into a
+demolition. Curiosity fires on a gap, so a gap opened after the information has landed is not
+a gap. An episode whose numbers arrive before its belief reads as a run of true facts, passes
+every gate in this engine, and surprises nobody. Find the sentence naming what the viewer
+believes: if it sits after the numbers, move it to second position; if it is not there at all,
+the episode has no argument and goes back rather than to the camera.
+
+Every spoken fact verified with a URL or cut; every claim a screenshot receipt captured with
+`capture_gate.py`; a callback to last week and a promise for next week. A spoken franchise
+catchphrase is optional and usually wrong: forced onto an episode it does not fit, it spends
+the opening line on a promise the episode never keeps. The shape carries the franchise, which
+is why the shape is not optional. The secondary lane and the trend sweep continue as garnish.
 
 ## Hot drop, the day-0 pass
 

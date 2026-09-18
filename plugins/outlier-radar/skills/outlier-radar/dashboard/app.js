@@ -137,6 +137,7 @@ function exportFilmed(){
     if(x.text_hook)   out+=`- TEXT HOOK (burn on screen, NOT spoken): ${x.text_hook}\n`;
     if(x.visual_hook) out+=`- VISUAL HOOK (show, first 1-2s): ${x.visual_hook}\n`;
     if(x.spoken_hook) out+=`- HOOK (say this, your opening 1-2 lines): ${x.spoken_hook}\n`;
+    if(x.belief)      out+=`- BELIEF (move 2, said before any receipt): ${x.belief}\n`;
     if(x.script)      out+=`- SCRIPT (read verbatim, follows the hook): ${x.script}\n`;
     if(x.directions)  out+=`- DIRECTIONS (do this, NOT spoken): ${x.directions}\n`;
     if(x.value)       out+=`- VALUE (the payoff to protect): ${x.value}\n`;
@@ -305,12 +306,23 @@ function splitSentences(text){
     .split(/(?<=[.?!…])\s+(?=[A-Z"'‘“£$])/)
     .map(s=>s.trim()).filter(Boolean);
 }
+// Move 2 of the five moves: the sentence naming what the viewer already
+// believes. It is marked in place rather than shown as its own section,
+// because WHERE it sits is the thing worth seeing. A belief sitting below the
+// numbers is the 2026-09-07 failure, and check_fidelity's order test fails it.
+function beliefKey(t){ return String(t||"").toLowerCase().replace(/[^a-z0-9 ]/g,"").trim(); }
 function readSections(x, sentCls, hookCls, secCls){
+  const bk=beliefKey(x.belief);
   function section(label, text, opt, bold){
     const lines=splitSentences(text);
     if(!lines.length) return "";
     const lab=`<div class="seclabel">${label}${opt?` <span class="opt">optional</span>`:""}</div>`;
-    const body=lines.map(s=>`<p class="${sentCls}${bold?' '+hookCls:''}">${esc(s)}</p>`).join("");
+    const body=lines.map(s=>{
+      const isBelief=bk && beliefKey(s)===bk;
+      return `<p class="${sentCls}${bold?' '+hookCls:''}${isBelief?' belief':''}"`
+        + `${isBelief?' title="Move 2: the belief. Everything after this exists to break it."':''}>`
+        + `${esc(s)}</p>`;
+    }).join("");
     return `<div class="${secCls}">${lab}${body}</div>`;
   }
   return section("Hook", x.spoken_hook, false, true)
