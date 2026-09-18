@@ -206,6 +206,34 @@ def tw_units(s, glue_newline=True):
     return units
 
 
+# --- source lower-third geometry -------------------------------------------
+# Measured on a burned 1080x1920 frame, 2026-09-18. Space Mono at fs34 runs
+# ~19.2px per glyph, so a 50-character line is ~960px and crosses x=900, where
+# TikTok's action rail starts. At fs42 it is ~23.7px per glyph, so 34 columns
+# is ~806px and finishes at x=854, inside the readable band.
+SRC_FS = 42
+SRC_COLS = 34            # characters per line at SRC_FS, keeps x < 860
+SRC_MAX_LINES = 2        # three lines is a paragraph, not an attribution
+SRC_LINE_H = 52          # baseline step at SRC_FS
+SRC_BASE_Y = 1430        # block BOTTOM; TikTok's caption block can reach ~1500
+
+
+def _wrap_source(txt, cols):
+    """Greedy wrap on spaces. A single over-long word is left alone rather than
+    broken, because a hyphenated outlet name reads worse than a wide line."""
+    words, lines, cur = txt.split(), [], ""
+    for w in words:
+        trial = f"{cur} {w}".strip()
+        if len(trial) <= cols or not cur:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--words", required=True)
@@ -420,9 +448,23 @@ def main():
                 if ywords.has_dash(txt):
                     print(f"DASH GATE FAILED: source overlay {txt!r} carries an em/en dash")
                     return 2
+                # A source line used to be one fs34 run at y=1500. Two problems,
+                # both found on a real batch (2026-09-18): Space Mono is wide, so
+                # a 50-character source ran past x=900 and under TikTok's action
+                # rail; and y=1500 sits inside the band TikTok's own caption and
+                # username block can cover. So it wraps to SRC_COLS, sizes up to
+                # be readable on a phone, and the whole block finishes at
+                # SRC_BASE_Y, which is clear of both.
+                lines = _wrap_source(txt, SRC_COLS)
+                if len(lines) > SRC_MAX_LINES:
+                    print(f"  source too long, keeping {SRC_MAX_LINES} line(s): {txt!r}")
+                    lines = lines[:SRC_MAX_LINES]
+                body = "\\N".join(lines)
+                y = SRC_BASE_Y - (len(lines) - 1) * SRC_LINE_H
                 events.append((o["start"], o["end"], "Cap",
-                               f"{{\\an1\\pos(48,1500)\\fn Space Mono\\fs34\\bord5\\shad2"
-                               f"\\1c{base_ass}\\3c{out_ass}\\fad(150,150)}}{txt}"))
+                               f"{{\\an1\\pos(48,{y})\\fn Space Mono\\fs{SRC_FS}"
+                               f"\\bord6\\shad0\\1c{base_ass}\\3c{out_ass}"
+                               f"\\fad(150,150)}}{body}"))
             elif ot == "counter":
                 # rolling number stats sit RIGHT ABOVE the caption line (1320):
                 # number at y, label at y+92, so the block bottom (~y+108) hugs

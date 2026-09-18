@@ -2,6 +2,21 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.2.0 (tiktok-yap-editor)
+
+**The source lower-third is readable on a phone and stays out of TikTok's chrome.** It used to
+be one `fs34` Space Mono run pinned at y=1500. Measured on a burned frame, Space Mono at that
+size runs about 19.2px per glyph, so a 50-character attribution was ~960px wide and crossed
+x=900, where TikTok's action rail sits; y=1500 is also inside the band TikTok's own caption and
+username block can cover. So a source line now sizes up to `fs42`, wraps at 34 columns to a
+maximum of two lines, and the block finishes at y=1430. An over-long line is truncated with a
+printed warning rather than silently shrunk, because the fix is a shorter attribution, not
+smaller type.
+
+Audited against a real eight-episode batch first: 28 of 37 source lines were too wide, and
+several named nothing at all, which is the tell that they were written to fill a retention gap
+rather than to attribute a claim.
+
 ## What's new in 3.9.6 (outlier-radar)
 
 **`--strict` now requires the bucket to rebuild.** 3.9.5 shipped it global, and within minutes
