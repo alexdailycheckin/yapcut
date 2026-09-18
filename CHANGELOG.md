@@ -2,6 +2,17 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.1 (outlier-radar)
+
+**The voice profile called itself provisional forever.** `derive_voice_targets.py` wrote a
+fixed "derived from a THIN corpus, treat every number as directional until the on-target
+corpus passes ~4000 words" note whatever the corpus actually held, so a profile measured from
+10,000 words of speech still told every reader to discount it. The note is now computed: below
+the 4,000-word floor it says how far short the corpus falls and that the fix is speech rather
+than arithmetic, and above it says how many sentences and words the numbers rest on. The
+`_register` note stopped hardcoding one sample's median and filler rate, which had gone stale
+the first time the corpus grew, and states the register rule instead.
+
 ## What's new in 3.9.0 (outlier-radar)
 
 **A week of verified facts is not an episode.** The 2026-09-07 batch shipped eight scripts

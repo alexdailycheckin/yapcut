@@ -96,6 +96,10 @@ def syllables(word):
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yapcut_home import radar_home  # noqa: E402
 
+# The floor below which a derived profile is a direction rather than a measurement.
+# Same constant as segment_corpus.py, which prints the same warning on the way in.
+THIN_WORDS = 4000
+
 WORK_CORPUS = "corpus-work-spoken.txt"
 MIN_SENTENCES = 30
 
@@ -146,13 +150,21 @@ def profile(text, derived_from=WORK_CORPUS):
 
     return {
         "_derived_from": f"voice-corpus/{derived_from}",
-        "_register": ("The creator speaking, unscripted, ABOUT THEIR SUBJECT. Not the pooled corpus: that is "
-                      "76% casual banter (median 7) and pooling it hid the fact that on-subject "
-                      "speech runs median 17. Not the typed captures either: those are writing, "
-                      "and their 'like' rate of 2.3/1k against 35.3/1k for their speech proves it."),
-        "_provisional": ("Derived from a THIN corpus. Treat every number here as directional "
-                         "until the on-target corpus passes ~4000 words. The supply fix is "
-                         "20-30 minutes of unscripted teardown talk, not more arithmetic."),
+        "_register": ("The creator speaking, unscripted, ABOUT THEIR SUBJECT. Never the pooled "
+                      "corpus: casual banter runs far shorter than on-subject speech, and "
+                      "pooling the two hides the real sentence length. Never the typed captures "
+                      "either: those are writing, and the gap between their filler rate and the "
+                      "speech filler rate is the proof they are a different act."),
+        "_provisional": (
+            f"Derived from a THIN corpus ({W} words). Treat every number here as directional "
+            f"until the on-target corpus passes ~{THIN_WORDS} words. The supply fix is speech, "
+            f"not arithmetic: harvest on-subject calls, or record 20-30 minutes of unscripted "
+            f"teardown talk."
+            if W < THIN_WORDS else
+            f"Derived from {n} sentences and {W} words of on-subject speech, past the "
+            f"~{THIN_WORDS}-word floor, so these are measurements rather than directions. They "
+            f"still describe ONE register: read them against corpus-work-spoken.txt, never "
+            f"against the pooled corpus."),
         "_note": ("Measured, never chosen. Regenerate with derive_voice_targets.py "
                   "whenever the corpus grows. Any gate reading a number that is not in "
                   "this file is reading a guess."),
