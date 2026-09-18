@@ -82,7 +82,7 @@ SOURCES = (
     ("voice-corpus/manual/*.md", "work"),
     ("voice-corpus/granola/*.md", "banter"),
 )
-STRICT = False
+STRICT = set()
 BUCKETS = ("work-spoken", "work-typed", "banter-spoken", "personal-spoken")
 THIN_WORDS = 4000
 
@@ -131,7 +131,7 @@ def merge_existing(path, derived, strict=False):
     """Guard 2. Returns (text_to_write or None to leave the file alone, kept_words, kept_lines).
     Every existing line no source reproduces is kept after the derived text.
 
-    `strict` turns guard 2 OFF and rebuilds from sources alone. Guard 2 exists so a
+    `strict` turns guard 2 OFF for THIS bucket and rebuilds it from sources alone. Guard 2 exists so a
     hand-filed line is never silently lost, but it has a cost that bit twice on
     2026-09-18: material PULLED from the corpus does not leave, because deleting its
     source file makes its lines orphaned rather than derived, and guard 2 then
@@ -156,11 +156,29 @@ def merge_existing(path, derived, strict=False):
 
 def main():
     global STRICT
-    STRICT = "--strict" in sys.argv
-    if STRICT:
-        sys.argv.remove("--strict")
-        print("--strict: guard 2 is OFF, rebuilding from source files alone. "
-              "Anything not in a source file is dropped.\n")
+    # --strict takes the bucket(s) to rebuild, and the argument is REQUIRED. A global
+    # --strict dropped 19,970 hand-filed words of banter and personal corpus on
+    # 2026-09-18 while the intent was to clean one bucket. Turning guard 2 off is
+    # correct after a quarantine and catastrophic anywhere else, so it is scoped.
+    if "--strict" in sys.argv:
+        i = sys.argv.index("--strict")
+        arg = sys.argv[i + 1] if i + 1 < len(sys.argv) else None
+        if not arg or arg.startswith("-"):
+            print(f"--strict needs the bucket to rebuild: {' | '.join(BUCKETS)} (or 'all').\n"
+                  f"It turns guard 2 off, so every line the named bucket cannot derive from a\n"
+                  f"source file is DROPPED. Use it after quarantining a source, then read the\n"
+                  f"git diff before committing.")
+            return 2
+        del sys.argv[i:i + 2]
+        STRICT = set(BUCKETS) if arg == "all" else {b.strip() for b in arg.split(",")}
+        unknown = STRICT - set(BUCKETS)
+        if unknown:
+            print(f"unknown bucket(s): {', '.join(sorted(unknown))}. "
+                  f"Known: {' | '.join(BUCKETS)}")
+            return 2
+        print(f"--strict {', '.join(sorted(STRICT))}: guard 2 is OFF for "
+              f"{'that bucket' if len(STRICT) == 1 else 'those buckets'}; anything not in a "
+              f"source file is dropped. Every other bucket is untouched.\n")
     H = radar_home()
     vc = H / "voice-corpus"
     vc.mkdir(parents=True, exist_ok=True)
@@ -198,7 +216,7 @@ def main():
     for k, files in buckets.items():
         derived = "\n".join(t for _, t in files if t)
         p = vc / f"corpus-{k}.txt"
-        text, kept_words, kept_lines = merge_existing(p, derived, strict=STRICT)
+        text, kept_words, kept_lines = merge_existing(p, derived, strict=(k in STRICT))
         if text is not None:
             p.write_text(text + "\n", encoding="utf-8")
         final = p.read_text(encoding="utf-8") if p.exists() else ""

@@ -2,6 +2,15 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.6 (outlier-radar)
+
+**`--strict` now requires the bucket to rebuild.** 3.9.5 shipped it global, and within minutes
+it dropped 19,970 hand-filed words of banter and personal corpus while the intent was to clean
+one bucket. Turning guard 2 off is correct after a quarantine and catastrophic anywhere else,
+so the scope is mandatory: `--strict work-typed`, a comma-separated list, or `all` said out
+loud. Every bucket not named keeps guard 2. Run with no argument and it prints what it would
+destroy instead of destroying it.
+
 ## What's new in 3.9.5 (outlier-radar)
 
 **`segment_corpus.py --strict` rebuilds from source files alone.** Guard 2 keeps any line in
