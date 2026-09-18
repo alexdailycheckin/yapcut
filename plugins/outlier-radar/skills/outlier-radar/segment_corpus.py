@@ -69,6 +69,12 @@ REGISTERS = ("work", "banter", "personal")
 REG_RE = re.compile(r"^register:\s*([A-Za-z]+)\s*$", re.M | re.I)
 MODE_RE = re.compile(r"^mode:\s*([A-Za-z]+)", re.M | re.I)
 BRACKET_PARA = re.compile(r"^\s*\[[^\]]*\].*$", re.M)
+# A trailing editorial annotation, anywhere on a line: "... <- NOT CAPTURED",
+# "... <- his words". BRACKET_PARA only catches a note that OWNS its line, and
+# guard 2 preserves hand-filed corpus text that no source reproduces, so a marker
+# baked in by an older build survives every rebuild. One reached a blind-read
+# sheet on 2026-09-18 and made a passage of the creator's own writing unreadable.
+TRAILING_NOTE = re.compile(r"\s*<-+\s*[A-Z][^\n]*$", re.M)
 
 # (glob under the workspace, register when the file carries no header)
 SOURCES = (
@@ -86,6 +92,7 @@ def clean(t):
     t = re.sub(r"^_.*_$", "", t, flags=re.M)
     t = re.sub(r"^\s*-\s*", "", t, flags=re.M)
     t = BRACKET_PARA.sub("", t)            # guard 1: notes about the speech
+    t = TRAILING_NOTE.sub("", t)           # guard 1b: notes appended to a line
     t = re.sub(r"[ \t]{2,}", " ", t)
     return re.sub(r"\n{2,}", "\n", t).strip()
 

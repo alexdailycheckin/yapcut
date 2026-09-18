@@ -2,6 +2,17 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.3 (outlier-radar)
+
+**An editorial note reached a blind-read sheet.** `segment_corpus.py` strips a bracketed note
+that owns its own line, but not one appended to the end of a line, and guard 2 deliberately
+preserves corpus text that no source file reproduces. So a `<- NOT CAPTURED` marker baked in
+by an older build survived every rebuild afterwards. On 2026-09-18 it landed inside a passage
+of the creator's OWN writing on a blind-read sheet, which made that passage unreadable and
+cost a data point in the one test that decides whether the voice work is finished. Trailing
+annotations are now stripped too, and inline brackets that are real copy, such as a template
+placeholder, are left alone.
+
 ## What's new in 3.9.2 (outlier-radar)
 
 **The order test failed correctly placed beliefs.** It measured the belief's position against
