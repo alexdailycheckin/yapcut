@@ -104,13 +104,43 @@ def week_file(arg):
     return None
 
 
-def week_passages(d, lane, rng):
+# A week file holds what the ENGINE drafted and also, sometimes, what the creator
+# rewrote by hand. `add_post.py` and the dashboard's editor both put human text into
+# the same arrays. Treating that as the generated side makes the whole test lie: on
+# 2026-09-18 li-20260917-1 went onto a sheet labelled generated, the creator correctly
+# said "that's mine", and it was scored as a miss against him. Its own selector_note
+# said he wrote it. Authorship is data the file already carries, so read it.
+HUMAN_AUTHORED = re.compile(
+    r"\b(rewrote|wrote|written|edited|authored)\b[^.]{0,60}\b(himself|herself|themselves|by hand|"
+    r"by the creator)\b|\bthis is (his|her|their) text\b|\bhuman[- ]written\b|\bnot the drafted\b",
+    re.I,
+)
+
+
+def engine_authored(it):
+    """False when the file says a person wrote this text. `authored_by` wins when set;
+    otherwise the free-text selector_note is read, because that is where the existing
+    corpus records it."""
+    who = (it.get("authored_by") or "").strip().lower()
+    if who:
+        return who not in ("creator", "human", "hand", "me")
+    return not HUMAN_AUTHORED.search(it.get("selector_note") or "")
+
+
+def week_passages(d, lane, rng, skipped=None):
     """(source id, text) windows from the week. spoken: spoken_hook + script of every
-    distribution[] and office[] item. linkedin: every linkedin[] body and embedded twin."""
+    distribution[] and office[] item. linkedin: every linkedin[] body and embedded twin.
+
+    Items the file marks as human-written are skipped and their ids collected in
+    `skipped`, because the generated side has to be generated."""
     out = []
     if lane == "spoken":
         for ln in ("distribution", "office"):
             for it in d.get(ln) or []:
+                if not engine_authored(it):
+                    if skipped is not None:
+                        skipped.append(it.get("id") or ln)
+                    continue
                 text = " ".join(x for x in (it.get("spoken_hook"), it.get("script")) if x)
                 for w in windows(text, rng):
                     out.append((it.get("id") or ln, w))
@@ -121,6 +151,10 @@ def week_passages(d, lane, rng):
             if isinstance(tw, dict) and tw.get("body"):
                 posts.append(tw)
         for p in posts:
+            if not engine_authored(p):
+                if skipped is not None:
+                    skipped.append(p.get("id") or "linkedin")
+                continue
             body = re.sub(r"^\s*(\d+[.)]|[→↳•\-\*])\s+", "", p.get("body") or "", flags=re.M)
             for w in windows(body, rng):
                 out.append((p.get("id") or "linkedin", w))
@@ -157,9 +191,14 @@ def build(wpath, n, lane):
         print(f"no corpus at {cpath}. Run segment_corpus.py first; nothing can be compared "
               "without the creator's own words.")
         return None, 1
-    gen = spread(week_passages(d, lane, rng), n, rng)
+    human = []
+    gen = spread(week_passages(d, lane, rng, skipped=human), n, rng)
+    if human:
+        print(f"excluded from the generated side, the file says a person wrote "
+              f"{'it' if len(human) == 1 else 'them'}: {', '.join(sorted(set(human)))}")
     if not gen:
-        print(f"nothing to test: {wpath.name} has no {lane} text.")
+        print(f"nothing to test: {wpath.name} has no ENGINE-written {lane} text"
+              + (f" ({len(set(human))} item(s) excluded as human-written)." if human else "."))
         return None, 1
     real_pool = windows(scrub(cpath.read_text(encoding="utf-8")), rng)
     if len(real_pool) < 2:

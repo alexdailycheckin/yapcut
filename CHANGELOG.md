@@ -2,6 +2,29 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.4 (outlier-radar)
+
+**The blind test put the creator's own writing on the generated side.** A week file holds what
+the engine drafted and also what the creator rewrote by hand: `add_post.py` and the dashboard
+editor both write human text into the same arrays. `turing_check.py` treated every item in the
+file as engine output. On 2026-09-18 `li-20260917-1` went onto a sheet labelled generated, the
+creator read it and correctly said "that's mine", and it was scored as a MISS against him. Its
+own `selector_note` said he wrote it. The test was grading him wrong on his own prose, which
+makes its verdict worthless in the direction that matters most.
+
+Authorship is data the file already carries, so the sheet reads it. An explicit
+`authored_by: creator` excludes an item, and for everything already on disk the free-text
+`selector_note` is matched for the phrases that record hand-authorship. Excluded ids are
+printed when the sheet is built, so the exclusion is visible rather than silent, and a lane
+with no engine-written text left says exactly that instead of building a sheet from nothing.
+
+**Two scoring defects in a row is the pattern worth naming.** 3.9.3 fixed a corpus annotation
+that reached a sheet; this fixes a provenance error that reached a score. The blind read is the
+only instrument in this engine whose output is a verdict rather than a warning, so a defect in
+it costs more than a defect anywhere else. Score against the sheet that was actually read,
+check the key's own source attribution, and never re-run `--answers` to score a sheet answered
+by hand: that regenerates the sheet first.
+
 ## What's new in 3.9.3 (outlier-radar)
 
 **An editorial note reached a blind-read sheet.** `segment_corpus.py` strips a bracketed note
