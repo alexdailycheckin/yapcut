@@ -2,6 +2,16 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.2.1 (tiktok-yap-editor)
+
+**A source lower-third is one line, at y=1498.** 3.2.0 allowed two, and two collided with the
+caption: build_ass's own meta sidecar puts the caption band at 1220-1420, and TikTok's caption
+and username block starts around y=1520, so the usable gap is about 70px. One `fs42` line is
+~52px of ink and fits; two need the block bottom at 1544, inside TikTok's chrome. A two-line
+source had also stopped being an attribution and become a sentence, which is the thing this
+change exists to prevent. Over-length text is truncated with a printed warning, so the fix
+stays "write a shorter attribution".
+
 ## What's new in 3.2.0 (tiktok-yap-editor)
 
 **The source lower-third is readable on a phone and stays out of TikTok's chrome.** It used to

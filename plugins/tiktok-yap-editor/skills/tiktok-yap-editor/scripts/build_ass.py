@@ -213,9 +213,17 @@ def tw_units(s, glue_newline=True):
 # is ~806px and finishes at x=854, inside the readable band.
 SRC_FS = 42
 SRC_COLS = 34            # characters per line at SRC_FS, keeps x < 860
-SRC_MAX_LINES = 2        # three lines is a paragraph, not an attribution
+SRC_MAX_LINES = 1        # see below: there is only room for one
 SRC_LINE_H = 52          # baseline step at SRC_FS
-SRC_BASE_Y = 1430        # block BOTTOM; TikTok's caption block can reach ~1500
+SRC_BASE_Y = 1498        # block BOTTOM
+
+# Why ONE line. The band available to a source lower-third is bounded above by
+# the caption band, which build_ass itself reports in the meta sidecar as
+# 1220-1420, and below by TikTok's own caption and username block, which starts
+# around y=1520. That leaves about 70px. One fs42 line is ~52px of ink and sits
+# at 1446-1498, clear of both. Two lines need the block bottom at 1544, which is
+# inside TikTok's chrome. A two-line source also stopped being an attribution
+# and started being a sentence, which is the failure this whole change is about.
 
 
 def _wrap_source(txt, cols):
