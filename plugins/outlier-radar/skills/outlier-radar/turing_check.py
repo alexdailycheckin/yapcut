@@ -53,6 +53,22 @@ from yapcut_home import radar_home  # noqa: E402
 
 HOME = radar_home()          # consumes --dir; exits 2 with the places looked when none found
 CORPUS = {"spoken": "corpus-work-spoken.txt", "linkedin": "corpus-work-typed.txt"}
+# FORM, added 2026-09-20 after this test scored 16 out of 16 and the score meant nothing.
+#
+# The spoken lane sampled corpus-work-spoken.txt, which in a mature workspace is sales calls.
+# Every real passage on that sheet was a fragment of somebody being interrupted: "We're, we're
+# at the, uh, the fun part", "Mm, and, um, I know that you also". The generated side was a
+# finished script. A judge separating those two is separating A MEETING TRANSCRIPT FROM A
+# SCRIPT, which it can do perfectly, forever, no matter how good the writing is. The test was
+# measuring form and reporting it as voice.
+#
+# So the spoken lane prefers the monologue view when the workspace has one, because that is
+# what a script is. It is still not a clean test when the monologue corpus is off-subject, and
+# the banner says so out loud rather than letting a number stand on its own.
+MONO = "corpus-monologue-spoken.txt"
+FORM_OF = {"corpus-work-spoken.txt": ("dialogue", "on-subject"),
+           MONO: ("monologue", "whatever registers carry form: monologue"),
+           "corpus-work-typed.txt": ("writing", "on-subject")}
 MIN_WORDS = 12               # a passage shorter than this is a fragment, not a sample
 FAIL_AT, WARN_AT = 0.75, 0.65
 LABELS = {"real": "real", "creator": "real", "human": "real", "r": "real",
@@ -187,6 +203,15 @@ def build(wpath, n, lane):
     if lane == "auto":
         lane = "spoken" if has_spoken else "linkedin"
     cpath = HOME / "voice-corpus" / CORPUS[lane]
+    if lane == "spoken":
+        mono = HOME / "voice-corpus" / MONO
+        if mono.exists():
+            cpath = mono
+        else:
+            print("NOTE: no monologue view, so the real side will be dialogue and the generated\n"
+                  "side is a script. A judge can separate those on form alone and the score will\n"
+                  "not tell you anything about the writing. Add `form: monologue` to any source\n"
+                  "that is the creator alone talking, then run segment_corpus.py.")
     if not cpath.exists():
         print(f"no corpus at {cpath}. Run segment_corpus.py first; nothing can be compared "
               "without the creator's own words.")
@@ -233,6 +258,17 @@ def build(wpath, n, lane):
         ap.write_text(json.dumps(tmpl, indent=2) + "\n", encoding="utf-8")
     print(f"sheet: {len(items)} passages ({len(real)} real, {len(gen)} generated), lane {lane}, "
           f"seed {seed}{thin}")
+    form, subject = FORM_OF.get(cpath.name, ("unknown", "unknown"))
+    print(f"  real side:      {cpath.name}  (form: {form}, subject: {subject})")
+    print(f"  generated side: the week's scripts  (form: monologue, subject: on-subject)")
+    if form != "monologue" and lane == "spoken":
+        print("  CONFOUND: the two sides differ in FORM, not just in who wrote them. A judge can\n"
+              "  separate an interrupted transcript from a finished script every time, so a high\n"
+              "  score here is not a verdict on the writing.")
+    elif lane == "spoken" and subject.startswith("whatever"):
+        print("  CONFOUND: the real side may be OFF-SUBJECT. If the monologue corpus is personal\n"
+              "  material and the scripts are about companies, a judge can separate them on topic\n"
+              "  alone. The clean test needs the creator talking to camera about their own subject.")
     print(f"  {sp.relative_to(HOME)}   the blind sheet, give this to the judge")
     print(f"  {kp.relative_to(HOME)}   the truth, never shown to the judge")
     print(f"  {ap.relative_to(HOME)}   answers template")

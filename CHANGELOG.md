@@ -2,6 +2,34 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.10.1 (outlier-radar)
+
+**The blind read was measuring form, not voice, and scoring 16 out of 16 for it.** The spoken
+lane sampled `corpus-work-spoken.txt`, which in a mature workspace is sales calls. So every real
+passage on the sheet was a fragment of somebody being interrupted, complete with false starts and
+dangling clauses, and the generated side was a finished script. A judge separating those two is
+separating a meeting transcript from a script. It can do that perfectly, forever, at any writing
+quality, and the engine was reporting the result as a verdict on the writing.
+
+The spoken lane now prefers `corpus-monologue-spoken.txt` when the workspace has one (3.10.0),
+because a script is a monologue. The sheet also prints both sides' form and subject, and raises a
+CONFOUND banner when they differ:
+
+    real side:      corpus-monologue-spoken.txt  (form: monologue, subject: ...)
+    generated side: the week's scripts  (form: monologue, subject: on-subject)
+
+Two confounds are named explicitly. A dialogue corpus against a script is separable on form. A
+personal-register monologue corpus against on-subject scripts is separable on topic. Both produce
+a high score that means nothing, and a workspace with no monologue view is told so before the
+judge ever runs.
+
+**What this exposes is a supply problem, not a scoring problem.** The clean test needs the
+creator speaking a monologue about their own subject, and most workspaces have neither: calls
+give the subject with the wrong form, personal video gives the form with the wrong subject.
+Roughly twenty minutes of the creator talking to a camera about their actual subject, filed
+`register: work` and `form: monologue`, is the whole fix, and that one file serves as both the
+target corpus and the blind-read comparison.
+
 ## What's new in 3.10.0 (outlier-radar)
 
 **Form: a script is a monologue, and the brief now knows the difference.** `targets.json` is
