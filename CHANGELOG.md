@@ -2,6 +2,25 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.10.2 (outlier-radar)
+
+**A stated emotion has to carry its cause, and the fix is never to cut the emotion.** A script
+ended on "It just annoyed me" and the creator's note was that the line only works if it says
+why: "because it's that smart". The instinct on a bare reaction is to delete it, because a
+stated feeling looks like filler next to a fact. That instinct is backwards. What is missing
+is the cause, not the feeling, and the version with both lands harder than the flat version
+would have.
+
+`the-language-layer.md` now carries the rule next to "Name the feeling before the fact",
+which was the closest existing guidance and only covered labelling the VIEWER's feeling, never
+the creator's own.
+
+Also recorded, as a workspace-level rejection rather than shipped doctrine because it is a
+phrasing and not a principle: the lesson-announcement family. "because it's the actual lesson
+here" is the same move as the three takeaway openers retired in 3.4.x, wearing different
+words. The tell is that the sentence after it already IS the lesson, so the clause only adds
+a label.
+
 ## What's new in 3.10.1 (outlier-radar)
 
 **The blind read was measuring form, not voice, and scoring 16 out of 16 for it.** The spoken

@@ -110,6 +110,8 @@ These are the wording patterns that build relationship rather than just hold att
 
 **Name the feeling before the fact.** "This is the part everyone dreads." / "This number should scare you a little." Emotion labels give the viewer a place to stand while information arrives.
 
+**Every stated emotion carries its cause in the same breath.** "It just annoyed me" is floating: the viewer is told the creator felt something and never told what caused it, so the line asks for a reaction it has not earned. "It just annoyed me, because it's that smart" lands, and it lands harder than the flat version would have. The fix for a bare reaction is NEVER to cut the emotion. Cutting it is the instinct, because a stated feeling looks like filler next to a fact, and it is the wrong instinct: what is missing is the cause, not the feeling. Name what earned it and keep both. Applies to every reaction word, annoyed, impressed, angry, shocked, delighted. (a creator's ruling, 2026-09-20, after a script ended on a bare "It just annoyed me")
+
 **Callbacks and coined phrases.** Reusing a named idea, running joke, or recurring character builds the attachment Trahan gets from Kevin the NPC and the Wheel of Doom. In a personal-brand context, your named frameworks are the recurring characters, so say them the same way every time.
 
 **Scripted imperfection.** A self-correction ("wait, that's underselling it"), a short aside, a laugh at your own line. Micro-flaws read as a human being; unbroken polish reads as an ad. This is dosage work: one or two per video, written in, never rambled in.
