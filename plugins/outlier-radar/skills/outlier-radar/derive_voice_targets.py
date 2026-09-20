@@ -101,7 +101,23 @@ from yapcut_home import radar_home  # noqa: E402
 THIN_WORDS = 4000
 
 WORK_CORPUS = "corpus-work-spoken.txt"
+MONO_CORPUS = "corpus-monologue-spoken.txt"
 MIN_SENTENCES = 30
+# The monologue view needs far fewer sentences than the main profile, because it is asked a
+# narrower question. Sentence physics need a big sample to be stable; a rate per 1000 words
+# over 3,500 words is already tight, and the 2026-09-18 finding that matters most is a ZERO
+# (no cut-off word in 3,564 words), which a small sample establishes perfectly well.
+MIN_MONO_SENTENCES = 20
+
+# Cut-off words: `be-`, `yo-`, `i-`. A hyphen at the end of a word, mid-sentence. They run
+# 10 per 1000 in conversation and 0.0 across to-camera speech, so they are the sound of
+# being interrupted. A script can never contain one: writing one would order the creator
+# to perform a stutter they do not have. This was the tell that made the 2026-09-18 blind read
+# 20 out of 20, because every real passage on the sheet came from a call.
+CUTOFF_RE = re.compile(r"\b[A-Za-z]{1,4}-(?=\s|$)", re.M)
+# Doubled words ("the the", "I I"), the other artifact of real-time speech.
+DOUBLED_RE = re.compile(r"\b(\w+)\s+\1\b", re.I)
+FILLER_RE = re.compile(r"\b(?:um+|uh+|erm?)\b", re.I)
 
 
 def scrub(text):
@@ -197,6 +213,57 @@ def profile(text, derived_from=WORK_CORPUS):
     }
 
 
+def delivery_profile(text):
+    """The rates a SCRIPT has to hit, measured on monologue only.
+
+    Split out 2026-09-20. `speech_markers_per_1k` above is measured on work-spoken, which is
+    sales calls plus conversation extracts, so it describes the creator TALKING TO SOMEBODY. A
+    show script is them alone with a camera, and the 2026-09-18 register table says that is a
+    different speaker: "like" 11.8 per 1000 against 27.4, um or uh 7.3 against 18.1, cut-off
+    words 0.0 against 10.0. Writing a monologue to conversation rates is the same class of
+    error as deriving targets from the pooled corpus, and it was live in every brief until
+    this function existed.
+    """
+    text = scrub(text)
+    sents = sentences(text)
+    if len(sents) < MIN_MONO_SENTENCES:
+        return None
+    words = re.findall(r"[A-Za-z']+", text)
+    W = len(words)
+    if not W:
+        return None
+    low = text.lower()
+
+    def per1k(n):
+        return round(n / W * 1000, 1)
+
+    marker_rates = {}
+    for m in MARKERS:
+        hits = len(re.findall(r"\b" + re.escape(m) + r"\b", low))
+        if hits:
+            marker_rates[m] = per1k(hits)
+    wc = sorted(len(s.split()) for s in sents)
+    return {
+        "_what": ("The delivery targets for a SPOKEN SCRIPT, measured on form: monologue "
+                  "only, pooled across registers. Subject does not transfer between "
+                  "registers but delivery physics does. These OUTRANK speech_markers_per_1k "
+                  "for anything written to be performed to camera; that block describes them "
+                  "in conversation and runs about double."),
+        "derived_from": MONO_CORPUS,
+        "corpus": {"sentences": len(sents), "words": W},
+        "sentence_words": {"median": statistics.median(wc),
+                           "mean": round(statistics.mean(wc), 1), "max": max(wc)},
+        "speech_markers_per_1k": marker_rates,
+        "doubled_words_per_1k": per1k(len(DOUBLED_RE.findall(text))),
+        "um_uh_per_1k": per1k(len(FILLER_RE.findall(text))),
+        "cutoff_words_per_1k": per1k(len(CUTOFF_RE.findall(text))),
+        "_cutoff_rule": ("NEVER WRITE A CUT-OFF WORD (be-, yo-, i-). Measured at 0.0 here "
+                         "and 10.0 per 1000 in conversation: it is an artifact of being "
+                         "interrupted, not a feature of their delivery, and a script "
+                         "carrying one orders them to perform a stutter."),
+    }
+
+
 def main():
     home = radar_home()
     # REGISTER, added 2026-08-30 and this is the whole ballgame. corpus.txt pools three
@@ -229,6 +296,21 @@ def main():
         print(f"corpus too thin to derive targets from: {n} sentences in {src.name}, need "
               f"{MIN_SENTENCES}+. Supply is the fix: on-subject calls filed with register: work.")
         return 1
+    # Attach the delivery block. Absent, every downstream reader falls back to the
+    # conversation rates, so its absence is reported loudly rather than passed over.
+    mono_src = home / "voice-corpus" / MONO_CORPUS
+    if mono_src.exists():
+        deliv = delivery_profile(mono_src.read_text(encoding="utf-8"))
+        if deliv:
+            prof["delivery"] = deliv
+        else:
+            print(f"note: {MONO_CORPUS} is too thin to measure delivery from "
+                  f"(need {MIN_MONO_SENTENCES}+ sentences); no delivery block written.")
+    else:
+        print(f"NO DELIVERY BLOCK. {MONO_CORPUS} does not exist, so the only marker rates in\n"
+              f"targets.json are CONVERSATION rates and a writer will apply them to a monologue.\n"
+              f"Fix: add `form: monologue` to any source that is the creator alone talking,\n"
+              f"then run segment_corpus.py.")
     if "--print" in sys.argv:
         print(json.dumps(prof, indent=2))
         return 0
@@ -245,7 +327,15 @@ def main():
           f"grade {prof['words']['flesch_kincaid_grade']}  "
           f"contractions {prof['contraction_rate_pct']}%")
     top = sorted(prof["speech_markers_per_1k"].items(), key=lambda kv: -kv[1])[:8]
-    print("  speech markers /1k: " + ", ".join(f"{k} {v}" for k, v in top))
+    print("  speech markers /1k: " + ", ".join(f"{k} {v}" for k, v in top)
+          + "   <- CONVERSATION, not the script target")
+    d = prof.get("delivery")
+    if d:
+        dtop = sorted(d["speech_markers_per_1k"].items(), key=lambda kv: -kv[1])[:6]
+        print(f"\n  DELIVERY (monologue, {d['corpus']['words']}w) <- THE SCRIPT TARGET")
+        print("    markers /1k: " + ", ".join(f"{k} {v}" for k, v in dtop))
+        print(f"    doubled {d['doubled_words_per_1k']}/1k  um-uh {d['um_uh_per_1k']}/1k  "
+              f"cut-off {d['cutoff_words_per_1k']}/1k (never write one)")
     return 0
 
 

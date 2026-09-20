@@ -199,8 +199,34 @@ def main():
     print()
     print("## THE DISCOURSE MARKERS ARE NOT OPTIONAL")
     print()
-    print("Their absence is the single loudest tell. Rates per 1000 words in their real speech:")
-    print("  " + ", ".join(f"{k} {v}" for k, v in mk))
+    print("Their absence is the single loudest tell.")
+    print()
+    # The delivery block, when the workspace has a monologue view, is the binding one. The
+    # corpus rates come from conversation and run about double, and serving them to somebody
+    # writing a monologue is how every brief was wrong until 2026-09-20.
+    deliv = targets.get("delivery")
+    if deliv:
+        dmk = sorted(deliv["speech_markers_per_1k"].items(), key=lambda kv: -kv[1])[:8]
+        print(f"**WRITE TO THESE.** Measured on {deliv['corpus']['words']} words of them alone")
+        print("with a camera, which is what a script is. Rates per 1000 words:")
+        print("  " + ", ".join(f"{k} {v}" for k, v in dmk))
+        print(f"  doubled words {deliv['doubled_words_per_1k']}, um or uh {deliv['um_uh_per_1k']}")
+        print()
+        print("**NEVER WRITE A CUT-OFF WORD** (be-, yo-, i-). Measured at "
+              f"{deliv['cutoff_words_per_1k']} per 1000 here")
+        print("against 10.0 in conversation: it is the sound of being interrupted, not their")
+        print("delivery, and writing one orders them to perform a stutter they do not have.")
+        print()
+        print("For contrast only, the same markers in CONVERSATION, roughly double. This is NOT")
+        print("the target and a script written to it sounds like a call, not a piece to camera:")
+        print("  " + ", ".join(f"{k} {v}" for k, v in mk))
+    else:
+        print("Rates per 1000 words in their real speech:")
+        print("  " + ", ".join(f"{k} {v}" for k, v in mk))
+        print()
+        print("WARNING: these are CONVERSATION rates and no monologue view exists, so they are")
+        print("the wrong target for a script by roughly a factor of two. Add `form: monologue`")
+        print("to any source that is them alone talking, then run segment_corpus.py.")
     print()
     print("Quotative \"like\" is a common signature: \"and they're like, yeah, but they're all vanity")
     print("metrics\". A script with none of these reads as an essay performed aloud, which is")

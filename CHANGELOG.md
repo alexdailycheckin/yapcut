@@ -2,6 +2,45 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.10.0 (outlier-radar)
+
+**Form: a script is a monologue, and the brief now knows the difference.** `targets.json` is
+derived from the work-spoken register, which in a mature workspace means sales calls and
+conversation extracts. That is the creator TALKING TO SOMEBODY. A show script is the creator
+alone with a camera, and measurement says those are two different speakers:
+
+    monologue to camera   3,561w   cut-off 0.0/1k   um-uh  7.3   like 11.8
+    dialogue on calls     9,733w   cut-off 10.0/1k  um-uh 18.1   like 27.4
+
+So every brief has been serving conversation marker rates to somebody writing a monologue,
+roughly a factor of two off, and the error was invisible because the rates were correctly
+measured, just measured on the wrong speaker.
+
+A source file can now carry `form: monologue` or `form: dialogue` alongside its register
+header. `segment_corpus.py` builds `corpus-monologue-spoken.txt`, a derived VIEW pooling every
+spoken monologue whatever its register, on the principle that subject does not transfer across
+registers but delivery physics does: a personal-register video is admissible evidence for how
+somebody sounds and inadmissible as a passage to imitate. The view is rebuilt from sources
+every run and never merged, because it is a projection rather than a place anything is filed.
+
+`derive_voice_targets.py` reads it into a new `delivery` block: marker rates, doubled words,
+um and uh, and cut-off words. `voice_brief.py` prints those as the target and demotes the
+conversation rates to a labelled contrast.
+
+**Cut-off words are now measured and banned.** `be-`, `yo-`, `i-`. They run 10 per 1000 words
+in conversation and 0.0 across 3,561 words to camera, so they are the sound of being
+interrupted rather than a feature of anybody's delivery, and a script carrying one orders the
+creator to perform a stutter they do not have. This was the tell that lost a blind read 20 out
+of 20: every real passage on the sheet came from a call.
+
+The default form is `dialogue`, deliberately. `capture/` looks like one voice because it holds
+the creator's turns only, but a capture is an extract from a call, so defaulting that directory
+to monologue would pour conversation into the one view that exists to keep it out. A file is a
+monologue when it says so.
+
+A workspace with no monologue source gets no `delivery` block and is told so loudly by both
+scripts, rather than silently falling back to the rates that are wrong.
+
 ## What's new in 3.2.1 (tiktok-yap-editor)
 
 **A source lower-third is one line, at y=1498.** 3.2.0 allowed two, and two collided with the
