@@ -44,6 +44,7 @@ Usage:
 
 import json
 import os
+import pathlib
 import re
 import statistics
 import sys
@@ -755,6 +756,50 @@ def check_belief_order(it, where, fails, warns):
                      f"demolition. Move it to move 2")
 
 
+# ---------------------------------------------------------------------------
+# The length ceiling (added 2026-09-21). It existed only as prose in the
+# workspace show doctrine, so it rotted: the 2026-09-20 batch shipped episodes
+# at 242, 228 and 202 words against a stated ceiling of 189, which is 70 to 83
+# seconds against a 65-second format. Nothing in the engine had ever counted a
+# word. A rule with no gate is a suggestion.
+#
+# The numbers are per-creator and live in radar-config.json under `show`, since
+# they derive from a measured delivery rate rather than a universal truth.
+# ---------------------------------------------------------------------------
+
+DEFAULT_CEILING, DEFAULT_WPS = 189, 2.9
+
+
+def _show_budget():
+    """(word_ceiling, words_per_second) from radar-config.json show block."""
+    if not RADAR:
+        return DEFAULT_CEILING, DEFAULT_WPS
+    try:
+        cfg = json.loads((pathlib.Path(RADAR) / "radar-config.json").read_text())
+    except (OSError, ValueError):
+        return DEFAULT_CEILING, DEFAULT_WPS
+    show = cfg.get("show") or {}
+    try:
+        return (int(show.get("word_ceiling") or DEFAULT_CEILING),
+                float(show.get("words_per_second") or DEFAULT_WPS))
+    except (TypeError, ValueError):
+        return DEFAULT_CEILING, DEFAULT_WPS
+
+
+def check_length(it, where, fails, warns):
+    ceiling, wps = _show_budget()
+    spoken = ((it.get("spoken_hook") or "") + " " + (it.get("script") or "")).split()
+    n = len(spoken)
+    if not n:
+        return
+    if n > ceiling:
+        fails.append(f"{where}: {n} spoken words against a {ceiling} ceiling, about "
+                     f"{n / wps:.0f} seconds. Cut by DELETION; the budget is satisfied by "
+                     f"removing words rather than writing different ones")
+    elif n > ceiling * 0.97:
+        warns.append(f"{where}: {n} words, inside the {ceiling} ceiling with no room left")
+
+
 def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
     if not isinstance(it, dict):
         fails.append(f"{where}: item is not an object")
@@ -767,6 +812,7 @@ def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
         warns.append(f"{where}: no script and no beats")
     if cls == "research":
         check_belief_order(it, where, fails, warns)
+        check_length(it, where, fails, warns)
     qa = it.get("qa")
     if qa is None:
         warns.append(f"{where}: no qa value")

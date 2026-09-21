@@ -2,6 +2,22 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.10.4 (outlier-radar)
+
+**The length ceiling is a gate now, because as prose it rotted.** The show doctrine has
+carried a spoken-word ceiling since 2026-08-19 and nothing in this engine had ever counted a
+word. The 2026-09-20 batch shipped episodes at 242, 228 and 202 words against a stated 189,
+which is 70 to 83 seconds against a 65-second format. A rule with no gate is a suggestion,
+and this one had been one for a month.
+
+`check_fidelity.py` now fails a `research` item over the ceiling and warns inside the last
+3% of it, and the failure says to cut by deletion, since a word budget is satisfied by
+removing words rather than by writing different ones. The numbers live in
+`radar-config.json` under `show.word_ceiling` and `show.words_per_second`, because they come
+from a measured delivery rate rather than a universal truth; without a config they default
+to 189 and 2.9.
+
+
 ## What's new in 3.10.3 (outlier-radar)
 
 **A candour marker on an empty clause now fails the spoken gate.** The creator flagged
