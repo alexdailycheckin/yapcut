@@ -222,6 +222,23 @@ def lint_text(text: str, where: str, spoken: bool):
                        f"sentence. Same shape as the run, packed into one line.",
                 "fix": "needs-words",
             })
+        # 3b. the sincerity tag (added 2026-09-21, the creator named it)
+        m = SINCERITY.search(s)
+        if m:
+            clause = s[m.start():]
+            if (EVAL_COPULA.search(clause) and not re.search(r"\d", clause)
+                    and not re.search(r"\b[A-Z][a-z]{2,}", clause[1:])):
+                out.append({
+                    "check": "sincerity_tag", "where": where, "severity": "high",
+                    "text": s,
+                    "why": "a candour marker on a clause that carries no fact. He uses "
+                           "'honestly' constantly, but always attached to a real claim "
+                           "('they're just honestly tired of these bullshit tools'). "
+                           "Attached to a verdict with no number, no name and no object, it "
+                           "claims candour the sentence has not earned and tells the listener "
+                           "how to feel instead of giving them anything.",
+                    "fix": "cut-the-clause-or-put-a-fact-in-it",
+                })
         # 3. negative parallelism, already banned in voice-card section 7
         if NEG_PAIR.search(s) or NEG_NOTJUST.search(s) or NEG_ISNOT.search(s):
             out.append({
@@ -364,6 +381,25 @@ def check_rejected(it):
                         "fix": "rewrite",
                         "why": f"the creator rejected this on {r.get('date','?')}: {r.get('why','')}"})
     return out
+
+
+# The sincerity tag. A marker of candour ("honestly", "to be fair", "let's be real")
+# is NOT the defect: his to-camera speech runs them at about 16 per 1000 words and the
+# show doctrine asks for them. The defect is where it lands. On 2026-09-21 the creator
+# flagged "crawling is free, and honestly it's always been good for you" as an AI tell,
+# and he is right: the clause after the marker holds no number, no name and no object,
+# so the adverb is buying warmth the sentence never earned.
+#
+# This is a doctrine backfire worth recording. the-show.md set a marker RATE with no
+# placement rule, and a rate with no placement rule is a quota. Quotas get filled with
+# empty clauses. The doctrine now carries the placement rule beside the number.
+SINCERITY = re.compile(
+    r"\b(?:and\s+)?(?:honestly|frankly|truthfully|genuinely|to be fair|"
+    r"let'?s be real|i'?ll be honest|if i'?m honest|real talk)\b", re.I)
+EVAL_COPULA = re.compile(
+    r"\b(?:is|was|are|were|'s|s|been|be)\s+(?:always\s+|really\s+|pretty\s+|quite\s+|"
+    r"very\s+|just\s+)?(?:a\s+)?(?:good|bad|great|fine|important|interesting|wild|huge|"
+    r"simple|easy|hard|better|worse|smart|crazy|fair|solid|neat|nice|cool|big deal)\b", re.I)
 
 
 def check_speech_shape(it, targets):

@@ -4,6 +4,28 @@ Release notes for [YapCut](README.md), newest first.
 
 ## What's new in 3.10.2 (outlier-radar)
 
+**A candour marker on an empty clause now fails the spoken gate.** The creator flagged
+"crawling is free, and honestly it's always been good for you" as a machine tell, and
+the marker is not what is wrong with it. His own to-camera speech runs candour markers at
+about 16 per 1000 words and the show doctrine asks for them. The defect is placement: the
+clause after the marker held no number, no name and no object, so the adverb was buying
+warmth the sentence never earned and telling the listener how to feel instead of giving them
+anything.
+
+`sincerity_tag` fires only when all three are true: a candour marker is present, its clause
+is a copula plus an evaluative adjective, and the clause carries no digit and no proper noun.
+Checked against his real lines, it leaves them alone: "they're just honestly tired of these
+bullshit tools" passes on the real claim, "it didn't go great because Product Hunt's an
+asshole" passes on the proper noun, "Honestly, 37% of them reprice" passes on the number.
+
+**This one is a doctrine backfire and it is worth naming.** `the-show.md` set a marker RATE
+on 2026-09-18 with no rule about where the marker lands. A rate with no placement rule is a
+quota, and a quota gets filled with empty clauses. The doctrine now carries the placement
+rule next to the number: a marker rides a clause that carries a fact, or it does not go in.
+
+
+## What's new in 3.10.2 (outlier-radar)
+
 **A stated emotion has to carry its cause, and the fix is never to cut the emotion.** A script
 ended on "It just annoyed me" and the creator's note was that the line only works if it says
 why: "because it's that smart". The instinct on a bare reaction is to delete it, because a
