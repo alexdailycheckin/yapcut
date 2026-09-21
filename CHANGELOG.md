@@ -2,7 +2,7 @@
 
 Release notes for [YapCut](README.md), newest first.
 
-## What's new in 3.10.2 (outlier-radar)
+## What's new in 3.10.3 (outlier-radar)
 
 **A candour marker on an empty clause now fails the spoken gate.** The creator flagged
 "crawling is free, and honestly it's always been good for you" as a machine tell, and
