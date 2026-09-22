@@ -271,6 +271,25 @@ def completeness(d):
     return rc, lines
 
 
+def declared_accents(d, home):
+    """{absolute render path: hex} for every `visual` block that declares an `accent` next to
+    its `path` (3.11.1). The accent floor is graded only against a declared accent."""
+    out = {}
+    def take(v):
+        if isinstance(v, dict) and v.get("path") and v.get("accent"):
+            p = v["path"]
+            out[os.path.abspath(p if os.path.isabs(p) else os.path.join(home, p))] = str(v["accent"])
+    for lane in ("distribution", "office", "linkedin", "gtm_linkedin"):
+        for it in d.get(lane) or []:
+            if not isinstance(it, dict):
+                continue
+            take(it.get("visual"))
+            tw = it.get("linkedin")
+            if isinstance(tw, dict):
+                take(tw.get("visual"))
+    return out
+
+
 PACK_HEAD = re.compile(r"^##\s+Ep\s*(\d+)\s*:\s*(.+?)\s*$", re.M)
 
 
@@ -349,7 +368,16 @@ def gate_week(wpath, skip, allow_unvalidated, strict_cadence, verbose, cadence=F
     else:
         renders, missing = find_renders(d)
         if renders:
-            rc, out, err = run([PY, os.path.join(HERE, "visual_lint.py")] + renders)
+            accents = declared_accents(d, home)
+            rc, outs, errs = 0, [], []
+            for rp in renders:
+                hx = accents.get(os.path.abspath(rp)) or accents.get(os.path.abspath(os.path.join(home, rp)))
+                cmd = [PY, os.path.join(HERE, "visual_lint.py")] + (["--accent", hx] if hx else []) + [rp]
+                r, o, e = run(cmd)
+                rc = max(norm_rc(rc), norm_rc(r))
+                outs.append(o)
+                errs.append(e)
+            out, err = "\n".join(outs), "\n".join(errs)
             if verbose:
                 print(f"\n----- visual_lint -----\n{out.rstrip()}\n{err.rstrip()}")
             text = summarise(rc, out, err)

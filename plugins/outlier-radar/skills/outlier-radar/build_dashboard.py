@@ -487,7 +487,7 @@ def main(argv=None):
                     help="workspace (default: $YAPCUT_HOME, then cwd or ~/outlier-radar with a marker)")
     ap.add_argument("--open", action="store_true", help="open the built file with the OS opener")
     ap.add_argument("--strict", action="store_true",
-                    help="refuse (exit 2) when a shown week has no gate stamp or a stale one")
+                    help="refuse (exit 2) when the NEWEST shown week has no current passing gate stamp")
     ap.add_argument("--all", action="store_true", help="also show weeks another week supersedes")
     args = ap.parse_args(argv)
 
@@ -498,8 +498,13 @@ def main(argv=None):
         warn(f"{len(problems)} week(s) without a current gate stamp (run radar_gate.py):")
         for name, why in problems:
             print(f"  {name}: {why}")
-        if args.strict:
-            print(f"FAIL --strict: refusing to build with {len(problems)} unstamped or stale week(s)")
+        # --strict holds the NEWEST week to the standard. History predates the stamps and
+        # is not what a build is about to ship (3.11.1).
+        newest = _base(weeks[0][0]) if weeks else None
+        blocking = [(n, w) for n, w in problems if n == newest]
+        if args.strict and blocking:
+            print(f"FAIL --strict: the newest week {newest} has no current passing gate stamp "
+                  f"({blocking[0][1]}). Run radar_gate.py on it first.")
             return 2
     seed, n_events = load_tracking(ws)
     campaigns = load_campaigns(ws)

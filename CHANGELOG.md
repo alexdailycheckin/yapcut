@@ -2,6 +2,24 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.11.1 (outlier-radar)
+
+**`build_dashboard.py --strict` judges the newest week, not history.** The first strict build
+in a mature workspace refused on 17 weeks that predate gate stamps, so the flag could never be
+used where it mattered. It now refuses only when the newest shown week has no current passing
+stamp, and warns about the rest.
+
+**The accent floor in `visual_lint.py` is opt-in.** It counted warm red and orange pixels by a
+fixed rule, so a cover rendered in a creator's current palette failed with 0.0% while looking
+right. It now runs only against an accent the asset declares (`visual.accent` next to
+`visual.path`; `radar_gate.py` passes it per render as `--accent`). No declaration, no accent
+floor. The four legibility floors (luminance, contrast, edge against the feed, flat share)
+always run, because they measure whether the asset survives the page rather than a taste.
+
+**`build_pack.py` polish.** Shot beats that already carry a number are not numbered twice, and a
+source label that already ends in its date does not get the date appended again.
+
+
 ## What's new in 3.11.0 (outlier-radar)
 
 **Fewer gates, and the ones that stay guard the record rather than the writer.** After fourteen

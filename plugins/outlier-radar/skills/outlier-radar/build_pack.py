@@ -14,6 +14,7 @@ Writes `<workspace>/show/<week>-filming-pack.md`. Exit 0 written, 2 on a missing
 """
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
@@ -41,7 +42,9 @@ def shots(it):
     for i, sh in enumerate(it.get("shot_list") or [], 1):
         if isinstance(sh, dict):
             n = sh.get("n") or i
-            line = f"{n}. {sh.get('beat') or ''}: {sh.get('shoot') or ''}".replace(": ", ": ", 1)
+            beat = str(sh.get("beat") or "")
+            prefix = "" if re.match(r"^\d+\.", beat) else f"{n}. "
+            line = f"{prefix}{beat}: {sh.get('shoot') or ''}"
             if sh.get("url"):
                 line += f"\n   {sh['url']}"
             out.append(line.strip())
@@ -56,7 +59,7 @@ def sources(it):
         if not isinstance(s, dict):
             continue
         label = s.get("label") or s.get("url") or ""
-        pub = f", {s['published']}" if s.get("published") else ""
+        pub = f", {s['published']}" if s.get("published") and s["published"] not in label else ""
         out.append(f"- {label}{pub}" + (f"\n  {s['url']}" if s.get("url") else ""))
     return out
 
