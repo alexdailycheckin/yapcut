@@ -604,8 +604,9 @@ def run_linkedin(d):
     for pid, post, sources, kind, proof in rows:
         body = post.get("body", "") or ""
         fails, warns = numeral_law(body)
-        if not (isinstance(proof, dict) and proof.get("kind") == "own"):
-            # the creator's own figures (proof.kind own) are disclosed, not sourced
+        if not (isinstance(proof, dict) and proof.get("kind") in ("own", "reach")):
+            # figures from the creator's own measurement, or their company's, are
+            # disclosed rather than sourced: there is no URL for a number you ran yourself
             fails += source_law(body, sources)
         qa = post.get("qa")
         if qa not in ALLOWED_QA:

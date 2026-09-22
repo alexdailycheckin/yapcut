@@ -2,6 +2,14 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.11.2 (outlier-radar)
+
+**A figure from the creator's own measurement needs no URL.** The LinkedIn source law now
+exempts `proof.kind: reach` as well as `own`. A number the creator ran themselves, in their
+own tool, on their own data, is disclosed rather than sourced, and demanding a URL for it
+produced either a red gate or a fabricated citation. Public figures still need their page.
+
+
 ## What's new in 3.11.1 (outlier-radar)
 
 **`build_dashboard.py --strict` judges the newest week, not history.** The first strict build
