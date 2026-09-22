@@ -94,7 +94,7 @@ Grotesque ExtraBold display, Space Mono 700 for eyebrow and footer, ground `#232
 accent `#FF5A2A`, ink `#FFFFFB`, footer `ALEXMURESAN.COM`. Frame on top, one accent rule
 under it, three type tiers, mono attribution. Built 4:5 at 2000x2500 for the feed, with
 1:1 and 16:9 crops kept because the panel was already cut. Only the 4:5 was posted.
-Build at `carousels/2026-09-07-organic-mix-quote/`.
+Build at `carousels/organic-mix-quote-2026-09-07/`.
 
 ## Shape 2: the customer sighting
 

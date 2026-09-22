@@ -2,6 +2,11 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.11.3 (outlier-radar)
+
+**Doc fix.** The worked-example paths in `references/linkedin-visuals.md` follow the workspace's folder naming, name first and then date (`carousels/<slug>-<date>/`).
+
+
 ## What's new in 3.11.2 (outlier-radar)
 
 **A figure from the creator's own measurement needs no URL.** The LinkedIn source law now
