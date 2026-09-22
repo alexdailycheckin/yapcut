@@ -12,7 +12,7 @@ Five checks:
   3. LINKEDIN  the numeral law, the source law, and a legal qa value, run over the
                linkedin[] lane and every embedded twin body. Video-only until
                2026-08-13, which is why written posts could never leave pre-QA.
-  4. SPOKEN    does it survive being said out loud. WARN ONLY. Added 2026-08-16 after
+  4. SPOKEN    does it survive being said out loud. OFF unless --cadence (3.11.0). Added 2026-08-16 after
                the creator rejected the 08-17 batch for reading as prose while passing every
                cadence target: the numbers were tuned against the previous failure and
                the writer adapted. See the SPOKEN GATE block below for the delivery
@@ -39,7 +39,7 @@ Usage:
   python3 check_fidelity.py capture.md script.txt
   python3 check_fidelity.py --week weeks/2026-08-02.json     # whole batch, incl. cadence clash
   python3 check_fidelity.py --week weeks/2026-08-02.json --schema-only
-  python3 check_fidelity.py --week ... --dir <workspace> [--strict-cadence] [--allow-unvalidated]
+  python3 check_fidelity.py --week ... --dir <workspace> [--cadence] [--strict-cadence] [--allow-unvalidated]
 """
 
 import json
@@ -65,6 +65,9 @@ def _flag(name):
 STRICT_CADENCE = _flag("--strict-cadence")
 ALLOW_UNVALIDATED = _flag("--allow-unvalidated")
 SCHEMA_ONLY = _flag("--schema-only")
+# 3.11.0: the cadence and spoken DISTRIBUTION rules are off unless asked for. Fourteen
+# weeks of them did not move the creator's verdict on a batch; a writer learns a floor.
+CADENCE = _flag("--cadence") or STRICT_CADENCE
 
 # The two-file mode (capture + script) needs no workspace, so the resolver is asked
 # politely here and insisted on in --week mode.
@@ -240,6 +243,8 @@ def verdict(fp, fid=None, tri=None, floors=None):
                f"{TARGETS['sentence_words']['mean']}" if floors.get("_measured")
                else "the pre-2026-08-30 guess")
         cadence.append(f"mean {fp['mean']} outside {lo} to {hi} (band from {src})")
+    if not CADENCE:
+        return fails, []
     if STRICT_CADENCE:
         return fails + ["cadence: " + c for c in cadence], []
     return fails, ["cadence: " + c for c in cadence]
@@ -445,7 +450,7 @@ def spoken_report(text, script_class="testimony"):
     if not re.search(r"\b(I|I'm|I've|I'd|I'll|me|my|mine)\b", text):
         warns.append("no first person anywhere: reserved for receipts, mistakes and "
                      "ownership does not mean absent")
-    return fails, warns
+    return fails, (warns if CADENCE else [])
 
 
 def batch_spoken(scripts_in_order):
@@ -570,13 +575,14 @@ def source_law(body, sources):
 
 def run_linkedin(d):
     """The linkedin[] lane plus every embedded twin body. Returns (n_fail, n_warn)."""
-    rows = [(p.get("id"), p, p.get("sources"), "lane")
+    rows = [(p.get("id"), p, p.get("sources"), "lane", p.get("proof"))
             for p in d.get("linkedin", [])]
     for it in d.get("distribution", []):
         tw = it.get("linkedin")
         if tw:
             # the twin borrows the parent episode's already-verified sources
-            rows.append((tw.get("id"), tw, it.get("sources"), "twin"))
+            rows.append((tw.get("id"), tw, tw.get("sources") or it.get("sources"), "twin",
+                         tw.get("proof") or it.get("proof")))
 
     if not rows:
         return 0, 0
@@ -595,10 +601,12 @@ def run_linkedin(d):
               "will overwrite one with the other")
 
     bad = 0
-    for pid, post, sources, kind in rows:
+    for pid, post, sources, kind, proof in rows:
         body = post.get("body", "") or ""
         fails, warns = numeral_law(body)
-        fails += source_law(body, sources)
+        if not (isinstance(proof, dict) and proof.get("kind") == "own"):
+            # the creator's own figures (proof.kind own) are disclosed, not sourced
+            fails += source_law(body, sources)
         qa = post.get("qa")
         if qa not in ALLOWED_QA:
             fails.append(f"qa={qa!r} is not a state the dashboard can render; "
@@ -796,8 +804,36 @@ def check_length(it, where, fails, warns):
         fails.append(f"{where}: {n} spoken words against a {ceiling} ceiling, about "
                      f"{n / wps:.0f} seconds. Cut by DELETION; the budget is satisfied by "
                      f"removing words rather than writing different ones")
-    elif n > ceiling * 0.97:
-        warns.append(f"{where}: {n} words, inside the {ceiling} ceiling with no room left")
+
+
+def _mentions(text, name):
+    """Case-insensitive mention of a name as a whole token: 'G2', 'HubSpot', 'Oura'."""
+    if not name:
+        return False
+    return re.search(r"(?<![A-Za-z0-9])" + re.escape(name.lower()) + r"(?![A-Za-z0-9])",
+                     (text or "").lower()) is not None
+
+
+def check_subject(it, where, fails, warns):
+    """One item, one subject (3.11.0). On 2026-09-21 two episodes were swapped in place:
+    new title and script, same id, and the old `company`, `subject`, `pov_beat` and
+    LinkedIn twin rode along underneath. Every field-level check passed because none of
+    them read the field next door. Fires only when `company` is set."""
+    company = (it.get("company") or "").strip()
+    if not company:
+        return
+    title = it.get("title") or ""
+    if title and not _mentions(title, company):
+        fails.append(f"{where}: company is {company!r} and the title does not name it "
+                     f"({title[:60]!r}). A subject that changes gets a new id; kill this item "
+                     f"to the rolled briefs and mint a fresh one")
+    subject = (it.get("subject") or "").strip()
+    if subject and subject.lower() != company.lower():
+        warns.append(f"{where}: subject {subject!r} differs from company {company!r}")
+    tw = it.get("linkedin")
+    if isinstance(tw, dict) and tw.get("body") and not _mentions(tw["body"], company):
+        fails.append(f"{where}.linkedin: the twin never names {company!r}, so it belongs to "
+                     f"another story. Write it fresh or cut it")
 
 
 def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
@@ -813,6 +849,7 @@ def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
     if cls == "research":
         check_belief_order(it, where, fails, warns)
         check_length(it, where, fails, warns)
+        check_subject(it, where, fails, warns)
     qa = it.get("qa")
     if qa is None:
         warns.append(f"{where}: no qa value")
@@ -916,6 +953,25 @@ def schema_check(d, path):
         if n > 1:
             fails.append(f"duplicate id {pid!r} appears {n} times in this file")
 
+    # One story, one lane (3.11.0): a subject cannot run as an episode and as a secondary-lane
+    # script in the same week. FAIL when the company sits in the office item's title or hook,
+    # the subject position; a passing mention inside the script only warns.
+    companies = [(it.get("company") or "").strip() for it in (d.get("distribution") or [])
+                 if isinstance(it, dict)]
+    for i, it in enumerate(d.get("office") or []):
+        if not isinstance(it, dict):
+            continue
+        head = " ".join(str(it.get(k) or "") for k in ("title", "spoken_hook"))
+        body = str(it.get("script") or "")
+        for c in companies:
+            if not c:
+                continue
+            if _mentions(head, c):
+                fails.append(f"office[{i}]: {c!r} is this week's episode and this item's subject "
+                             f"too. One story, one lane: cut one of the two")
+            elif _mentions(body, c):
+                warns.append(f"office[{i}]: mentions {c!r}, which is also an episode this week")
+
     ex = d.get("experiment")
     if ex is not None:
         if not isinstance(ex, dict):
@@ -944,7 +1000,7 @@ def schema_check(d, path):
                 fails.append(f"{key}[{i}] is not an object")
                 continue
             for k in need:
-                if not row.get(k):
+                if not (row.get(k) or (k == "fact" and row.get("round"))):
                     warns.append(f"{key}[{i}] has no {k}")
 
     n_video = sum(len(d.get(l) or []) for l in VIDEO_LANES)
@@ -993,11 +1049,11 @@ def run_week(path):
     note = "" if floors is FLOORS_NEW else (
         f"  (cadence floors: pre-{FLOORS_FROM}, stdev {floors['stdev']:.0f}, long-run rule off. "
         f"This week was written before the 2026-08-24 recalibration.)")
-    mode = "FAIL" if STRICT_CADENCE else "warn"
+    mode = ("FAIL" if STRICT_CADENCE else "warn") if CADENCE else "off, pass --cadence to grade them"
     print(f"\n{len(items)} scripts in {os.path.basename(path)}{note}  (cadence rules {mode})\n")
     graded = [it for it in items
               if it.get("script_class", "testimony") in ("testimony", "research")]
-    if TARGETS is None and graded:
+    if CADENCE and TARGETS is None and graded:
         # PRODUCTION SAFETY, added 2026-08-30. Falling back silently to the pre-2026-08-30
         # constants would hand every new creator the exact defect that broke 8 of the creator's
         # scripts: a mean band of 9 to 13 when his real work speech measures 17.8. The
@@ -1070,29 +1126,21 @@ def run_week(path):
         for w in warns:
             print(f"        warn: {w}")
         spoken[it.get("id")] = script
-    clash = [(s, n) for s, n in shapes.most_common() if n > 1]
-    print(f"\nclass distribution: {dict(classes)}  (watch for drift toward convenient format/research tagging)")
-    print(f"{bad}/{len(items)} failed the fingerprint gate")
-    if clash:
-        print("cadence clash, these openings repeat (warn):")
-        for s, n in clash:
-            print(f"   {n}x  '{s}...'")
-        n_warn += len(clash)
-    else:
-        print("no cadence clash")
-
-    # NOTE opening_shape() reduces the first 4 tokens to a stopword mask, so any
-    # declarative opening with 4 content words reads as 'X X X X' and clashes with
-    # every other one. Treat a clash it reports as a prompt to look, never as a
-    # reason to rewrite copy. The batch check below is the one with teeth.
-    batch = batch_spoken(list(spoken.items()))
-    if batch:
-        print("\nspoken gate, batch level (warn only):")
-        for b in batch:
-            print(f"   {b}")
-        n_warn += len(batch)
-    else:
-        print("\nspoken gate, batch level: no shared seams")
+    print(f"\nclass distribution: {dict(classes)}")
+    print(f"{bad}/{len(items)} failed")
+    if CADENCE:
+        clash = [(s, n) for s, n in shapes.most_common() if n > 1]
+        if clash:
+            print("cadence clash, these openings repeat (warn):")
+            for s, n in clash:
+                print(f"   {n}x  '{s}...'")
+            n_warn += len(clash)
+        batch = batch_spoken(list(spoken.items()))
+        if batch:
+            print("\nspoken gate, batch level (warn only):")
+            for b in batch:
+                print(f"   {b}")
+            n_warn += len(batch)
 
     lf, lw = run_linkedin(d)
     return n_fail + lf, n_warn + lw

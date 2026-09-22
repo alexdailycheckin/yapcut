@@ -12,7 +12,6 @@ This lint only checks what a machine can judge:
   FAIL too-long   more than 9 words
   FAIL banned     banned words / em or en dashes
   FAIL epigram    the two-sentence antithesis, anywhere in shipping copy
-  WARN no-alts    fewer than 2 text_hook_alts (burn-and-test wants variants)
   WARN batch-rhyme  two hooks in the batch open with the same word
 
 Why closings are in a file called hook_lint: openings were gated from the start and
@@ -83,10 +82,6 @@ def lint_item(item, batch_first_words):
     hits = BANNED & set(re.findall(r"[a-z-]+", hook.lower()))
     if hits:
         fails.append(f"banned: {', '.join(sorted(hits))}")
-
-    alts = item.get("text_hook_alts") or []
-    if len(alts) < 2:
-        warns.append(f"no-alts: {len(alts)} alternates (want 2+ for hook testing)")
 
     first = (hook.split() or [""])[0].lower().strip(".,!?")
     if first and batch_first_words.count(first) > 1:

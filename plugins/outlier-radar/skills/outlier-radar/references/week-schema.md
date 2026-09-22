@@ -19,8 +19,8 @@ week files carry history; fields marked FAIL stop the batch.
 | `linkedin[]` | posts | LinkedIn-only posts. |
 | `gtm_linkedin[]` | posts | the leaders-scan posts (legacy key, still read). |
 | `inspiration[]` | `{creator, platform, metric, metric_confidence, mechanic, link}` | the outliers found. |
-| `experiment` | `{dim, arms: {a: [ids], b: [ids]}, metric, question}` | optional: the one pre-registered two-arm question for the week. `log_perf.py --report` answers it at n=4. One open experiment per lane. |
-| `ammo[]` | `[{fact, number, source, lanes[], spent_on}]` | optional: 10 to 15 receipt-bearing rounds for the daily comment block, a by-product of the research sweep. The dashboard renders an Ammo tab. |
+| `experiment` | `{dim, arms: {a: [ids], b: [ids]}, metric, question}` | optional, validated when present, asked for by no gate since 3.11.0. `log_perf.py --report` answers it at n=4. |
+| `ammo[]` | `[{fact (or round), number, source (or url), lanes[], spent_on}]` | optional: 10 to 15 receipt-bearing rounds for the daily comment block, a by-product of the research sweep. The dashboard renders an Ammo tab. |
 | `promised[]` | `[{text, made_in, due_week, paid_in}]` | optional: promises the show made to its audience. `radar_gate.py` warns on a due promise neither paid nor retracted. |
 | anything else | | WARN "unknown top-level key". Legacy files carry `method`, `distribution_pass`, `receipts`, `sweep_note` and more; they are not errors. |
 
@@ -35,6 +35,11 @@ what the viewer already believes, copied VERBATIM from `spoken_hook` or `script`
 paraphrase fails, because `check_fidelity.py` uses the field to locate the sentence and run
 the order test: a belief sitting after half the numbers fails the week. Copy the sentence,
 never restate it.
+
+`company` (the subject of a `research` item, when the show is on): the title must name it and
+the embedded twin must mention it, or `check_fidelity.py` fails the item. A subject that changes
+gets a NEW id; an item is never rewritten in place under the old one. A secondary-lane item
+whose title or hook names a primary episode's company fails too (one story, one lane).
 
 Also carried: `borrows`, `carries`, `hook_family`, `hook_styles[]` (from
 `hook-psychology.md`), `visual_hook`, `directions`, `cta` (optional), `facet`, `post_type`,

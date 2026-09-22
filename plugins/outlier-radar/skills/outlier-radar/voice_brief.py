@@ -77,6 +77,46 @@ def sentences(text):
     return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
 
 
+def approved_scripts(home, n=3):
+    """The scripts the creator said yes to: every id with a filmed, posted or approved event
+    in performance/tracking.jsonl, plus any item whose qa is `passed`. Newest first.
+
+    Added 3.11.0. For fourteen weeks the brief listed what the creator had rejected and
+    nothing they had approved, so a writer learned what to avoid and nothing about what to
+    do. Filmed counts as approved: a person does not read a script to camera they dislike.
+    These are the taste; the corpus passages below are the voice."""
+    events = {}
+    tp = home / "performance" / "tracking.jsonl"
+    if tp.exists():
+        for line in tp.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get("event") in ("filmed", "posted", "approved") and r.get("id"):
+                events[r["id"]] = max(events.get(r["id"], ""), str(r.get("at") or ""))
+    out = []
+    wdir = home / "weeks"
+    for wf in sorted(wdir.glob("*.json"), reverse=True) if wdir.exists() else []:
+        if wf.name.endswith(".gate.json"):
+            continue
+        try:
+            d = json.loads(wf.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        for lane in ("distribution", "office"):
+            for it in d.get(lane) or []:
+                if not isinstance(it, dict) or not it.get("script"):
+                    continue
+                when = events.get(it.get("id"))
+                if when or it.get("qa") == "passed":
+                    # a filmed or posted script outranks one a session marked passed
+                    out.append(((1 if when else 0), when or str(d.get("week") or ""), it))
+    out.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    n_events = sum(1 for e, _w, _i in out if e)
+    return [it for _e, _w, it in out[:n]], (n_events, len(out) - n_events)
+
+
 def pick_samples(corpus, targets, n, seed_str):
     """Choose few-shot passages that DEMONSTRATE the profile rather than just sampling it.
 
@@ -184,6 +224,22 @@ def main():
     print(f"# corpus: {targets['corpus']['words']} words, {targets['corpus']['sentences']} sentences"
           + (f" | week {week}" if week else ""))
     print()
+    approved, (n_filmed, n_marked) = approved_scripts(home)
+    print("## WHAT THEY SAID YES TO. Read these first and write like them.")
+    print()
+    if approved:
+        print(f"({n_filmed} filmed or posted, {n_marked} marked qa passed by a session. The last "
+              f"{len(approved)}, filmed first, newest first. This is the taste. The corpus further down is the voice.)")
+        print()
+        for it in approved:
+            print(f"--- {it.get('id')}  {it.get('title') or ''}")
+            print((it.get("spoken_hook") or "").strip())
+            print((it.get("script") or "").strip())
+            print()
+    else:
+        print("(none yet: nothing filmed, posted or marked qa passed. Mark what they film with")
+        print(" log_perf.py --filmed <id>; until then the passages below are the only grounding.)")
+        print()
     print("## HOW THEY ACTUALLY TALK (measured, not chosen)")
     print()
     print(f"- Sentence length: median {sw['median']:.0f} words, mean {sw['mean']}. Most lines are SHORT.")

@@ -37,7 +37,9 @@ SEVERITY AND EXIT CODES (Contract 1, 2026-09-09).
   medium  a distribution or arrangement finding that wants a human read: the cadence
           floors, the flat tail, the speech-marker rate, colon lists, number tables. rc 1.
   warn    an onboarding state, not a defect: no targets.json yet. rc 1.
-`--strict-cadence` grades the cadence findings high again; that flip is the creator's call.
+The cadence and speech-shape DISTRIBUTIONS are off by default since 3.11.0: `--cadence` grades
+them medium, `--strict-cadence` grades them high. The rulings (rejected phrases, verbless
+runs, the epigram, a candour marker on an empty clause) always run.
 
 Before 2026-09-09 the cadence floors here were hand-set (STDEV_FLOOR 8.0, OVER20_FLOOR
 15.0) under a comment saying to derive them, and a missing targets.json was a HIGH finding
@@ -320,6 +322,9 @@ MARKER_RATE_FLOOR = 0.25
 INFO = []
 
 
+CADENCE = False
+
+
 def _cadence(sev):
     return "high" if STRICT_CADENCE else sev
 
@@ -564,12 +569,14 @@ def lint_week(path: pathlib.Path):
             # measured here while check_fidelity.py measured office[] too, which is one
             # of the ways the two tools disagreed on the same batch.
             if lane in VIDEO_LANES and it.get("script"):
-                findings += check_targets(it, targets, d.get("week", ""))
-                findings += check_speech_shape(it, targets)
+                if CADENCE:
+                    findings += check_targets(it, targets, d.get("week", ""))
+                    findings += check_speech_shape(it, targets)
                 spoken_items.append(it)
-    findings += batch_tail(spoken_items, targets)
-    findings += batch_marker_rate(spoken_items, targets)
-    if targets is None and spoken_items:
+    if CADENCE:
+        findings += batch_tail(spoken_items, targets)
+        findings += batch_marker_rate(spoken_items, targets)
+    if CADENCE and targets is None and spoken_items:
         findings.append({"check": "no_targets", "where": "workspace", "severity": "warn",
                          "text": "voice-corpus/targets.json missing",
                          "fix": "run segment_corpus.py then derive_voice_targets.py",
@@ -617,7 +624,7 @@ SEV_RC = {"high": 2, "medium": 1, "warn": 1}
 
 
 def main():
-    global STRICT_CADENCE
+    global STRICT_CADENCE, CADENCE
     ap = argparse.ArgumentParser()
     # --dir is resolution option 1 in the playbook's documented order, and argparse never
     # knew about it: passing it crashed with exit 2 and no output, so anyone following the
@@ -630,10 +637,13 @@ def main():
     ap.add_argument("--corpus", action="store_true")
     ap.add_argument("--strict-cadence", action="store_true",
                     help="grade the cadence findings high (rc 2) instead of medium")
+    ap.add_argument("--cadence", action="store_true",
+                    help="grade the cadence and speech-shape distributions (off by default since 3.11.0)")
     ap.add_argument("--apply-safe", action="store_true",
                     help="apply ONLY the pure-deletion fixes, never a rewrite")
     a = ap.parse_args()
     STRICT_CADENCE = a.strict_cadence
+    CADENCE = a.cadence or a.strict_cadence
 
     if a.corpus:
         corpus_baseline()

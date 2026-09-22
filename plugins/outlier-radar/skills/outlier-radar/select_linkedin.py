@@ -47,6 +47,7 @@ fills the remaining slots around it.
 
 import datetime
 import glob
+import argparse
 import json
 import os
 import re
@@ -714,7 +715,20 @@ def schedule(rows, anchor):
     return plan
 
 
+DRY_RUN = False
+
+
 def main():
+    global DRY_RUN
+    # 3.11.0: a real parser. Before this any unknown flag, --help included, fell through to the
+    # selector and rewrote the latest week file.
+    ap = argparse.ArgumentParser(description="assign each LinkedIn post its feed shape, job and posting day")
+    ap.add_argument("--week", help="week file (default: the latest in weeks/)")
+    ap.add_argument("--dir", help="workspace (consumed by yapcut_home when given)")
+    ap.add_argument("--weights", action="store_true", help="print the weight table and exit")
+    ap.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
+    a = ap.parse_args()
+    DRY_RUN = a.dry_run
     if "--weights" in sys.argv:
         print(json.dumps({"weights": WEIGHTS, "prior_weights": PRIOR_WEIGHTS,
                           "target_mix": TARGET_MIX,
@@ -978,10 +992,16 @@ def main():
             twin["post_slot"] = slot
             twin["post_why"] = why
             written += 1
-        with open(wk, "w") as fh:
+        if DRY_RUN:
+            print(f"dry run: {written} post(s) would get shape + post_day in {os.path.basename(wk)}"
+                  f"{f', {marked} cut' if marked else ''}. Nothing written.")
+            written = marked = pinned = 0
+        else:
+          with open(wk, "w") as fh:
             json.dump(d, fh, indent=2)
             fh.write("\n")
-        print(f"wrote shape + post_day to {written} post(s) in {os.path.basename(wk)}"
+        if not DRY_RUN:
+          print(f"wrote shape + post_day to {written} post(s) in {os.path.basename(wk)}"
               f"{f', cut {marked}' if marked else ''}"
               f"{f', kept {pinned} pinned' if pinned else ''}.")
         print("  Pin a day against re-runs with \"post_day_locked\": true on the twin.")

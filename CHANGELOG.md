@@ -2,6 +2,52 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.11.0 (outlier-radar)
+
+**Fewer gates, and the ones that stay guard the record rather than the writer.** After fourteen
+weeks of answering every rejected batch with a new check, the engine carried close to ten
+thousand lines of gate code and the creator's verdict on a batch had not moved: a writer
+learns a floor, so a batch cleared every cadence distribution and still read as prose. The
+distribution rules (sentence stdev, the long-run share, the p90 tail, the marker rate,
+first-person presence, the opening clash) are OFF by default in `check_fidelity.py`,
+`spoken_lint.py` and `radar_gate.py`. `--cadence` turns them back on as warnings and
+`--strict-cadence` makes them fail. The categorical checks stay: schema, ids, sources, the
+belief and its order, the word ceiling, rejected phrases, the epigram, a candour marker on an
+empty clause.
+
+**The brief opens with what the creator said yes to.** `voice_brief.py` now prints the last
+three approved scripts first: anything with a `filmed`, `posted` or `approved` event in
+`performance/tracking.jsonl`, or marked `qa: passed`. For fourteen weeks the brief listed
+rejections and no approvals, so a writer learned what to avoid and nothing about what to do.
+Filmed counts as approved.
+
+**One item, one subject.** A `research` item whose `company` is set must name it in the
+title, and its embedded twin must mention it, or the item fails. A secondary-lane item whose
+title or hook names a primary episode's company fails: one story, one lane. Both were learned
+from a week where two episodes were swapped in place, kept their ids, and shipped a new
+script over an old twin, POV beat and subject. The playbook now says it plainly: a subject
+that changes gets a new id.
+
+**The filming pack is rendered, not typed.** `build_pack.py --week weeks/<date>.json` writes
+`show/<date>-filming-pack.md` from the week file, full read, shots, sources and LinkedIn text.
+`radar_gate.py` gains a `pack` gate: a pack older than its week file, or naming an episode no
+item carries, fails. The routine builds the dashboard with `--strict`, so a failed stamp never
+reaches the page looking green.
+
+**Smaller cuts.** `hook_lint` no longer warns on missing `text_hook_alts`. `completeness` warns
+instead of failing on an empty `inspiration[]` and no longer asks for an `experiment` block.
+`ammo[]` accepts `round` as the fact key. A post or twin whose `proof.kind` is `own` carries
+the creator's own figures and needs no URL for them. `select_linkedin.py` gets a real argument
+parser and `--dry-run`; before this any unknown flag, `--help` included, ran the selector and
+rewrote the latest week file. The word-ceiling gate keeps its fail and drops the "no room
+left" warning band, which invited trimming to the line.
+
+**The playbook is a third shorter and opens with the three jobs:** understand the creator from
+the onboarding, learn them more every week from what they film, post and kill, and write ideas
+good enough that they want to film them. The measurement loop is a log until the creator says
+a post was incredible; then it gets an autopsy. Before adding a rule, delete one.
+
+
 ## What's new in 3.10.4 (outlier-radar)
 
 **The length ceiling is a gate now, because as prose it rotted.** The show doctrine has
