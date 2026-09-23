@@ -39,7 +39,7 @@ OVRFILE="$WD/${CUTBASE}_overlays.json"; [ -f "$OVRFILE" ] || OVRFILE=""
 STUTOK="$WD/${CUTBASE}_stutter_ok.json"
 CAPOK="$WD/${CUTBASE}_capqa_ok.json"
 SCRIPTFILE="${YAP_SCRIPT:-$WD/${CUTBASE}_script.txt}"
-HOOK_SECS="${HOOK_SECS:-5.0}"
+HOOK_SECS="${HOOK_SECS:-$(python3 "$SCRIPTS/yaplib/rules.py" get hook.seconds)}"
 
 gates_init "$WD/${FINALBASE}_gates.json" "$PLATFORM" "$OUT"
 gate_meta_json paths "$(python3 -c 'import json,sys; print(json.dumps(dict(zip(sys.argv[1::2], sys.argv[2::2]))))' \
@@ -82,8 +82,8 @@ gate_dead_air "$PV"
 
 # 3. captions + hook in the brand style, then the CTA contact block
 python3 "$SCRIPTS/build_ass.py" --words "$WORDS" --out "$ASS" \
-  --preset minimal --font "$CFONT" --caps "$CCASE" --accent none --active-scale 112 \
-  --hook-y 430 --hook "$HOOK" --hook-secs "$HOOK_SECS" --hook-anim "$HANIM" --hook-style "$HSTYLE" \
+  --preset minimal --font "$CFONT" --caps "$CCASE" --accent none \
+  --hook "$HOOK" --hook-secs "$HOOK_SECS" --hook-anim "$HANIM" --hook-style "$HSTYLE" \
   --hook-spark "$HOOKWORD" --accent-hex "$ACCENT" --overlays "$OVRFILE" --corrections "$CORR"
 python3 "$SCRIPTS/cta_block.py" --ass "$ASS" --dur "$DUR" --handle "$HANDLE" --contact "$CONTACT" \
   --font "$HFONT" --accent "$ACCENT" --base "$BASE" --ink "$INK" --lead 6.0

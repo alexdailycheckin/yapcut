@@ -18,6 +18,16 @@
 #         in QuickTime due to irregular timestamps; this clean pass fixes it.
 set -euo pipefail
 CUT="$1"; ASS="$2"; OUT="$3"
+# Loudness numbers come from rules.json (loudness.*), the rulebook the phone reads too.
+RULES="$(cd "$(dirname "$0")" && pwd)/yaplib/rules.py"
+read -r LUFS TP LRA IFLOOR GMIN GMAX G2 LIMV < <(python3 - "$RULES" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("rules", sys.argv[1]); r = importlib.util.module_from_spec(spec); spec.loader.exec_module(r)
+L = r.get("loudness")
+print(L["target_lufs"], L["true_peak_db"], L["lra"], L["input_floor_lufs"], L["gain_min_db"], L["gain_max_db"], L["second_pass_max_db"], L["limiter"])
+PY
+)
+LOUDNORM="loudnorm=I=${LUFS}:TP=${TP}:LRA=${LRA}"
 
 # ass filter wants the path escaped (colons/commas break the filter parser).
 ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:/g')
@@ -53,12 +63,12 @@ ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:
 # all), not on the gain. And the arithmetic is no longer trusted: the limiter
 # does real work at these gains, so pass 2 renders the audio and MEASURES it,
 # then pass 3 corrects the residue. Landing on target is verified, not assumed.
-LIM="alimiter=limit=0.841:attack=5:release=60:level=disabled"
+LIM="alimiter=limit=${LIMV}:attack=5:release=60:level=disabled"
 measure_i() {   # integrated LUFS of $CUT through filter chain $1
   ffmpeg -nostdin -i "$CUT" -af "$1,ebur128=framelog=quiet" -f null - 2>&1 \
     | awk '/Integrated loudness/{f=1} f&&/I:/{print $2; exit}' || true
 }
-G1=$(ffmpeg -nostdin -i "$CUT" -af "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json" \
+G1=$(ffmpeg -nostdin -i "$CUT" -af "${LOUDNORM}:print_format=json" \
        -f null - 2>&1 | python3 -c '
 import sys,json,re
 t=sys.stdin.read()
@@ -71,9 +81,10 @@ if i!=i or i in (float("inf"),float("-inf")): sys.exit(1)
 # Guard the INPUT, not the gain: below -45 LUFS there is no speech to lift,
 # only room tone, so refuse to amplify it into noise. Above that, allow the
 # gain the take actually needs (a phone lav routinely wants +14 or +15).
-if i < -45.0: sys.exit(1)
-print(f"{max(-6.0,min(24.0,-14.0-i)):.2f}")
-' 2>/dev/null) || G1=""
+lufs, floor, gmin, gmax = (float(x) for x in sys.argv[1:5])
+if i < floor: sys.exit(1)
+print(f"{max(gmin,min(gmax,lufs-i)):.2f}")
+' "$LUFS" "$IFLOOR" "$GMIN" "$GMAX" 2>/dev/null) || G1=""
 
 AF=""
 if [ -n "$G1" ]; then
@@ -84,13 +95,13 @@ try: l=float('$L2')
 except Exception: sys.exit(1)
 g=float('$G1')
 if l==l and abs(l)!=float('inf'):
-    g=max(-6.0,min(24.0,g+max(-3.0,min(3.0,-14.0-l))))   # correct the limiter's residue
+    g=max($GMIN,min($GMAX,g+max(-$G2,min($G2,$LUFS-l))))   # correct the limiter's residue
 print(f'{g:.2f}')" 2>/dev/null) || GF="$G1"
   [ -n "$GF" ] || GF="$G1"
   printf '  loudness: %sdB then corrected to %sdB (pass-2 measured %s LUFS)\n' "$G1" "$GF" "${L2:-n/a}"
   AF="volume=${GF}dB,$LIM"
 fi
-[ -n "$AF" ] || { AF="loudnorm=I=-14:TP=-1.5:LRA=11"; echo "  (loudnorm measure failed, single-pass fallback)"; }
+[ -n "$AF" ] || { AF="$LOUDNORM"; echo "  (loudnorm measure failed, single-pass fallback)"; }
 
 ffmpeg -nostdin -y -i "$CUT" \
   -vf "setpts=N/(30*TB),ass='${ASS_ESC}',setsar=1,format=yuv420p" \
@@ -100,7 +111,7 @@ ffmpeg -nostdin -y -i "$CUT" \
   "$OUT" -hide_banner -loglevel error
 
 echo "wrote $OUT"
-echo "--- QA: loudness (target ~-14 LUFS) ---"
+echo "--- QA: loudness (target ~${LUFS} LUFS) ---"
 ffmpeg -nostdin -i "$OUT" -af ebur128=peak=true -f null - 2>&1 \
   | grep -A1 "Integrated loudness" | tail -2
 ffprobe -v error -show_entries format=duration:stream=r_frame_rate \

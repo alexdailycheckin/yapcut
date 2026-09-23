@@ -1,0 +1,178 @@
+{
+  "_about": "The editor's rulebook: every number the Mac editor and the phone editor share. yaplib/rules.py reads it on the Mac; the Anima app reads the same file on the phone, bundled and refreshed from this repo. Change a value here, release, and both editors cut the same way. Values that only one surface uses stay in that surface's code. Seconds end in _s, decibels in _db.",
+  "rules_version": 1,
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "cut": {
+    "_about": "yapcut.py. Why each rule exists is in the yapcut.py docstring and CHANGELOG 2.3.",
+    "envelope": {
+      "sample_rate": 16000,
+      "window_s": 0.03,
+      "hop_s": 0.01,
+      "median_taps": 5,
+      "zero_db": -99.0
+    },
+    "silence_db": -42.0,
+    "min_silence_s": 0.1,
+    "auto_floor": true,
+    "floor": {
+      "percentile": 0.2,
+      "ignore_below_db": -70.0,
+      "fallback_db": -60.0,
+      "margin_db": 2.0,
+      "ceiling_db": -22.0
+    },
+    "head_trim": {
+      "enabled": true,
+      "margin_db": 8.0,
+      "min_sustain_s": 0.15,
+      "min_drop_s": 0.3,
+      "max_drop_s": 2.5
+    },
+    "min_gap_s": 0.55,
+    "min_seg_s": 0.45,
+    "bridge_max_s": 0.75,
+    "min_cut_s": 0.25,
+    "min_keep_s": 0.1,
+    "pad_left_s": 0.1,
+    "pad_right_s": 0.12,
+    "edge": {
+      "margin_db": 6.0,
+      "tail_extra_s": 0.25,
+      "lead_s": 0.03,
+      "gap_tolerance_s": 0.09
+    },
+    "forward_merge_max_s": 1.0,
+    "crop_alternation": [1.0, 1.06],
+    "audio_edge_fade_s": 0.004
+  },
+  "captions": {
+    "_about": "build_ass.py. `preset` is the live one; the others are kept for --preset.",
+    "preset": "minimal",
+    "words_per_chunk": 3,
+    "tail_hold_s": 0.3,
+    "min_event_s": 0.08,
+    "shadow_ass_alpha": 100,
+    "presets": {
+      "minimal": {
+        "font": "Montserrat Black",
+        "bold": false,
+        "base": "#FFFFFF",
+        "outline": "#000000",
+        "outline_px": 7,
+        "shadow_px": 1,
+        "accent": null,
+        "caps": true,
+        "active_scale": 112,
+        "cap_size": 90,
+        "cap_y": 1320,
+        "hook_size": 120,
+        "hook_y": 430,
+        "hook_accent": false,
+        "spacing": 0
+      },
+      "bold": {
+        "font": "Anton",
+        "bold": true,
+        "base": "#FFFFFF",
+        "outline": "#000000",
+        "outline_px": 9,
+        "shadow_px": 0,
+        "accent": "#FFDE00",
+        "caps": true,
+        "active_scale": 122,
+        "cap_size": 96,
+        "cap_y": 1300,
+        "hook_size": 132,
+        "hook_y": 620,
+        "hook_accent": true,
+        "spacing": 1
+      },
+      "native": {
+        "font": "Montserrat Black",
+        "bold": false,
+        "base": "#FFFFFF",
+        "outline": "#000000",
+        "outline_px": 7,
+        "shadow_px": 2,
+        "accent": "#FFD23F",
+        "caps": false,
+        "active_scale": 110,
+        "cap_size": 82,
+        "cap_y": 1340,
+        "hook_size": 116,
+        "hook_y": 650,
+        "hook_accent": false,
+        "spacing": 0
+      }
+    }
+  },
+  "hook": {
+    "_about": "The burned hook. Word limits are gates.sh; fit and animation are build_ass.py. shadow_ass_alpha is the ASS alpha byte: 0 opaque, 255 clear.",
+    "max_words": 9,
+    "warn_words": 7,
+    "seconds": 5.0,
+    "safe_width_frac": 0.9,
+    "max_lines": 3,
+    "min_size": 54,
+    "shrink_step": 4,
+    "fade_out_s": 0.25,
+    "styles": {
+      "outline": {
+        "outline_extra_px": 1,
+        "shadow_ass_alpha": 100
+      },
+      "minimal": {
+        "sub_frac": 0.55,
+        "outline_px": 0,
+        "shadow_px": 3,
+        "shadow_ass_alpha": 90
+      }
+    },
+    "typewriter": {
+      "static_hold_s": 1.0,
+      "min_type_s": 0.2,
+      "max_type_s": 1.1
+    }
+  },
+  "retention": {
+    "_about": "retention_check.py via gates.sh. Joins the cutter made do not count as events.",
+    "max_static_s": 5.0,
+    "max_static_long_s": 6.0,
+    "long_video_s": 60.0,
+    "rehook_window_s": [0.3, 3.5],
+    "scene_threshold": 0.1,
+    "join_exclusion_s": 0.2
+  },
+  "dead_air": {
+    "_about": "gap_check.py via gates.sh: pauses that survived the cut.",
+    "fail_s": 0.8,
+    "warn_s": 0.6,
+    "first_word_max_s": 0.8,
+    "tail_warn_s": 1.2
+  },
+  "loudness": {
+    "_about": "compose_ass.sh.",
+    "target_lufs": -14.0,
+    "true_peak_db": -1.5,
+    "lra": 11,
+    "input_floor_lufs": -45.0,
+    "gain_min_db": -6.0,
+    "gain_max_db": 24.0,
+    "second_pass_max_db": 3.0,
+    "limiter": 0.841
+  },
+  "platforms": {
+    "tiktok": {"len": [25, 40], "hook_anim": "none"},
+    "reels": {"len": [25, 40]},
+    "shorts": {"len": [25, 60]},
+    "linkedin": {"len": [30, 60], "hook_anim": "none", "static_first_frame": true}
+  },
+  "edit_record": {
+    "_about": "finalize.sh writes <name>.edit.json; the phone writes the same shape so log_perf.py --edits joins either.",
+    "version": 1
+  }
+}

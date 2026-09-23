@@ -64,6 +64,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 # Consumed here so argparse below never sees --dir. The lint itself can run without a
 # workspace (targets become a WARN); --corpus cannot, and asks again with required=True.
@@ -174,9 +175,11 @@ def sentences(text: str):
 
 
 # --- the checks ------------------------------------------------------------
-NEG_PAIR = re.compile(r"\bno\s+[\w-]+\s*,\s*no\s+[\w-]+", re.I)
-NEG_NOTJUST = re.compile(r"\b(it|that|this)(?:'s| is| was)\s+not\s+(just\s+)?[^.,;]{2,40}[,.]\s*(it|that|this)(?:'s| is| was)\b", re.I)
-NEG_ISNOT = re.compile(r"\b(is|are|was|were)\s+not\s+[^.]{2,50}\.\s*(It|They|That)\s+(is|are|was|were)\b")
+# The negative-parallelism and candour patterns are rules.json patterns.*, which the phone
+# lints its own scripts with too.
+NEG_PAIR = rules.regex("neg_pair")
+NEG_NOTJUST = rules.regex("neg_notjust")
+NEG_ISNOT = rules.regex("neg_isnot")
 ABSENCE = re.compile(r"\b(nothing|nobody|no one|not one|zero)\b", re.I)
 ABSENCE_ACTION = re.compile(r"\b(ran|bought|paid|spent|said|advertised|posted|placed|paid for|does|do)\b", re.I)
 COLON_LIST = re.compile(r"^[^:]{3,60}:\s+[^.]*,[^.]*,", re.S)
@@ -398,13 +401,8 @@ def check_rejected(it):
 # This is a doctrine backfire worth recording. the-show.md set a marker RATE with no
 # placement rule, and a rate with no placement rule is a quota. Quotas get filled with
 # empty clauses. The doctrine now carries the placement rule beside the number.
-SINCERITY = re.compile(
-    r"\b(?:and\s+)?(?:honestly|frankly|truthfully|genuinely|to be fair|"
-    r"let'?s be real|i'?ll be honest|if i'?m honest|real talk)\b", re.I)
-EVAL_COPULA = re.compile(
-    r"\b(?:is|was|are|were|'s|s|been|be)\s+(?:always\s+|really\s+|pretty\s+|quite\s+|"
-    r"very\s+|just\s+)?(?:a\s+)?(?:good|bad|great|fine|important|interesting|wild|huge|"
-    r"simple|easy|hard|better|worse|smart|crazy|fair|solid|neat|nice|cool|big deal)\b", re.I)
+SINCERITY = rules.regex("sincerity")
+EVAL_COPULA = rules.regex("eval_copula")
 
 
 def check_speech_shape(it, targets):

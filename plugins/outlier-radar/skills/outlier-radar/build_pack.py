@@ -19,9 +19,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 HOME = radar_home()
-DEFAULT_CEILING, DEFAULT_WPS = 189, 2.9
+DEFAULT_CEILING, DEFAULT_WPS = rules.get("script.word_ceiling"), rules.get("script.words_per_second")
 
 
 def budget(home):

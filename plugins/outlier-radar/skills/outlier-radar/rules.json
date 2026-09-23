@@ -1,0 +1,116 @@
+{
+  "_about": "The Radar's rulebook: the script rules the Mac engine and the phone share. check_fidelity.py, hook_lint.py and spoken_lint.py read it through rules.py on the Mac; the Anima app reads the same file to parse week files and to gate the scripts it writes itself. Change a value here, release, and both follow. Patterns are Python re syntax that ICU (Swift) also accepts; flags are separate: i = ignore case, m = multiline, s = dot matches newline.",
+  "rules_version": 1,
+  "week": {
+    "schema_version": 2,
+    "video_lanes": [
+      {
+        "key": "distribution",
+        "role": "primary",
+        "default_label": "Industry"
+      },
+      {
+        "key": "office",
+        "role": "secondary",
+        "default_label": "Viral videos"
+      }
+    ],
+    "post_lanes": [
+      "linkedin",
+      "gtm_linkedin"
+    ],
+    "qa_values": [
+      "passed",
+      "pending-approval"
+    ],
+    "id_pattern": {
+      "pattern": "^(d|o|li|li-tw)-\\d{8}-\\d+$",
+      "flags": ""
+    },
+    "id_legacy_pattern": {
+      "pattern": "^(d|o|li|li-tw|x)-\\d{4}-\\d{2}-\\d{2}[a-z]?-[A-Za-z0-9]+$",
+      "flags": ""
+    },
+    "proof_kinds": [
+      "own",
+      "reach",
+      "public"
+    ],
+    "script_classes": [
+      "testimony",
+      "format",
+      "research"
+    ]
+  },
+  "script": {
+    "_about": "check_fidelity.py length: spoken_hook plus script, split on whitespace. radar-config.json show.word_ceiling and show.words_per_second override per creator.",
+    "word_ceiling": 189,
+    "words_per_second": 2.9
+  },
+  "text_hook": {
+    "_about": "hook_lint.py: the burned line a muted viewer reads in one fixation.",
+    "max_words": 9,
+    "banned_words": [
+      "leverage",
+      "utilize",
+      "delve",
+      "seamless",
+      "unlock",
+      "empower",
+      "game-changer",
+      "revolutionize",
+      "guys"
+    ],
+    "dash_chars": [
+      "—",
+      "–"
+    ]
+  },
+  "patterns": {
+    "epigram": {
+      "pattern": "\\b(?:it|that|this)(?:'s\\s+not|\\s+is\\s+not|\\s+was\\s+not|\\s+isn'?t|\\s+wasn'?t)\\s+(?:\\w+[ ,]){0,5}\\w+\\s*[.!?,]\\s+(?:it|that|this)(?:'s|\\s+is|\\s+was)\\s+(?:\\w+[ ,]){0,5}\\w+\\s*[.!?]",
+      "flags": "i",
+      "_about": "hook_lint.py FAIL: the two-sentence antithesis epigram, on every field a viewer receives."
+    },
+    "epigram_button": {
+      "pattern": "\\b(?:is|are|was|were)\\s+not\\s+(?:a|an|the)?\\s*\\w+[.,]\\s*(?:it|that|they|it'?s|that'?s)\\s+(?:is|are|'s)?\\s*(?:a|an|the)?\\s*\\w+",
+      "flags": "i",
+      "_about": "check_fidelity.py FAIL on the button and takeaway lines."
+    },
+    "neg_parallel": {
+      "pattern": "\\bit'?s not just \\w+.{0,24}it'?s\\b",
+      "flags": "i",
+      "_about": "check_fidelity.py FAIL on the button and takeaway lines."
+    },
+    "neg_pair": {
+      "pattern": "\\bno\\s+[\\w-]+\\s*,\\s*no\\s+[\\w-]+",
+      "flags": "i",
+      "_about": "spoken_lint.py HIGH, per sentence."
+    },
+    "neg_notjust": {
+      "pattern": "\\b(it|that|this)(?:'s| is| was)\\s+not\\s+(just\\s+)?[^.,;]{2,40}[,.]\\s*(it|that|this)(?:'s| is| was)\\b",
+      "flags": "i",
+      "_about": "spoken_lint.py HIGH, per sentence."
+    },
+    "neg_isnot": {
+      "pattern": "\\b(is|are|was|were)\\s+not\\s+[^.]{2,50}\\.\\s*(It|They|That)\\s+(is|are|was|were)\\b",
+      "flags": "",
+      "_about": "spoken_lint.py HIGH, per sentence."
+    },
+    "sincerity": {
+      "pattern": "\\b(?:and\\s+)?(?:honestly|frankly|truthfully|genuinely|to be fair|let'?s be real|i'?ll be honest|if i'?m honest|real talk)\\b",
+      "flags": "i",
+      "_about": "spoken_lint.py: a candour marker. HIGH when the rest of its sentence is an evaluation with no fact in it."
+    },
+    "eval_copula": {
+      "pattern": "\\b(?:is|was|are|were|'s|s|been|be)\\s+(?:always\\s+|really\\s+|pretty\\s+|quite\\s+|very\\s+|just\\s+)?(?:a\\s+)?(?:good|bad|great|fine|important|interesting|wild|huge|simple|easy|hard|better|worse|smart|crazy|fair|solid|neat|nice|cool|big deal)\\b",
+      "flags": "i",
+      "_about": "spoken_lint.py: the evaluation a candour marker must not be attached to."
+    }
+  },
+  "gates": {
+    "_about": "The human half of the gate, as text. SKILL.md carries the same words; tests/run.sh fails if they drift apart.",
+    "two_question": "Every script ships only if at least one is YES: is this entertaining IN the creator's niche, insider material an insider would grin at or feel seen by; does it teach something the viewer can run. Both is the sweet spot.",
+    "vacuum_test": "A cold scroller with zero context, sound off, one fixation, must instantly get what the video is about."
+  }
+}

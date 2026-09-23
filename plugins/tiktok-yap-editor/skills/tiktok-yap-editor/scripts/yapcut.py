@@ -33,9 +33,9 @@ Cut-placement rules (v2 "perfect cuts" pass, 2026-07-09):
   can be appended in the same pass for any content clip.
 - Per-clause "protect_tail": true keeps a quiet final word (no tail trim).
 
-Usage: yapcut.py --clauses c.json --workdir D --out OUT.mp4
-       [--silence-db -42] [--padr 0.12] [--padl 0.10] [--min-gap 0.55]
-       [--min-seg 0.45] [--bridge-max 0.75] [--min-cut 0.25] [--d 0.10]
+Usage: yapcut.py --clauses c.json --workdir D --out OUT.mp4 [--min-gap S ...]
+Every default comes from the skill's rules.json (cut.*), the rulebook the phone
+editor reads too; a flag overrides it for one run.
 Writes <workdir>/keeps_<out>.json (final cut points) for the QA seam audit.
 clauses: [{"src":"/abs.MOV","start":6.5,"end":16.6,"label":"hook",
            "protect_tail":false}, ...]
@@ -43,26 +43,28 @@ clauses: [{"src":"/abs.MOV","start":6.5,"end":16.6,"label":"hook",
 import argparse, json, math, os, shutil, struct, subprocess, sys, wave as wavmod
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from yaplib import media  # noqa: E402
+from yaplib import media, rules  # noqa: E402
 
-HOP=0.010   # envelope hop, seconds
+C=rules.get("cut")
+HOP=C["envelope"]["hop_s"]   # envelope hop, seconds
 
 def envelope(wav):
-    # Median-smoothed RMS envelope in dB: 30ms windows, 10ms hop, 5-tap median.
+    # Median-smoothed RMS envelope in dB: 30ms windows, 10ms hop, 5-tap median
+    # (cut.envelope in rules.json).
     # Computed ONCE per source and reused by silences(), estimate_floor(),
     # head_onset() and audible_edge() - they all want the same series, and this
     # per-sample loop is the expensive part of a cut.
     w=wavmod.open(wav,"rb"); fr=w.getframerate()
     raw=w.readframes(w.getnframes()); w.close()
     sm=struct.unpack(f"<{len(raw)//2}h",raw)
-    win=int(0.030*fr); hop=int(HOP*fr)
+    E=C["envelope"]; win=int(E["window_s"]*fr); hop=int(HOP*fr); h=E["median_taps"]//2
     raw_db=[]
     for i in range(0,len(sm)-win,hop):
         c=sm[i:i+win]
         r=math.sqrt(sum(x*x for x in c)/len(c))/32768.0
-        raw_db.append(20*math.log10(r) if r>0 else -99.0)
+        raw_db.append(20*math.log10(r) if r>0 else E["zero_db"])
     n=len(raw_db)
-    return [sorted(raw_db[max(0,i-2):min(n,i+3)])[(min(n,i+3)-max(0,i-2))//2]
+    return [sorted(raw_db[max(0,i-h):min(n,i+h+1)])[(min(n,i+h+1)-max(0,i-h))//2]
             for i in range(n)]
 
 def silences(dbs, thr, d):
@@ -87,11 +89,12 @@ def estimate_floor(dbs):
     # ignoring digital-silence padding. Used by --auto-floor (on a noisy take the
     # floor sits ABOVE the fixed -42dB gate, so nothing ever reads as silence and
     # no beat gets cut) and by audible_edge() as the "still audible" reference.
-    vals=sorted(db for db in dbs if db>-70)
-    if not vals: return -60.0
-    return vals[int(0.20*len(vals))]   # 20th percentile ~ the pause floor
+    F=C["floor"]
+    vals=sorted(db for db in dbs if db>F["ignore_below_db"])
+    if not vals: return F["fallback_db"]
+    return vals[int(F["percentile"]*len(vals))]   # 20th percentile ~ the pause floor
 
-def audible_edge(dbs, t, direction, thr, max_travel, stop_at=None, gap_tol=0.09):
+def audible_edge(dbs, t, direction, thr, max_travel, stop_at=None, gap_tol=C["edge"]["gap_tolerance_s"]):
     """Walk the envelope from `t` in `direction` (+1 forward, -1 back) and return
     where the sound genuinely stops or starts, tolerating a stop consonant's
     silent closure on the way.
@@ -139,7 +142,7 @@ def audible_edge(dbs, t, direction, thr, max_travel, stop_at=None, gap_tol=0.09)
             if quiet>tol: break
     return last_good*HOP
 
-def head_onset(dbs, seg_start, seg_end, thr, min_sustain=0.15):
+def head_onset(dbs, seg_start, seg_end, thr, min_sustain=C["head_trim"]["min_sustain_s"]):
     # First time the envelope sustains above `thr` for >= min_sustain within
     # [seg_start, seg_end]. Used by --head-trim to skip a settling / room-tone
     # lead-in that sits ABOVE the silence gate (so silences() never cut it) but
@@ -168,35 +171,35 @@ def main():
     ap.add_argument("--clauses",required=True)
     ap.add_argument("--workdir",default=".yap_build")
     ap.add_argument("--out",required=True)
-    ap.add_argument("--silence-db",type=float,default=-42.0)
-    ap.add_argument("--padl",type=float,default=0.10)
-    ap.add_argument("--padr",type=float,default=0.12)
-    ap.add_argument("--min-gap",type=float,default=0.55)
-    ap.add_argument("--min-seg",type=float,default=0.45)
-    ap.add_argument("--bridge-max",type=float,default=0.75)
-    ap.add_argument("--d",type=float,default=0.10)
-    ap.add_argument("--min-keep",type=float,default=0.10)
-    ap.add_argument("--min-cut",type=float,default=0.25)
-    ap.add_argument("--auto-floor",action="store_true",
+    ap.add_argument("--silence-db",type=float,default=C["silence_db"])
+    ap.add_argument("--padl",type=float,default=C["pad_left_s"])
+    ap.add_argument("--padr",type=float,default=C["pad_right_s"])
+    ap.add_argument("--min-gap",type=float,default=C["min_gap_s"])
+    ap.add_argument("--min-seg",type=float,default=C["min_seg_s"])
+    ap.add_argument("--bridge-max",type=float,default=C["bridge_max_s"])
+    ap.add_argument("--d",type=float,default=C["min_silence_s"])
+    ap.add_argument("--min-keep",type=float,default=C["min_keep_s"])
+    ap.add_argument("--min-cut",type=float,default=C["min_cut_s"])
+    ap.add_argument("--auto-floor",action=argparse.BooleanOptionalAction,default=C["auto_floor"],
         help="measure each take's noise floor and raise the silence gate above "
              "it (needed for noisy/teleprompter takes where the room tone sits "
              "above the fixed gate, so no beat ever gets cut). Never lowers the "
              "gate below --silence-db, and is capped so it cannot eat speech.")
-    ap.add_argument("--floor-margin",type=float,default=2.0,
+    ap.add_argument("--floor-margin",type=float,default=C["floor"]["margin_db"],
         help="dB above the measured floor to set the gate when --auto-floor "
              "(2.0 reproduces the hand-tuned gate that shipped the arc take)")
-    ap.add_argument("--head-trim",action="store_true",
+    ap.add_argument("--head-trim",action=argparse.BooleanOptionalAction,default=C["head_trim"]["enabled"],
         help="drop a settling/room-tone lead-in before the first spoken word "
              "(first clause only). Only trims a 0.3-2.5s lead so it never eats a "
              "genuinely quick start; needs the floor (implies auto-floor's estimate).")
-    ap.add_argument("--head-margin",type=float,default=8.0,
+    ap.add_argument("--head-margin",type=float,default=C["head_trim"]["margin_db"],
         help="dB above the measured floor that counts as confident speech for --head-trim")
-    ap.add_argument("--edge-margin",type=float,default=6.0,
+    ap.add_argument("--edge-margin",type=float,default=C["edge"]["margin_db"],
         help="dB above the measured floor that still counts as AUDIBLE when "
              "placing a boundary. Sits well below the speech gate on purpose: it "
              "tracks a word's decay, not the gate crossing, so a tail ending in "
              "an unvoiced stop or nasal is not cut off mid-phoneme.")
-    ap.add_argument("--tail-extra",type=float,default=0.25,
+    ap.add_argument("--tail-extra",type=float,default=C["edge"]["tail_extra_s"],
         help="how far past --padr the decay search may travel to find a word's "
              "real end (cap; it also stops at the next speech run)")
     ap.add_argument("--grade",default="",
@@ -205,7 +208,7 @@ def main():
              "than grading the finished cut: a separate pass is an extra full "
              "lossy generation, and raising contrast on an already-compressed "
              "encode amplifies its artefacts.")
-    ap.add_argument("--lead",type=float,default=0.03,
+    ap.add_argument("--lead",type=float,default=C["edge"]["lead_s"],
         help="silence kept outside a measured boundary. Small on purpose: the "
              "onset is measured, so the old fixed 0.10s lead-in was audible as "
              "the next word coming in late at every join.")
@@ -229,7 +232,7 @@ def main():
         FLOOR[src]=fl
         thr=a.silence_db
         if a.auto_floor:
-            thr=min(-22.0, max(a.silence_db, fl+a.floor_margin))   # never below default, capped so it can't eat speech
+            thr=min(C["floor"]["ceiling_db"], max(a.silence_db, fl+a.floor_margin))   # never below default, capped so it can't eat speech
             print(f"auto-floor: {os.path.basename(src)} floor ~{fl:.1f}dB -> silence gate {thr:.1f}dB")
         SIL[src]=silences(ENV[src],thr,a.d)
 
@@ -254,7 +257,7 @@ def main():
         if a.head_trim and ci==0 and runs and FLOOR.get(src) is not None:
             onset=head_onset(ENV[src], runs[0][0], runs[0][1], FLOOR[src]+a.head_margin)
             drop=onset-runs[0][0]
-            if 0.3<drop<2.5:
+            if C["head_trim"]["min_drop_s"]<drop<C["head_trim"]["max_drop_s"]:
                 print(f"head-trim: dropped {drop:.2f}s settling lead-in before first word")
                 runs[0]=(onset,runs[0][1])
         # bridge glitch-length runs into the nearer neighbour (gap kept):
@@ -303,7 +306,7 @@ def main():
     merged=[]
     for src,A,B,g in keeps:
         if merged and merged[-1][0]==src and merged[-1][3]==g \
-           and A<=merged[-1][2]+a.min_cut and merged[-1][2]-A<=1.0:
+           and A<=merged[-1][2]+a.min_cut and merged[-1][2]-A<=C["forward_merge_max_s"]:
             if B>merged[-1][2]: merged[-1]=(src,merged[-1][1],B,g)
             continue
         merged.append((src,A,B,g))
@@ -315,7 +318,7 @@ def main():
     concat_a=f"{wd}/concata_{outbase}.txt"; open(concat_a,"w").close()
     # alternating STATIC crop (hard cut, no animation) masks pose-match jump-cut
     # stutter: every consecutive segment toggles scale so a cut always changes framing.
-    ALT=[1.00,1.06]
+    ALT=C["crop_alternation"]
     # DRIFT GUARD: the fps=30 filter emits floor(dur*30)+1 frames per segment
     # (+0.5 frame per cut on average) while the PCM audio is cut sample-exact,
     # so the picture gains ~16ms on the voice AT EVERY JOIN (measured +0.25-0.77s
@@ -341,8 +344,9 @@ def main():
         t_audio+=dur
         nfr=max(1,round(t_audio*30)-f_video)   # frames this segment owes the grid
         f_video+=nfr
+        fd=C["audio_edge_fade_s"]
         af=((f"volume={gain}dB," if gain else "")
-            +f"afade=t=in:st=0:d=0.004,afade=t=out:st={max(0.0,dur-0.004):.4f}:d=0.004")
+            +f"afade=t=in:st=0:d={fd},afade=t=out:st={max(0.0,dur-fd):.4f}:d={fd}")
         z=ALT[i%len(ALT)]; W=round(media.W*z); H=round(media.H*z)
         if W%2: W+=1
         if H%2: H+=1

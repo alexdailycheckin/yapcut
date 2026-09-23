@@ -35,7 +35,9 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from yaplib import media  # noqa: E402
+from yaplib import media, rules  # noqa: E402
+
+D = rules.get("dead_air")   # the thresholds the phone's dead-air gate reads too
 from yaplib import words as ywords  # noqa: E402
 
 
@@ -92,11 +94,11 @@ def main() -> int:
     ap.add_argument("--video", required=True)
     ap.add_argument("--words", help="pre-made PUNCT-SEPARATE word json (no -sow); "
                     "omit to let the gate transcribe the video itself")
-    ap.add_argument("--fail", type=float, default=0.8,
+    ap.add_argument("--fail", type=float, default=D["fail_s"],
                     help="a surviving gap this long is dead air (exit 2)")
-    ap.add_argument("--warn", type=float, default=0.6,
+    ap.add_argument("--warn", type=float, default=D["warn_s"],
                     help="gaps between warn and fail are printed for the ear pass")
-    ap.add_argument("--lead", type=float, default=0.8,
+    ap.add_argument("--lead", type=float, default=D["first_word_max_s"],
                     help="max silence before the first word (cold-open rule)")
     ap.add_argument("--allow", default="",
                     help="comma-separated gap timestamps to permit (+/-0.3s)")
@@ -126,7 +128,7 @@ def main() -> int:
 
     dur = media.probe_duration(a.video)
     tail = dur - toks[-1][1]
-    if dur and tail > 1.2:
+    if dur and tail > D["tail_warn_s"]:
         warns.append((toks[-1][1], dur, toks[-1][2], "<end>"))
 
     for e1, s2, t1, t2 in warns:

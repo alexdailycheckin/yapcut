@@ -47,12 +47,12 @@ MARKER = "brand-config.json"
 # present, overrides the brand's hook_anim for that platform. static_first_frame
 # means the platform's feed judges the first frame muted (LinkedIn autoplays
 # silent and shows a poster frame), so the hook must be fully drawn at 0.00.
-DEFAULT_PLATFORMS = {
-    "tiktok":   {"len": [25, 40], "hook_anim": "none"},
-    "reels":    {"len": [25, 40]},
-    "shorts":   {"len": [25, 60]},
-    "linkedin": {"len": [30, 60], "hook_anim": "none", "static_first_frame": True},
-}
+# The bands live in rules.json (platforms), which the phone editor reads too.
+try:
+    from . import rules as _rules
+except ImportError:                       # run as a script, yaplib/ is on sys.path
+    import rules as _rules
+DEFAULT_PLATFORMS = copy.deepcopy(_rules.get("platforms"))
 
 DEFAULTS = {
     "creator": "",

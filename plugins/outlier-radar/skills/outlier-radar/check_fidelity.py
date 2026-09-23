@@ -52,6 +52,7 @@ from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 
 def _flag(name):
@@ -296,10 +297,8 @@ UNCONTRACTED = re.compile(
 CONTRACTED = re.compile(r"\b\w+['’](s|t|re|ve|ll|d|m)\b", re.I)
 
 # banned outright by voice-card.md, not rationed
-EPIGRAM = re.compile(
-    r"\b(?:is|are|was|were)\s+not\s+(?:a|an|the)?\s*\w+[.,]\s*"
-    r"(?:it|that|they|it'?s|that'?s)\s+(?:is|are|'s)?\s*(?:a|an|the)?\s*\w+", re.I)
-NEG_PARALLEL = re.compile(r"\bit'?s not just \w+.{0,24}it'?s\b", re.I)
+EPIGRAM = rules.regex("epigram_button")        # rules.json patterns.*
+NEG_PARALLEL = rules.regex("neg_parallel")
 
 # an essay's stage directions and strawmen. The approved takeaway lines are NOT here.
 LECTURE = [
@@ -510,7 +509,7 @@ def opening_shape(script):
 # What does apply is the numeral law, the source law, and a legal qa value. The
 # two-question gate stays a human read, it always was.
 
-ALLOWED_QA = {"passed", "pending-approval"}
+ALLOWED_QA = set(rules.get("week.qa_values"))
 
 CARDINALS = (
     "two three four five six seven eight nine ten eleven twelve thirteen "
@@ -634,16 +633,16 @@ def run_linkedin(d):
 # value, a malformed experiment block or a non-string week FAIL because the dashboard
 # and the performance store key on them.
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = rules.get("week.schema_version")
 TOP_KNOWN = {"schema_version", "week", "positioning", "supersedes", "distribution",
              "office", "linkedin", "gtm_linkedin", "inspiration", "experiment", "ammo",
              "promised"}
-VIDEO_LANES = ("distribution", "office")
-POST_LANES = ("linkedin", "gtm_linkedin")
-ID_PREFERRED = re.compile(r"^(d|o|li|li-tw)-\d{8}-\d+$")
+VIDEO_LANES = tuple(l["key"] for l in rules.get("week.video_lanes"))
+POST_LANES = tuple(rules.get("week.post_lanes"))
+ID_PREFERRED = rules.regex("week.id_pattern")
 # d-2026-06-23-9, d-2026-06-23b-8, li-2026-09-07-A1: the dashed shape real weeks use.
-ID_LEGACY = re.compile(r"^(d|o|li|li-tw|x)-\d{4}-\d{2}-\d{2}[a-z]?-[A-Za-z0-9]+$")
-PROOF_KINDS = {"own", "reach", "public"}
+ID_LEGACY = rules.regex("week.id_legacy_pattern")
+PROOF_KINDS = set(rules.get("week.proof_kinds"))
 
 
 def _check_id(pid, where, fails, warns):
@@ -776,7 +775,7 @@ def check_belief_order(it, where, fails, warns):
 # they derive from a measured delivery rate rather than a universal truth.
 # ---------------------------------------------------------------------------
 
-DEFAULT_CEILING, DEFAULT_WPS = 189, 2.9
+DEFAULT_CEILING, DEFAULT_WPS = rules.get("script.word_ceiling"), rules.get("script.words_per_second")
 
 
 def _show_budget():

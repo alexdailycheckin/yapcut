@@ -116,8 +116,13 @@ pass preflight.
   the measurement law.
 - `plugins/tiktok-yap-editor/skills/tiktok-yap-editor/`: the editor playbook, the gate ladder
   (`scripts/gates.sh`), `scripts/yaplib/`, the drivers, `brand-config.example.json`.
-- `tests/`: a synthetic fixture that drives the editor end to end and the radar gates on the
-  example week. `release.sh` is the one release command.
+- `rules.json` in each plugin: the numbers and rules a second surface has to apply the same
+  way (cut rules, caption presets, hook limits, gate thresholds, the week schema, the script
+  patterns). The scripts read them instead of carrying copies, and a phone editor reads the
+  same files, so a rule changes in one place.
+- `tests/`: a synthetic fixture that drives the editor end to end, the radar gates on the
+  example week, and `rules_check.py`, which fails when a rule is copied back into a script.
+  `release.sh` is the one release command.
 
 ## What's new in 3.11.3
 

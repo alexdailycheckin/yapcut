@@ -16,6 +16,11 @@ fails=0
 ok()   { echo "  ok   $1"; }
 bad()  { echo "  FAIL $1"; fails=$((fails+1)); }
 
+# Stage 0: the two rulebooks (rules.json in each plugin) are the only home of their numbers,
+# and they agree with each other and with the playbook. The phone reads the same files.
+echo "[0] rulebooks"
+python3 -B "$ROOT/tests/rules_check.py" && ok "rules_check.py" || bad "rules_check.py"
+
 # Stage 1: the editor on a synthetic fixture (Mode A, Mode B, a hook variant).
 if [ "$FAST" = 0 ]; then
   echo "[1] editor smoke"

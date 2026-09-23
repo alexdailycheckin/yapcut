@@ -29,23 +29,23 @@ import argparse, json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 HOME = radar_home(required=False)   # consumes --dir; the lint needs no workspace itself
 
-BANNED = {"leverage", "utilize", "delve", "seamless", "unlock", "empower",
-          "game-changer", "revolutionize", "guys"}
+# The limits, the banned words, the dash characters and the epigram pattern are
+# rules.json (text_hook.*, patterns.epigram), which the phone gates its scripts with too.
+TH = rules.get("text_hook")
+BANNED = set(TH["banned_words"])
+MAX_WORDS = TH["max_words"]
+DASHES = tuple(TH["dash_chars"])
 
 # The two-sentence antithesis epigram: "That's not a social team. That's a
 # permission structure." Both halves short and symmetrical, the second asserting
 # what the first denied. It reads as a conclusion while carrying no fact, which is
 # why it kept winning the closing slot on merit it did not have. Mirrors the
 # ~/.claude/hooks/prose-gate.py deny, which covers prose files but not week JSON.
-EPIGRAM = re.compile(
-    r"\b(?:it|that|this)(?:'s\s+not|\s+is\s+not|\s+was\s+not|\s+isn'?t|\s+wasn'?t)\s+"
-    r"(?:\w+[ ,]){0,5}\w+\s*[.!?,]\s+"
-    r"(?:it|that|this)(?:'s|\s+is|\s+was)\s+(?:\w+[ ,]){0,5}\w+\s*[.!?]",
-    re.I,
-)
+EPIGRAM = rules.regex("epigram")
 
 # Everything a viewer or reader actually receives. Internal fields (directions,
 # value, psych, note) are working notes and are deliberately not linted.
@@ -75,9 +75,9 @@ def lint_item(item, batch_first_words):
     fails, warns = [], []
 
     nwords = len(hook.split())
-    if nwords > 9:
-        fails.append(f"too-long: {nwords} words (max 9)")
-    if "—" in hook or "–" in hook:
+    if nwords > MAX_WORDS:
+        fails.append(f"too-long: {nwords} words (max {MAX_WORDS})")
+    if any(d in hook for d in DASHES):
         fails.append("banned: em/en dash")
     hits = BANNED & set(re.findall(r"[a-z-]+", hook.lower()))
     if hits:

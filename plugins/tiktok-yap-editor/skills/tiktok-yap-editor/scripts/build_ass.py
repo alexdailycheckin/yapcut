@@ -40,8 +40,11 @@ Usage:
     [--preset minimal|bold|native] \
     [--hook "YOUR HOOK LINE|SECOND LINE"] [--corrections corr.json] \
     [--accent '#FFDE00'] [--font 'Montserrat'] [--caps on|off] \
-    [--cap-y 1320] [--hook-y 640] [--group 3] [--active-scale 113] \
+    [--cap-y N] [--hook-y N] [--group N] [--active-scale N] \
     [--hook-anim none|typewriter] [--hook-static|--no-hook-static]
+
+Every default (the preset table, chunk size, hook fit, fades) comes from the skill's
+rules.json, which the phone editor reads too; a flag overrides it for one run.
 
 Notes on ASS:
   - Colours are &HBBGGRR (NOT RGB) with inverted alpha. yaplib.ass.hex_to_ass.
@@ -57,31 +60,26 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yaplib import ass as yass  # noqa: E402
-from yaplib import fonts, media  # noqa: E402
+from yaplib import fonts, media, rules  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
 
 W, H = media.W, media.H
 CURSOR = "\u258c"           # left half block, the typewriter cursor
-STATIC_HOLD = 1.0           # seconds line 1 stands alone before line 2 types in
+CAP = rules.get("captions")
+HOOK = rules.get("hook")
+STATIC_HOLD = HOOK["typewriter"]["static_hold_s"]   # line 1 stands alone before line 2 types in
+FADE_OUT_MS = int(round(HOOK["fade_out_s"] * 1000))
 
-# preset -> style defaults. accent=None means "no colour, scale only".
-PRESETS = {
-    "minimal": dict(font="Montserrat Black", bold=False, base="#FFFFFF",
-                    outline="#000000", outline_px=7, shadow_px=1,
-                    accent=None, caps=True, active_scale=116,
-                    cap_size=90, cap_y=1320, hook_size=120, hook_y=640,
-                    hook_accent=False, spacing=0),
-    "bold": dict(font="Anton", bold=True, base="#FFFFFF",
-                 outline="#000000", outline_px=9, shadow_px=0,
-                 accent="#FFDE00", caps=True, active_scale=122,
-                 cap_size=96, cap_y=1300, hook_size=132, hook_y=620,
-                 hook_accent=True, spacing=1),
-    "native": dict(font="Montserrat Black", bold=False, base="#FFFFFF",
-                   outline="#000000", outline_px=7, shadow_px=2,
-                   accent="#FFD23F", caps=False, active_scale=110,
-                   cap_size=82, cap_y=1340, hook_size=116, hook_y=650,
-                   hook_accent=False, spacing=0),
-}
+# preset -> style defaults, from rules.json captions.presets (the phone renders from the
+# same table). accent=None means "no colour, scale only". Until 3.3.0 the live minimal
+# look was this table PLUS --active-scale 112 --hook-y 430 in yapfull.sh; the table now
+# carries the live values and the shell passes neither.
+PRESETS = {name: dict(v) for name, v in CAP["presets"].items()}
+
+
+def ass_alpha(a):
+    """ASS back colour for a black shadow at alpha byte a (0 opaque, 255 clear)."""
+    return f"&H{int(a):02X}000000"
 
 hex_to_ass = yass.hex_to_ass
 cs = yass.cs
@@ -174,7 +172,7 @@ def fit_hook(hlines, font_name, caps, spacing_px, base_size,
                       for i, l in enumerate(lines)), default=0)
         if widest <= safe_w and len(lines) <= max_lines:
             return lines, size, n_head
-        size -= 4
+        size -= HOOK["shrink_step"]
     # floor: best effort at min_size (still wrapped, so worst case it shrank)
     lines, n_head = wrap_at(min_size)
     return lines, min_size, n_head
@@ -254,9 +252,9 @@ def main():
     ap.add_argument("--caps", choices=["on", "off"], default=None)
     ap.add_argument("--cap-y", type=int, default=None)
     ap.add_argument("--hook-y", type=int, default=None)
-    ap.add_argument("--group", type=int, default=3)
+    ap.add_argument("--group", type=int, default=CAP["words_per_chunk"])
     ap.add_argument("--active-scale", type=int, default=None)
-    ap.add_argument("--hook-secs", type=float, default=2.5)
+    ap.add_argument("--hook-secs", type=float, default=HOOK["seconds"])
     ap.add_argument("--hook-anim", choices=["none", "typewriter"], default="none",
                     help="typewriter = the SECOND hook line types in from 1.0s (line 1 is "
                          "static from 0.00 unless --no-hook-static)")
@@ -274,12 +272,12 @@ def main():
     ap.add_argument("--accent-hex", default="",
                     help="brand accent colour for hook spark + counter, even when "
                          "the caption highlight is scale-only (--accent none)")
-    ap.add_argument("--hook-safe-frac", type=float, default=0.90,
+    ap.add_argument("--hook-safe-frac", type=float, default=HOOK["safe_width_frac"],
                     help="fraction of the 1080px width the hook may occupy before it "
                          "is wrapped/shrunk. The hook is NEVER allowed past this.")
-    ap.add_argument("--hook-max-lines", type=int, default=3,
+    ap.add_argument("--hook-max-lines", type=int, default=HOOK["max_lines"],
                     help="max hook lines; shrink the font rather than overflow this.")
-    ap.add_argument("--hook-min-size", type=int, default=54,
+    ap.add_argument("--hook-min-size", type=int, default=HOOK["min_size"],
                     help="floor for hook auto-shrink (px).")
     a = ap.parse_args()
 
@@ -350,13 +348,13 @@ def main():
         return f"{{\\an5\\pos({W // 2},{p['cap_y']})}}{body}"
 
     for gi, g in enumerate(groups):
-        gend = groups[gi + 1][0][0] if gi + 1 < len(groups) else g[-1][1] + 0.30
+        gend = groups[gi + 1][0][0] if gi + 1 < len(groups) else g[-1][1] + CAP["tail_hold_s"]
         toks = [disp(w[2]) for w in g]
         for k in range(len(g)):
             st = g[k][0]
             en = g[k + 1][0] if k + 1 < len(g) else gend
             if en <= st:
-                en = st + 0.08
+                en = st + CAP["min_event_s"]
             events.append((st, en, "Cap", line_text(toks, k)))
 
     # --- hook line (upper-middle) ---
@@ -371,7 +369,7 @@ def main():
             # shrink until the widest line fits a title-safe width. Author '|'
             # breaks are kept as hard breaks; we only ADD breaks / shrink.
             safe_w = a.hook_safe_frac * W
-            SUB_FRAC = 0.55
+            SUB_FRAC = HOOK["styles"]["minimal"]["sub_frac"]
             disp_lines, fit_size, n_head = fit_hook(
                 hlines, p["font"], p["caps"], p["spacing"],
                 p["hook_size"], safe_w, a.hook_max_lines, a.hook_min_size,
@@ -421,13 +419,14 @@ def main():
                     events.append((st, en + 0.001, "Hook",
                                    f"{{{pos}\\1c{hk_col}}}{sub}{cursor}"))
                 events.append((type_dur, a.hook_secs, "Hook",
-                               f"{{{pos}\\1c{hk_col}\\fad(0,250)}}{spark(full)}"))
+                               f"{{{pos}\\1c{hk_col}\\fad(0,{FADE_OUT_MS})}}{spark(full)}"))
             elif a.hook_anim == "typewriter" and tail_txt:
                 # Line 1 static and complete from 0.00 (no fade-in), line 2
                 # types in from STATIC_HOLD. During the hold a fully transparent
                 # glyph stands in for line 2 so the block height, and therefore
                 # line 1's position, never jumps when typing starts.
-                type_dur = min(1.1, max(0.2, (a.hook_secs - STATIC_HOLD) * 0.5))
+                TW = HOOK["typewriter"]
+                type_dur = min(TW["max_type_s"], max(TW["min_type_s"], (a.hook_secs - STATIC_HOLD) * 0.5))
                 units = tw_units(tail_txt, glue_newline=True)
                 placeholder = f"\\N{{\\fs{sub_fs}\\alpha&HFF&}}{CURSOR}"
                 events.append((0.0, STATIC_HOLD, "Hook",
@@ -441,11 +440,11 @@ def main():
                     events.append((st, en + 0.001, "Hook",
                                    f"{{{pos}\\1c{hk_col}}}{spark(head_txt)}{partial}{cursor}"))
                 events.append((STATIC_HOLD + type_dur, a.hook_secs, "Hook",
-                               f"{{{pos}\\1c{hk_col}\\fad(0,250)}}{spark(full)}"))
+                               f"{{{pos}\\1c{hk_col}\\fad(0,{FADE_OUT_MS})}}{spark(full)}"))
             else:
                 # static hook: fully drawn at frame zero, no fade-in, fades out.
                 events.append((0.0, a.hook_secs, "Hook",
-                               f"{{{pos}\\1c{hk_col}\\fad(0,250)}}{spark(full)}"))
+                               f"{{{pos}\\1c{hk_col}\\fad(0,{FADE_OUT_MS})}}{spark(full)}"))
 
     # --- optional extra overlays: source lower-thirds + number count-ups ---
     if a.overlays:
@@ -516,17 +515,18 @@ def main():
                  "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
                  "Alignment, MarginL, MarginR, MarginV, Encoding")
     cap_style = (f"Style: Cap,{p['font']},{p['cap_size']},{base_ass},{base_ass},"
-                 f"{out_ass},&H64000000,{bold},0,0,0,100,100,{p['spacing']},0,1,"
+                 f"{out_ass},{ass_alpha(CAP['shadow_ass_alpha'])},{bold},0,0,0,100,100,{p['spacing']},0,1,"
                  f"{p['outline_px']},{p['shadow_px']},5,90,90,0,0")
+    HM, HO = HOOK["styles"]["minimal"], HOOK["styles"]["outline"]
     if a.hook_style == "minimal":
         # no outline, soft shadow only (the hook_styles.py minimal look, inline)
         hook_style = (f"Style: Hook,{p['font']},{p['hook_size']},{base_ass},{base_ass},"
-                      f"{out_ass},&H5A000000,{bold},0,0,0,100,100,{p['spacing']},0,1,"
-                      f"0,3,5,80,80,0,0")
+                      f"{out_ass},{ass_alpha(HM['shadow_ass_alpha'])},{bold},0,0,0,100,100,{p['spacing']},0,1,"
+                      f"{HM['outline_px']},{HM['shadow_px']},5,80,80,0,0")
     else:
         hook_style = (f"Style: Hook,{p['font']},{p['hook_size']},{base_ass},{base_ass},"
-                      f"{out_ass},&H64000000,{bold},0,0,0,100,100,{p['spacing']},0,1,"
-                      f"{p['outline_px'] + 1},{p['shadow_px']},5,80,80,0,0")
+                      f"{out_ass},{ass_alpha(HO['shadow_ass_alpha'])},{bold},0,0,0,100,100,{p['spacing']},0,1,"
+                      f"{p['outline_px'] + HO['outline_extra_px']},{p['shadow_px']},5,80,80,0,0")
 
     lines = []
     lines.append("[Script Info]")

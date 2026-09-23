@@ -76,20 +76,22 @@ gate_finish() {
 # --- hook words: count BEFORE the cut, all lines. >9 fails, >7 warns. ---------
 gate_hook_words() {                  # gate_hook_words "<hook|line2>" "<spark>" <anim> <style> <secs>
   local hook="$1" spark="${2:-}" anim="${3:-none}" style="${4:-outline}" secs="${5:-5.0}"
-  local n rc=0
+  local n rc=0 max warn
+  max=$(python3 "$SCRIPTS/yaplib/rules.py" get hook.max_words)
+  warn=$(python3 "$SCRIPTS/yaplib/rules.py" get hook.warn_words)
   n=$(python3 -c 'import sys; print(len(" ".join(sys.argv[1].split("|")).split()))' "$hook")
   echo "--- gate hook_words: $n word(s) ---"
-  if [ "$n" -gt 9 ]; then
+  if [ "$n" -gt "$max" ]; then
     if [ "${YAP_ALLOW_LONG_HOOK:-0}" = "1" ]; then
-      echo "  hook is $n words (limit 9), allowed by YAP_ALLOW_LONG_HOOK=1"; rc=1
+      echo "  hook is $n words (limit $max), allowed by YAP_ALLOW_LONG_HOOK=1"; rc=1
     else
       echo "  hook is $n words. The burned hook is read in one fixation by a muted"
       echo "  viewer; the aug 24 batch ran 6 to 8 words, aug 30 ran 9 to 13 and the"
-      echo "  editor shrank them to fit. Cut it to 7, or YAP_ALLOW_LONG_HOOK=1."
+      echo "  editor shrank them to fit. Cut it to $warn, or YAP_ALLOW_LONG_HOOK=1."
       rc=2
     fi
-  elif [ "$n" -gt 7 ]; then
-    echo "  hook is $n words: over the 7-word target, under the 9-word limit"; rc=1
+  elif [ "$n" -gt "$warn" ]; then
+    echo "  hook is $n words: over the $warn-word target, under the $max-word limit"; rc=1
   fi
   python3 - "$GATES_JSON" "$hook" "$n" "$spark" "$anim" "$style" "$secs" <<'PY'
 import json, sys
@@ -180,8 +182,15 @@ gate_receipts() {                    # gate_receipts <words.json> <overlays|""> 
 gate_retention() {                   # gate_retention <video> <overlays|""> <cap.ass> <duration> <keeps|"">
   local video="$1" ovr="$2" ass="$3" dur="$4" keeps="${5:-}" rc=0 hookend maxgap
   hookend=$(python3 "$SCRIPTS/yaplib/ass.py" hook-end "$ass" 2>/dev/null || echo 2.5)
-  # 5s budget for short form, 6s once the video is 60s+ (a longer video may breathe)
-  maxgap=$(python3 -c 'import sys; print("6.0" if float(sys.argv[1]) >= 60 else "5.0")' "$dur")
+  # 5s budget for short form, 6s once the video is 60s+ (a longer video may breathe);
+  # the numbers are rules.json retention.*
+  maxgap=$(python3 - "$SCRIPTS/yaplib/rules.py" "$dur" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("rules", sys.argv[1]); r = importlib.util.module_from_spec(spec); spec.loader.exec_module(r)
+R = r.get("retention")
+print(R["max_static_long_s"] if float(sys.argv[2]) >= R["long_video_s"] else R["max_static_s"])
+PY
+)
   echo "--- gate retention (hook-end ${hookend}s, max-gap ${maxgap}s) ---"
   if [ "${YAP_ALLOW_STATIC:-0}" = "1" ]; then
     echo "  skipped by YAP_ALLOW_STATIC=1 (deliberate slow burn)"; rc=1

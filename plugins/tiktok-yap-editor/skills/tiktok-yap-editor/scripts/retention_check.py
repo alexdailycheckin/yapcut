@@ -36,7 +36,9 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from yaplib import media  # noqa: E402
+from yaplib import media, rules  # noqa: E402
+
+RT = rules.get("retention")   # the thresholds the phone's retention gate reads too
 
 
 def scene_events(video: str, threshold: float) -> list:
@@ -83,15 +85,15 @@ def main() -> int:
     ap.add_argument("--overlays", help="overlays.json (source tags, counters, pip)")
     ap.add_argument("--keeps", help="keeps_full_<out>.json from yapcut: scene events at its "
                     "joins are the cutter's, not the editor's, and are discarded")
-    ap.add_argument("--join-tol", type=float, default=0.2,
+    ap.add_argument("--join-tol", type=float, default=RT["join_exclusion_s"],
                     help="a scene event within this many seconds of a join is a join")
     ap.add_argument("--hook-end", type=float, default=5.2,
                     help="when the burned hook disappears (that is an event)")
-    ap.add_argument("--max-gap", type=float, default=5.0,
+    ap.add_argument("--max-gap", type=float, default=RT["max_static_s"],
                     help="longest allowed stretch with no visual event")
-    ap.add_argument("--first", type=float, default=3.5,
+    ap.add_argument("--first", type=float, default=RT["rehook_window_s"][1],
                     help="re-hook window: need an event between 0.3s and this")
-    ap.add_argument("--scene", type=float, default=0.10,
+    ap.add_argument("--scene", type=float, default=RT["scene_threshold"],
                     help="ffmpeg scene-change threshold")
     args = ap.parse_args()
 
@@ -118,7 +120,7 @@ def main() -> int:
     failed = False
 
     # Re-hook window: something must change on screen in seconds ~2-4.
-    rehook = [t for t in events if 0.3 <= t <= args.first]
+    rehook = [t for t in events if RT["rehook_window_s"][0] <= t <= args.first]
     if rehook:
         print(f"re-hook: OK (event at {rehook[0]:.1f}s)")
     else:

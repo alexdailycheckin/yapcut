@@ -2,6 +2,47 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.12.0 (outlier-radar)
+
+**One rulebook per plugin, read by the Mac and the phone.** The script rules that a second
+surface has to apply the same way now live in `rules.json` beside the playbook: the week
+schema's video lanes, qa values, id shapes and proof kinds, the word ceiling and pace, the
+text-hook limit, banned words and dash characters, the epigram, negative-parallelism and
+candour patterns, and the two-question gate and vacuum test as text. `check_fidelity.py`,
+`hook_lint.py`, `spoken_lint.py` and `build_pack.py` read them through `rules.py` instead of
+carrying their own copy, and a phone editor reads the same file to parse week files and to
+gate the scripts it writes. Change a rule once and both follow on the next release.
+
+Nothing changed in what the gates decide. Every pattern and value was extracted from the code
+and compared after the move; they are identical, and the test suite is green on the same
+fixtures. `tests/rules_check.py` (stage 0 of `tests/run.sh`) fails the build when a rule is
+copied back into a script, when the two plugins disagree on the text-hook limit, or when the
+gate wording in `rules.json` stops matching `SKILL.md`.
+
+
+## What's new in 3.3.0 (tiktok-yap-editor)
+
+**Every shared number in one file.** `rules.json` at the skill root now holds the cut rules
+(envelope, floor, head trim, gaps, bridging, pads, edges, crop alternation, audio fades), the
+caption presets, the hook fit and animation timings, the retention, dead-air and loudness
+thresholds and the platform bands. `yaplib/rules.py` loads it, and `yapcut.py`,
+`build_ass.py`, `gates.sh`, `retention_check.py`, `gap_check.py`, `compose_ass.sh` and
+`brand.py` read from it. A phone editor reads the same file, so the Mac and the phone cut,
+caption and gate the same way.
+
+**The duplicates are gone.** Six cutter numbers lived in both `yapcut.py` and `yapfull.sh`,
+`--auto-floor` and `--head-trim` were only on because the shell passed them, and the live
+caption look was the `minimal` preset (active scale 116, hook at y 640) overridden by
+`--active-scale 112 --hook-y 430` in two shell scripts. The preset now carries the live values
+and the shells pass none of them. `--auto-floor` and `--head-trim` default on from the
+rulebook and take `--no-auto-floor` and `--no-head-trim`. `build_ass.py --hook-secs` now
+defaults to the live 5.0 seconds instead of 2.5.
+
+Nothing changed in what ships. The cutter produced the same cut points on a real 80 second
+take before and after, `build_ass.py` wrote byte-identical files for every hook style and
+animation, and the editor smoke test lands on -14.0 LUFS as before.
+
+
 ## What's new in 3.11.3 (outlier-radar)
 
 **Doc fix.** The worked-example paths in `references/linkedin-visuals.md` follow the workspace's folder naming, name first and then date (`carousels/<slug>-<date>/`).
