@@ -33,6 +33,7 @@ import base64
 import glob
 import json
 import os
+import shutil
 import re
 import subprocess
 import sys
@@ -463,6 +464,27 @@ def render(ws, cfg, weeks, campaigns, seed):
     return html
 
 
+def sync_mobile(ws, cfg, weeks, bundled):
+    """Copy the newest week and the brand config into `mobile.sync_dir`, the folder the phone
+    editor reads (the Anima app, linked once from Files, usually in iCloud Drive). Its cuts and
+    edit records come back into `<sync_dir>/output/<week>/`, which `log_perf.py --edits`
+    reads like any output folder. Off unless the config names the folder."""
+    d = ((cfg.get("mobile") or {}).get("sync_dir") or "").strip()
+    if not d or bundled or not weeks:
+        return
+    d = os.path.expanduser(d)
+    try:
+        os.makedirs(d, exist_ok=True)
+        newest = weeks[0][0]
+        shutil.copy2(newest, os.path.join(d, os.path.basename(newest)))
+        brand = os.path.join(ws, "brand-config.json")
+        if os.path.exists(brand):
+            shutil.copy2(brand, os.path.join(d, "brand-config.json"))
+        print(f"synced {os.path.basename(newest)} to the phone folder {d}")
+    except OSError as e:
+        warn(f"could not sync to mobile.sync_dir {d}: {e}")
+
+
 def open_file(path):
     try:
         if sys.platform == "darwin":
@@ -515,6 +537,7 @@ def main(argv=None):
         fh.write(html)
     tail = f", tracking seeded for {len(seed)} id(s) from {n_events} event(s)" if n_events else ""
     print(f"wrote {dest} from {len(weeks)} week(s){tail}")
+    sync_mobile(ws, cfg, weeks, bundled)
     if args.open:
         open_file(dest)
     return 0

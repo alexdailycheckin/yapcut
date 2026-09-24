@@ -117,7 +117,7 @@ When something breaks in the niche mid-week and the creator asks, or the sweep f
 
 ## Handoff to the editor
 
-Route picked scripts to `tiktok-yap-editor`. Mode A (talking head) is the default; a `day-in-life-vo` script with `beats[]` routes to Mode B. Write `post_copy` on the item (caption, description, `search_query` verbatim, pinned comment) so the editor's finalize step ships the video with its words. The editor writes an edit record carrying the item id; `log_perf.py --edits <output dir>` joins the cut to the outcome.
+Route picked scripts to `tiktok-yap-editor`. Mode A (talking head) is the default; a `day-in-life-vo` script with `beats[]` routes to Mode B. On a phone: with `mobile.sync_dir` set, `build_dashboard.py` copies the newest week and `brand-config.json` into that folder, the Anima app films and cuts from it with the editor's own `rules.json`, and its cuts and edit records land in `<sync_dir>/output/<week>/` for `log_perf.py --edits`. Write `post_copy` on the item (caption, description, `search_query` verbatim, pinned comment) so the editor's finalize step ships the video with its words. The editor writes an edit record carrying the item id; `log_perf.py --edits <output dir>` joins the cut to the outcome.
 
 ## Optional layers (config-gated)
 

@@ -2,6 +2,16 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.12.1 (outlier-radar)
+
+**The week reaches the phone.** With `mobile.sync_dir` set in `radar-config.json`,
+`build_dashboard.py` copies the newest week and `brand-config.json` into that folder after every
+build. The Anima app links the folder once from Files, puts the week on its board, films each
+script off its prompter and cuts it on the phone with the editor's own `rules.json`. Its cuts
+and edit records come back into `<sync_dir>/output/<week>/`, which `log_perf.py --edits` reads
+like any output folder. An iCloud Drive folder works on a Mac; empty turns it off.
+
+
 ## What's new in 3.3.1 (tiktok-yap-editor)
 
 **Cuts land where they were planned on iPhone footage.** An iPhone MOV's audio track starts
