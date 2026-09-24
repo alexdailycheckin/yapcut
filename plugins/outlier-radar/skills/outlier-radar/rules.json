@@ -112,5 +112,116 @@
     "_about": "The human half of the gate, as text. SKILL.md carries the same words; tests/run.sh fails if they drift apart.",
     "two_question": "Every script ships only if at least one is YES: is this entertaining IN the creator's niche, insider material an insider would grin at or feel seen by; does it teach something the viewer can run. Both is the sweet spot.",
     "vacuum_test": "A cold scroller with zero context, sound off, one fixation, must instantly get what the video is about."
+  },
+  "onboarding": {
+    "_about": "The first-run interview (SKILL.md, First run: discovery) as the phone asks it. Each question's skill_ref must appear in SKILL.md, so the Mac interview cannot change without this list changing with it (tests/rules_check.py). The phone asks in the second person; the playbook describes the same questions in the third.",
+    "questions": [
+      {
+        "key": "audience",
+        "skill_ref": "**Who should recognise you, and for what.**",
+        "ask": "Who should recognise you, and for what?",
+        "hint": "Say who the people are, the sentence you want them to say about you, and where you show up every week.",
+        "answer": "voice"
+      },
+      {
+        "key": "identity",
+        "skill_ref": "**Name, site or handle.**",
+        "ask": "What's your name, and your site or handle?",
+        "hint": "It goes on your videos and in your captions.",
+        "answer": "text"
+      },
+      {
+        "key": "niche",
+        "skill_ref": "**Niche** (one line) and **2 to 4 facets** to rotate.",
+        "ask": "What's your niche, in one line? And the 2 to 4 topics you rotate between?",
+        "hint": "Say it the way you'd say it to someone at a dinner.",
+        "answer": "voice"
+      },
+      {
+        "key": "proof",
+        "skill_ref": "Five things they have done that a competitor cannot claim, with a number and a date each.",
+        "ask": "Name 5 things you've done that a competitor can't claim.",
+        "hint": "A number and a date for each one, if you have them. This is the material nobody else can use.",
+        "answer": "voice"
+      },
+      {
+        "key": "beliefs",
+        "skill_ref": "Five beliefs the niche gets wrong and the moment they were proven right.",
+        "ask": "What does your niche get wrong, and when were you proven right?",
+        "hint": "Give the belief, then the moment it broke.",
+        "answer": "voice"
+      },
+      {
+        "key": "methods",
+        "skill_ref": "Three processes they run, each with its kill threshold.",
+        "ask": "Walk through 3 processes you run, and when you'd kill each one.",
+        "hint": "Steps someone could copy this week.",
+        "answer": "voice"
+      },
+      {
+        "key": "never_say",
+        "skill_ref": "Ten lines they would never say.",
+        "ask": "What would you never say on camera?",
+        "hint": "Phrases, openers, words. Scripts will never use them.",
+        "answer": "voice"
+      },
+      {
+        "key": "corpus",
+        "skill_ref": "**The corpus.**",
+        "ask": "Talk for a minute about something in your niche, like you'd tell a friend.",
+        "hint": "Unscripted. This is how YapCut learns how you actually talk.",
+        "answer": "voice",
+        "repeat": 2
+      },
+      {
+        "key": "platforms",
+        "skill_ref": "**Channels.**",
+        "ask": "Where do you post?",
+        "answer": "choice",
+        "options": [
+          "TikTok",
+          "Reels",
+          "Shorts",
+          "LinkedIn"
+        ]
+      },
+      {
+        "key": "quantity",
+        "skill_ref": "**Cadence and quantity.**",
+        "ask": "How many videos will you actually film each week?",
+        "hint": "Scripts you don't film teach YapCut nothing, so pick the real number.",
+        "answer": "number",
+        "default": 3,
+        "min": 1,
+        "max": 7
+      }
+    ]
+  },
+  "writer": {
+    "_about": "What the phone's script writer is told, in the playbook's own words. Each string appears verbatim in SKILL.md.",
+    "language": "`references/the-language-layer.md` sets the sentences: money word last, source attributed before the claim, no mid-sentence clauses, \"you\" outnumbering \"I\", contractions always, the spoken filler kept at the monologue rate and attached to a fact.",
+    "five_moves": [
+      {
+        "move": "The receipt",
+        "does": "The number or artifact on screen in frame one, spoken flat"
+      },
+      {
+        "move": "The belief",
+        "does": "What the viewer already believes about this, in their words, as if it were true"
+      },
+      {
+        "move": "The break",
+        "does": "The receipts that make the belief untenable, but/therefore chained"
+      },
+      {
+        "move": "The mechanism",
+        "does": "Why it happened, arriving as the consequence of move 3, never announced"
+      },
+      {
+        "move": "The verdict",
+        "does": "The creator's POV in one line, money word last, hard stop"
+      }
+    ],
+    "quantity": "`quantity`: default 3 video slots, 2 spares, 5 LinkedIn slots"
   }
 }

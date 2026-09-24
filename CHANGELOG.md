@@ -2,6 +2,17 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.12.2 (outlier-radar)
+
+**The first-run interview and the writer's rules, as data.** `rules.json` gains `onboarding`,
+the ten first-run questions as a phone asks them (who should recognise you, name, niche and
+facets, proof, beliefs, processes, lines you would never say, the corpus, channels, quantity),
+and `writer`, the language-layer line, the five moves table and the default quantity in the
+playbook's own words. A phone editor that onboards a creator without a Mac asks the same
+questions and writes to the same rules. `tests/rules_check.py` fails when a question's
+reference text or a writer line no longer appears in `SKILL.md`, so the two cannot drift.
+
+
 ## What's new in 3.12.1 (outlier-radar)
 
 **The week reaches the phone.** With `mobile.sync_dir` set in `radar-config.json`,

@@ -78,6 +78,20 @@ if ra:
     if squash(ra["gates"]["vacuum_test"]) not in squash(text(os.path.join(RA, "hook_lint.py"))):
         fails.append("radar rules.json gates.vacuum_test no longer matches hook_lint.py's docstring")
 
+# The phone's interview and writer text must still be what the playbook says.
+if ra:
+    skill = text(os.path.join(RA, "SKILL.md"))
+    for q in (ra.get("onboarding") or {}).get("questions", []):
+        if q.get("skill_ref") and q["skill_ref"] not in skill:
+            fails.append(f"radar onboarding question '{q.get('key')}' points at SKILL.md text that is gone: {q['skill_ref']!r}")
+    w = ra.get("writer") or {}
+    for label in ("language", "quantity"):
+        if w.get(label) and w[label] not in skill:
+            fails.append(f"radar writer.{label} no longer appears verbatim in SKILL.md")
+    for m in w.get("five_moves", []):
+        if f"| {m['move']} | {m['does']} |" not in skill:
+            fails.append(f"radar writer.five_moves '{m['move']}' no longer matches the SKILL.md table")
+
 # Every pattern compiles.
 for name, spec in (ra.get("patterns") or {}).items():
     if name.startswith("_"):
