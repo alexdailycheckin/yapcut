@@ -2,6 +2,20 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.3.1 (tiktok-yap-editor)
+
+**Cuts land where they were planned on iPhone footage.** An iPhone MOV's audio track starts
+about 29 ms after its video. The cutter measures every time (the clauses, whisper's words, the
+energy envelope) from the first audio sample, but `ffmpeg -ss` seeks the movie's own timeline,
+so every cut landed 29 ms early. That put 29 ms of extra lead-in before each onset, which is the
+late-sounding next word the 0.03 s lead was tuned to remove, and took 29 ms off the decay-aware
+tail margin that stops words ending in a stop or a nasal from clipping. Measured on a real take
+by cross-correlating seeks against the full decode: -29.0 ms at every point. `yaplib.media.
+audio_start()` reads the audio stream's start against the file's, and `yapcut.py` shifts only
+the seek, so `keeps_<out>.json` and everything upstream keep the clock they already agree on.
+Found while checking the phone editor, which reads the same `rules.json`, against this cutter.
+
+
 ## What's new in 3.12.0 (outlier-radar)
 
 **One rulebook per plugin, read by the Mac and the phone.** The script rules that a second

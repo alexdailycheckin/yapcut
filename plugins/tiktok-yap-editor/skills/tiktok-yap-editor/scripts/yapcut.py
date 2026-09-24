@@ -333,6 +333,15 @@ def main():
     # segment by ONE stream's duration, so whenever a paced video track ran
     # shorter than its audio the join CLIPPED audio (measured -0.116s / 19
     # segments). Separate concats keep video = sum(nfr) and audio sample-exact.
+    # AUDIO START OFFSET (3.3.1). Every time above (the clauses, whisper's words, this
+    # envelope) is measured from the first AUDIO sample, but -ss/-to below seek the MOVIE
+    # timeline, and an iPhone MOV's audio starts ~29 ms after its video. Uncorrected, every
+    # cut landed that much early: 29 ms of extra lead-in before each onset and 29 ms off the
+    # decay-aware tail margin. The shift is applied only at the seek, so keeps_<out>.json and
+    # everything upstream stay on the one clock they already agree on.
+    AOFF={src: media.audio_start(src) for src in {k[0] for k in keeps}}
+    for src,off in AOFF.items():
+        if off: print(f"audio start: {os.path.basename(src)} audio begins {off*1000:.0f}ms into the movie; seeks shifted to match")
     t_audio=0.0; f_video=0
     for i,(src,s,e,gain) in enumerate(keeps):
         ov=f"{segdir}/yc_{i:03d}.mov"; oa=f"{segdir}/ya_{i:03d}.wav"
@@ -362,7 +371,7 @@ def main():
         # -ss/-to (not -t): input -t measures from the packet where reading
         # starts, not from the seek point, and shaves ~5-10ms of AUDIO per
         # segment. -to is sample-exact.
-        subprocess.run(["ffmpeg","-nostdin","-y","-ss",f"{s:.3f}","-to",f"{e:.3f}",
+        subprocess.run(["ffmpeg","-nostdin","-y","-ss",f"{s+AOFF[src]:.3f}","-to",f"{e+AOFF[src]:.3f}",
             "-i",src,
             "-map","0:v","-vf",vf,"-frames:v",str(nfr),
             # Segments are throwaway intermediates that get re-encoded at the

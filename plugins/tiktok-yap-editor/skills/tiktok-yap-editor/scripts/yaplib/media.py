@@ -55,6 +55,29 @@ def probe_duration(path):
         raise MediaError(f"ffprobe duration: no duration for {path!r} (got {out!r})") from None
 
 
+def audio_start(path):
+    """How far after movie time zero the first audio stream starts, in seconds (0.0 if none).
+
+    An iPhone MOV's audio track routinely starts ~29 ms after its video. Anything that
+    decodes the audio to a WAV (the cutter's envelope, whisper's words) measures from the
+    first audio sample, while `ffmpeg -ss` seeks the movie timeline, so a time measured on
+    the WAV lands this much early when used as a seek point. Measured 2026-09-24 by
+    cross-correlating seeks against the full decode: -29.0 ms at every point in the take.
+    """
+    def probe(entries, select=None):
+        cmd = ["ffprobe", "-v", "error"] + (["-select_streams", select] if select else []) + [
+            "-show_entries", entries, "-of", "csv=p=0", str(path)]
+        out = run(cmd, what="ffprobe start").stdout.strip().splitlines()
+        try:
+            return float(out[0]) if out else 0.0
+        except ValueError:
+            return 0.0
+    # -ss counts from the file's own start, which is not always zero, so the offset is the audio
+    # stream's start relative to the container's.
+    v = probe("stream=start_time", "a:0") - probe("format=start_time")
+    return v if v == v and 0.0 < v < 1.0 else 0.0
+
+
 def probe_streams(path):
     """{codec_type: {duration, width, height, sample_rate, r_frame_rate}} for
     the first stream of each type."""
