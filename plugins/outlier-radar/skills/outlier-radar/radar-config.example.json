@@ -88,8 +88,7 @@
   "experiment_per_week": true,
   "_comment_v2": "2026-09-09: audience, voice (as a block), quantity and secondary_lane.enabled added. The weekly run reads quantity instead of the old 'about 10 per lane' bar.",
   "mobile": {
-    "_what": "Optional. Set by anima_link.py (say: connect anima), which puts it inside the Anima app's own iCloud Drive folder. build_dashboard.py copies the newest week into <sync_dir>/weeks/ with brand-config.json and status.json after every build, and the phone writes its cuts and edit records back into output/<week>/ there. Empty turns it off.",
-    "sync_dir": "",
+    "_what": "Set by anima_link.py (say: connect anima) the first time it runs. The Anima app on the phone pairs with this workspace over the local Wi-Fi while anima_link.py runs; what the phone sends lands in mobile/ in the workspace.",
     "workspace_id": ""
   }
 }

@@ -24,7 +24,7 @@ The output is a weekly batch of filmable scripts and LinkedIn posts on a dashboa
 | the first-mover lane, coined terms | `references/trend-creation.md` |
 | what happens after the post is written | `references/distribution.md` |
 | a gate is red | the gate's own output names the rule; `radar_gate.py --help` |
-| connecting the Anima app on the creator's iPhone ("connect anima") | `python3 anima_link.py`, then tell them their phone now asks to connect |
+| connecting the Anima app on the creator's iPhone ("connect anima") | run `python3 anima_link.py` in the background and give them the 6-digit code it prints; the phone syncs while it runs |
 
 ## The workspace
 
@@ -118,7 +118,7 @@ When something breaks in the niche mid-week and the creator asks, or the sweep f
 
 ## Handoff to the editor
 
-Route picked scripts to `tiktok-yap-editor`. Mode A (talking head) is the default; a `day-in-life-vo` script with `beats[]` routes to Mode B. On a phone: "connect anima" (`anima_link.py`) gives the workspace a folder inside the Anima app's own iCloud Drive folder and sets `mobile.sync_dir` to it; from then on `build_dashboard.py` copies the newest week into its `weeks/` with `brand-config.json` and a `status.json`, the Anima app films and cuts from it with the editor's own `rules.json`, and its cuts and edit records land in `<sync_dir>/output/<week>/` for `log_perf.py --edits`. Write `post_copy` on the item (caption, description, `search_query` verbatim, pinned comment) so the editor's finalize step ships the video with its words. The editor writes an edit record carrying the item id; `log_perf.py --edits <output dir>` joins the cut to the outcome.
+Route picked scripts to `tiktok-yap-editor`. Mode A (talking head) is the default; a `day-in-life-vo` script with `beats[]` routes to Mode B. On a phone: "connect anima" (`anima_link.py`) opens a link on the local Wi-Fi while it runs; the Anima app pairs with the 6-digit code it prints, reads the newest week and `brand-config.json` from it, films and cuts with the editor's own `rules.json`, and sends its picks, kills and posted links to `mobile/inbox/` and its cuts and edit records to `mobile/output/<week>/` for `log_perf.py --edits`. Write `post_copy` on the item (caption, description, `search_query` verbatim, pinned comment) so the editor's finalize step ships the video with its words. The editor writes an edit record carrying the item id; `log_perf.py --edits <output dir>` joins the cut to the outcome.
 
 ## Optional layers (config-gated)
 

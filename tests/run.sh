@@ -74,35 +74,46 @@ rm -f "$WS/weeks/0000-00-00-late.json" "$WS/weeks/0000-00-00-para.json"
 # no workspace: exit 2, never the skill folder
 ( cd /tmp && env -u YAPCUT_HOME -u OUTLIER_RADAR_HOME -u LEAD_MAGNET_HOME HOME=/tmp/yapcut-nohome python3 "$RADAR/yapcut_home.py" >/dev/null 2>&1 ); [ $? = 2 ] && ok "no workspace exits 2" || bad "no workspace did not exit 2"
 
-# Stage 2b: "connect anima" links a workspace to the Anima app's iCloud folder, keeps its id on a
-# rerun, explains a missing folder with exit 3, and the dashboard build refreshes the week there.
+# Stage 2b: "connect anima" serves the phone over the local network: nothing without a token,
+# a wrong code refused, the right code pairs, and the week, an inbox event and an upload work.
 echo "[2b] anima link"
-AWS="$(mktemp -d /tmp/yapcut-aws.XXXXXX)"; AC="$(mktemp -d /tmp/yapcut-anima.XXXXXX)"
+AWS="$(mktemp -d /tmp/yapcut-aws.XXXXXX)"; APORT=$((20000 + RANDOM % 20000))
 mkdir -p "$AWS/weeks"
 cp "$RADAR/radar-config.example.json" "$AWS/radar-config.json"
 cp "$RADAR/weeks/0000-00-00-example.json" "$AWS/weeks/2026-01-05.json"
-python3 -B "$RADAR/anima_link.py" --dir "$AWS" --container /tmp/yapcut-no-such-folder >/dev/null 2>&1
-[ $? = 3 ] && ok "missing Anima folder exits 3" || bad "missing Anima folder did not exit 3"
-if python3 -B "$RADAR/anima_link.py" --dir "$AWS" --container "$AC" >/tmp/yapcut-link.log 2>&1; then ok "anima_link.py"; else bad "anima_link.py"; tail -5 /tmp/yapcut-link.log; fi
-python3 -B "$RADAR/anima_link.py" --dir "$AWS" --container "$AC" >/dev/null 2>&1
-python3 - "$AWS" "$AC" <<'LINK'
-import json, os, sys
-ws, c = sys.argv[1], sys.argv[2]
-ids = os.listdir(os.path.join(c, "YapCut"))
-assert len(ids) == 1, f"a rerun made a second folder: {ids}"
-f = os.path.join(c, "YapCut", ids[0])
-p = json.load(open(os.path.join(f, "pairing.json")))
-assert p["workspace_id"] == ids[0] and p["v"] == 1
-m = json.load(open(os.path.join(ws, "radar-config.json")))["mobile"]
-assert m["sync_dir"] == f and m["workspace_id"] == ids[0]
-assert os.path.exists(os.path.join(f, "weeks", "2026-01-05.json"))
-for sub in ("inbox", "output"):
-    assert os.path.isdir(os.path.join(f, sub))
+python3 -B "$RADAR/anima_link.py" --dir "$AWS" --port "$APORT" --code 314159 --no-bonjour --minutes 2 --quiet >/tmp/yapcut-link.log 2>&1 &
+APID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null "http://127.0.0.1:$APORT/status" && break; sleep 0.5; done
+python3 - "$AWS" "$APORT" <<'LINK'
+import json, os, sys, urllib.request, urllib.error
+ws, port = sys.argv[1], sys.argv[2]
+base = f"http://127.0.0.1:{port}"
+def call(method, path, body=None, token=None, raw=None):
+    data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
+    req = urllib.request.Request(base + path, data=data, method=method)
+    if token: req.add_header("Authorization", "Bearer " + token)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r: return r.status, r.read()
+    except urllib.error.HTTPError as e: return e.code, e.read()
+assert call("GET", "/status")[0] == 401, "no token must be refused"
+assert call("POST", "/pair", {"code": "000000", "device": "t"})[0] == 403, "a wrong code must be refused"
+code, out = call("POST", "/pair", {"code": "314159", "device": "Test iPhone"})
+assert code == 200, code
+token = json.loads(out)["token"]
+code, out = call("GET", "/status", token=token)
+assert code == 200 and json.loads(out)["week"] == "2026-01-05.json"
+assert call("GET", "/week", token=token)[0] == 200
+assert call("POST", "/inbox", {"type": "kill", "reason": "not me"}, token=token)[0] == 200
+assert call("PUT", "/output/2026-01-05/cut.mp4", raw=b"x" * 5000, token=token)[0] == 200
+assert call("PUT", "/output/.x/cut.mp4", raw=b"x", token=token)[0] == 400
+assert len(os.listdir(os.path.join(ws, "mobile", "inbox"))) == 1
+assert os.path.getsize(os.path.join(ws, "mobile", "output", "2026-01-05", "cut.mp4")) == 5000
+devices = json.load(open(os.path.join(ws, "mobile", "devices.json")))
+assert devices and "token" not in devices[0] and len(devices[0]["token_sha256"]) == 64, "store hashes only"
 LINK
-[ $? = 0 ] && ok "pairing.json, sync_dir and the week are in place" || bad "anima link contract"
-python3 -B "$RADAR/build_dashboard.py" --dir "$AWS" >/dev/null 2>&1
-ls "$AC"/YapCut/*/status.json >/dev/null 2>&1 && ok "dashboard build writes status.json for the phone" || bad "no status.json after the dashboard build"
-rm -rf "$AWS" "$AC"
+[ $? = 0 ] && ok "anima_link.py pairs, serves the week, takes events and cuts" || { bad "anima link contract"; tail -5 /tmp/yapcut-link.log; }
+kill "$APID" 2>/dev/null; wait "$APID" 2>/dev/null
+rm -rf "$AWS"
 
 # Stage 3: the dashboard builds and renders cards.
 echo "[3] dashboard"

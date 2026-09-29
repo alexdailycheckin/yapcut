@@ -2,6 +2,20 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.14.0 (outlier-radar)
+
+**"connect anima" links the phone over the local Wi-Fi, only while it runs.** The shared iCloud
+Drive folder is gone: a phone with full iCloud storage cannot upload even a 1 KB file
+(`NSFileProviderErrorDomain -1003`, "You don't have enough quota to upload this item"), and the
+free tier is 5 GB, so it would have failed for every creator whose storage is full.
+`anima_link.py` now announces the Mac on the network (Bonjour, `_anima._tcp`), prints a 6-digit
+code, and serves the phone: the newest week, the brand config, and a place for its picks, kills,
+posted links, cuts and edit records under `<workspace>/mobile/`. The phone pairs once with the
+code and keeps a token; the Mac keeps only the token's hash. Nothing is installed and nothing
+runs when it is closed. `mobile.sync_dir` and the dashboard's copy into it are removed.
+`tests/run.sh` stage 2b pins the contract.
+
+
 ## What's new in 3.13.1 (outlier-radar)
 
 **"connect anima" finds the Anima folder under its real name.** macOS names another

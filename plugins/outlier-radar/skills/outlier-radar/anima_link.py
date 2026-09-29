@@ -1,61 +1,56 @@
 #!/usr/bin/env python3
-"""Link this workspace to the Anima app on the creator's iPhone. The phrase is "connect anima".
+"""Link this workspace to the Anima app on the creator's iPhone, over the local Wi-Fi.
+The phrase is "connect anima".
 
-Anima and the Mac share Anima's own folder in iCloud Drive (the app's iCloud container, which
-shows as "Anima" in Finder). This script finds that folder, gives the workspace a folder of its
-own inside it, writes `pairing.json` there, which the phone is watching for, points
-`mobile.sync_dir` at it so every dashboard build refreshes the week, and copies the newest week
-across now. Run it again at any time: it keeps the same folder and rewrites the pairing.
+While this runs, the Mac announces itself on the network as "YapCut on <Mac name>" (Bonjour,
+`_anima._tcp`), prints a 6-digit code, and serves the phone. The phone finds the Mac, the
+creator types the code once, and from then on the phone syncs whenever this is running and
+both are on the same Wi-Fi. Nothing is installed and nothing runs when this is closed: the
+link is open only while the creator works.
 
-The shared folder, per workspace:
+It replaced a shared iCloud Drive folder on 2026-09-29. A phone with full iCloud storage cannot
+upload even a 1 KB file (NSFileProviderErrorDomain -1003), and the free tier is 5 GB, so
+iCloud would have failed for every creator whose storage is full.
 
-    YapCut/<workspace-id>/
-      pairing.json        this script: who the Mac is, which workspace, whether discovery is done
-      status.json         build_dashboard.py: when the week was last written
-      weeks/<week>.json   build_dashboard.py, through mobile.sync_dir
-      brand-config.json   build_dashboard.py
-      inbox/              the phone: one file per event (a pick, a kill with its reason, ...)
-      output/<week>/      the phone: its cuts and edit records, for log_perf.py --edits
+What the phone can do, each call but /pair carrying `Authorization: Bearer <token>`:
 
-The Mac never writes inside inbox/ or output/, and the phone never writes anywhere else, so
-iCloud never has two devices editing one file.
+    POST /pair                 {"code", "device"} -> {"token", "workspace_id", "workspace_name", "mac_name"}
+    GET  /status               who the Mac is, the newest week and when it was written
+    GET  /week                 the newest weeks/<date>.json
+    GET  /brand                brand-config.json
+    POST /inbox                one event (a pick, a kill with its reason, a posted link...)
+    PUT  /output/<week>/<name> a cut or its edit record
 
-Exit 0 linked; 2 no workspace (from yapcut_home); 3 Anima's folder is not on this Mac, with the
-reason in plain words.
+The Mac keeps what arrives under `<workspace>/mobile/`: `devices.json` (paired phones, token
+hashes only), `inbox/` and `output/<week>/`. The phone never writes anywhere else.
+
+Run it in the background from Claude Code; Ctrl-C or the time limit closes it.
+Exit 0 closed normally; 2 no workspace (from yapcut_home); 3 the port is taken.
 """
 import argparse
 import datetime
 import glob
+import hashlib
+import http.server
 import json
 import os
 import pathlib
 import re
-import shutil
+import secrets
+import signal
 import socket
 import subprocess
 import sys
+import threading
 import uuid
 
 from yapcut_home import radar_home
 
-MOBILE_DOCUMENTS = pathlib.Path.home() / "Library" / "Mobile Documents"
-# macOS names another developer's iCloud container with that developer's team id in front
-# (`6FJR96W34Q~iCloud~com~animaai~app`), so match the suffix rather than one exact name.
-CONTAINER_SUFFIX = "iCloud~com~animaai~app"
+SERVICE = "_anima._tcp"
 WEEK_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.json$")
-
-
-def find_container():
-    """Anima's iCloud folder on this Mac, or None while iCloud has not brought it over."""
-    try:
-        names = sorted(n for n in os.listdir(MOBILE_DOCUMENTS) if n.endswith(CONTAINER_SUFFIX))
-    except OSError:
-        return None
-    for name in names:
-        docs = MOBILE_DOCUMENTS / name / "Documents"
-        if docs.is_dir():
-            return docs
-    return None
+SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,120}$")
+MAX_UPLOAD = 2 * 1024 ** 3
+MAX_CODE_TRIES = 5
 
 
 def mac_name():
@@ -67,94 +62,283 @@ def mac_name():
         return socket.gethostname()
 
 
-def plugin_version():
-    manifest = pathlib.Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
+def local_host():
     try:
-        return json.loads(manifest.read_text())["version"]
-    except (OSError, ValueError, KeyError):
-        return "unknown"
+        name = subprocess.run(["scutil", "--get", "LocalHostName"], capture_output=True, text=True,
+                              timeout=5).stdout.strip()
+        return f"{name}.local" if name else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
 
 
-def why_missing():
-    """The folder appears on the Mac only once the phone has written to it and iCloud has
-    carried it over, so the three reasons are checked from the most to the least likely."""
-    if not (MOBILE_DOCUMENTS / "com~apple~CloudDocs").exists():
-        return ("iCloud Drive is off on this Mac. Turn it on in System Settings, under your "
-                "name, then iCloud, then iCloud Drive, and run this again.")
-    return ("Anima's folder is not on this Mac yet. Open Anima on your iPhone once, which "
-            "creates the folder, and check the iPhone and this Mac are signed in to the same "
-            "Apple ID. iCloud can take a minute to bring it over; then run this again.")
+def lan_ip():
+    """The address of the interface the Mac would use for the network; nothing is sent."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return ""
 
 
 def newest_week(ws):
-    weeks = sorted(p for p in glob.glob(os.path.join(ws, "weeks", "*.json"))
-                   if WEEK_RE.match(os.path.basename(p)))
+    weeks = sorted(p for p in glob.glob(os.path.join(ws, "weeks", "*.json")) if WEEK_RE.match(os.path.basename(p)))
     return weeks[-1] if weeks else None
 
 
-def write_json(path, data):
-    """Write through a temporary file, so iCloud never uploads half a file."""
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    os.replace(tmp, path)
+def now_iso():
+    return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+class Link:
+    """The workspace side of the link: identity, the pairing code, paired phones."""
+
+    def __init__(self, ws, code=None):
+        self.ws = pathlib.Path(ws)
+        self.cfg_path = self.ws / "radar-config.json"
+        cfg = json.loads(self.cfg_path.read_text())
+        mobile = cfg.get("mobile") if isinstance(cfg.get("mobile"), dict) else {}
+        if not mobile.get("workspace_id"):
+            mobile["workspace_id"] = str(uuid.uuid4())
+            cfg["mobile"] = mobile
+            tmp = self.cfg_path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
+            os.replace(tmp, self.cfg_path)
+        self.workspace_id = mobile["workspace_id"]
+        self.workspace_name = ((cfg.get("brand") or {}).get("name") or "").strip() or "Your YapCut"
+        self.mac = mac_name()
+        self.home = self.ws / "mobile"
+        for sub in ("inbox", "output"):
+            (self.home / sub).mkdir(parents=True, exist_ok=True)
+        self.devices_path = self.home / "devices.json"
+        self.code = code or f"{secrets.randbelow(10 ** 6):06d}"
+        self.tries = 0
+        self.lock = threading.Lock()
+
+    def devices(self):
+        try:
+            return json.loads(self.devices_path.read_text())
+        except (OSError, ValueError):
+            return []
+
+    def save_devices(self, devices):
+        tmp = self.devices_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(devices, indent=2) + "\n")
+        os.replace(tmp, self.devices_path)
+
+    @staticmethod
+    def digest(token):
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    def pair(self, code, device):
+        with self.lock:
+            if self.tries >= MAX_CODE_TRIES:
+                return None, "too many wrong codes; restart connect anima for a new one"
+            if not secrets.compare_digest(str(code), self.code):
+                self.tries += 1
+                return None, "that code does not match"
+            token = secrets.token_urlsafe(32)
+            devices = [d for d in self.devices() if d.get("device") != device]
+            devices.append({"device": device, "token_sha256": self.digest(token), "paired_at": now_iso()})
+            self.save_devices(devices)
+            return token, None
+
+    def device_for(self, token):
+        if not token:
+            return None
+        h = self.digest(token)
+        for d in self.devices():
+            if secrets.compare_digest(d.get("token_sha256", ""), h):
+                return d
+        return None
+
+    def status(self):
+        week = newest_week(self.ws)
+        return {
+            "v": 1,
+            "workspace_id": self.workspace_id,
+            "workspace_name": self.workspace_name,
+            "mac_name": self.mac,
+            "week": os.path.basename(week) if week else None,
+            "written_at": (datetime.datetime.fromtimestamp(os.path.getmtime(week)).astimezone()
+                           .isoformat(timespec="seconds") if week else None),
+        }
+
+
+def make_handler(link, quiet=False):
+    class Handler(http.server.BaseHTTPRequestHandler):
+        server_version = "YapCut-Anima/1"
+
+        def log_message(self, fmt, *args):
+            if not quiet:
+                sys.stdout.write(f"  {self.command} {self.path.split('?')[0]} {args[1] if len(args) > 1 else ''}\n")
+                sys.stdout.flush()
+
+        def send_json(self, code, body):
+            data = json.dumps(body).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def send_file(self, path):
+            data = pathlib.Path(path).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def authed(self):
+            auth = self.headers.get("Authorization", "")
+            token = auth[7:] if auth.startswith("Bearer ") else ""
+            device = link.device_for(token)
+            if not device:
+                self.send_json(401, {"error": "not paired; pair with the code connect anima shows"})
+            return device
+
+        def read_body(self, limit=1024 * 1024):
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > limit:
+                raise ValueError("too large")
+            return self.rfile.read(n) if n else b""
+
+        def do_GET(self):
+            path = self.path.split("?")[0]
+            if not self.authed():
+                return
+            if path == "/status":
+                return self.send_json(200, link.status())
+            if path == "/week":
+                week = newest_week(link.ws)
+                return self.send_file(week) if week else self.send_json(404, {"error": "no week yet"})
+            if path == "/brand":
+                brand = link.ws / "brand-config.json"
+                return self.send_file(brand) if brand.exists() else self.send_json(404, {"error": "no brand config"})
+            self.send_json(404, {"error": "unknown path"})
+
+        def do_POST(self):
+            path = self.path.split("?")[0]
+            if path == "/pair":
+                try:
+                    body = json.loads(self.read_body() or b"{}")
+                except ValueError:
+                    return self.send_json(400, {"error": "bad request"})
+                device = str(body.get("device") or "iPhone")[:80]
+                token, err = link.pair(body.get("code", ""), device)
+                if not token:
+                    return self.send_json(403, {"error": err})
+                print(f"Paired with {device}.")
+                sys.stdout.flush()
+                return self.send_json(200, {"token": token, **link.status()})
+            if path == "/inbox":
+                device = self.authed()
+                if not device:
+                    return
+                try:
+                    event = json.loads(self.read_body())
+                except ValueError:
+                    return self.send_json(400, {"error": "an event is one JSON object"})
+                if not isinstance(event, dict):
+                    return self.send_json(400, {"error": "an event is one JSON object"})
+                kind = re.sub(r"[^a-z0-9-]", "", str(event.get("type", "event")).lower())[:24] or "event"
+                stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+                dest = link.home / "inbox" / f"{stamp}-{kind}.json"
+                event.setdefault("device", device.get("device"))
+                event.setdefault("received_at", now_iso())
+                dest.write_text(json.dumps(event, indent=2, ensure_ascii=False) + "\n")
+                return self.send_json(200, {"saved": dest.name})
+            self.send_json(404, {"error": "unknown path"})
+
+        def do_PUT(self):
+            parts = self.path.split("?")[0].strip("/").split("/")
+            if len(parts) != 3 or parts[0] != "output":
+                return self.send_json(404, {"error": "PUT /output/<week>/<name>"})
+            if not self.authed():
+                return
+            week, name = parts[1], parts[2]
+            if not SAFE_NAME.match(week) or not SAFE_NAME.match(name) or ".." in week or ".." in name:
+                return self.send_json(400, {"error": "bad file name"})
+            n = int(self.headers.get("Content-Length") or 0)
+            if n <= 0 or n > MAX_UPLOAD:
+                return self.send_json(400, {"error": "missing or too large"})
+            folder = link.home / "output" / week
+            folder.mkdir(parents=True, exist_ok=True)
+            tmp = folder / f".{name}.part"
+            left = n
+            with open(tmp, "wb") as f:
+                while left:
+                    chunk = self.rfile.read(min(1024 * 1024, left))
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    left -= len(chunk)
+            if left:
+                tmp.unlink(missing_ok=True)
+                return self.send_json(400, {"error": "upload cut short"})
+            os.replace(tmp, folder / name)
+            self.send_json(200, {"saved": f"mobile/output/{week}/{name}"})
+
+    return Handler
+
+
+def advertise(link, port):
+    """Announce the link on the network with the macOS dns-sd tool. The phone reads the host,
+    the address and the port from the TXT record."""
+    txt = ["v=1", f"ws={link.workspace_id}", f"name={link.mac}", f"host={local_host()}", f"ip={lan_ip()}",
+           f"port={port}"]
+    try:
+        return subprocess.Popen(["dns-sd", "-R", f"YapCut on {link.mac}", SERVICE, "local", str(port), *txt],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        print("dns-sd is missing, so the phone cannot find this Mac by itself.")
+        return None
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     ws = radar_home(argv)  # consumes --dir; exits 2 naming the places it looked
     ap = argparse.ArgumentParser(prog="anima_link.py",
-                                 description="Link this workspace to the Anima app on your iPhone.")
-    ap.add_argument("--container", help="Anima's iCloud folder (default: the real one; for tests)")
+                                 description="Link this workspace to the Anima app on your iPhone, over the Wi-Fi.")
+    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--minutes", type=float, default=120, help="close the link after this long (default 120)")
+    ap.add_argument("--code", help="a fixed pairing code, for tests")
+    ap.add_argument("--no-bonjour", action="store_true", help="do not announce on the network (tests)")
+    ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
 
-    container = pathlib.Path(args.container).expanduser() if args.container else find_container()
-    if container is None or not container.is_dir():
-        print(why_missing())
+    link = Link(ws, code=args.code)
+    try:
+        server = http.server.ThreadingHTTPServer(("0.0.0.0", args.port), make_handler(link, args.quiet))
+    except OSError as e:
+        print(f"Port {args.port} is taken ({e.strerror}). Close the other connect anima, or pass --port.")
         return 3
+    announcer = None if args.no_bonjour else advertise(link, args.port)
 
-    cfg_path = pathlib.Path(ws) / "radar-config.json"
-    cfg = json.loads(cfg_path.read_text())
-    mobile = cfg.get("mobile") if isinstance(cfg.get("mobile"), dict) else {}
-    wid = mobile.get("workspace_id") or str(uuid.uuid4())
-    folder = container / "YapCut" / wid
-    for sub in ("inbox", "weeks", "output"):
-        (folder / sub).mkdir(parents=True, exist_ok=True)
+    def close(*_):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, close)
 
-    name = ((cfg.get("brand") or {}).get("name") or "").strip() or "Your YapCut"
-    discovery_done = (pathlib.Path(ws) / "positioning.md").exists()
-    pairing = {
-        "v": 1,
-        "workspace_id": wid,
-        "workspace_name": name,
-        "mac_name": mac_name(),
-        "yapcut_version": plugin_version(),
-        "discovery_done": discovery_done,
-        "linked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-    }
-    write_json(folder / "pairing.json", pairing)
-
-    mobile["workspace_id"] = wid
-    mobile["sync_dir"] = str(folder)
-    cfg["mobile"] = mobile
-    write_json(cfg_path, cfg)
-
-    week = newest_week(ws)
-    if week:
-        shutil.copy2(week, folder / "weeks" / os.path.basename(week))
-    brand = pathlib.Path(ws) / "brand-config.json"
-    if brand.exists():
-        shutil.copy2(brand, folder / "brand-config.json")
-
-    print(f"Linked {name}'s workspace to Anima, in {folder}.")
-    print(f"On your iPhone, Anima now asks to connect to YapCut on {pairing['mac_name']}.")
-    if week:
-        print(f"The newest week, {os.path.basename(week)}, is in the shared folder; every dashboard "
-              "build refreshes it.")
-    else:
-        print("There is no week yet; the first dashboard build puts it in the shared folder.")
-    if not discovery_done:
-        print("Discovery is not done on this Mac. Answer the interview in Anima and the first run "
-              "reads the answers from the inbox.")
+    paired = len(link.devices())
+    print(f"Anima link open for {link.workspace_name}, as YapCut on {link.mac}.")
+    print(f"On your iPhone, open Anima, tap YapCut on {link.mac} and enter the code: {link.code}")
+    if paired:
+        print(f"{paired} phone(s) already paired sync without the code.")
+    print(f"The link closes in {args.minutes:g} minutes, or when this stops.")
+    sys.stdout.flush()
+    timer = threading.Timer(args.minutes * 60, lambda: os.kill(os.getpid(), signal.SIGTERM))
+    timer.daemon = True
+    timer.start()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        if announcer:
+            announcer.terminate()
+        print("Anima link closed.")
     return 0
 
 

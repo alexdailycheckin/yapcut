@@ -464,34 +464,6 @@ def render(ws, cfg, weeks, campaigns, seed):
     return html
 
 
-def sync_mobile(ws, cfg, weeks, bundled):
-    """Copy the newest week into `<mobile.sync_dir>/weeks/` and the brand config beside it, in the
-    folder the Anima app reads (set by `anima_link.py`, the phrase "connect anima", inside
-    Anima's iCloud Drive folder). `status.json` says when, so the phone can show it. The phone's
-    cuts and edit records come back into `<sync_dir>/output/<week>/`, which `log_perf.py --edits`
-    reads like any output folder. Off unless the config names the folder."""
-    d = ((cfg.get("mobile") or {}).get("sync_dir") or "").strip()
-    if not d or bundled or not weeks:
-        return
-    d = os.path.expanduser(d)
-    try:
-        os.makedirs(os.path.join(d, "weeks"), exist_ok=True)
-        newest = weeks[0][0]
-        shutil.copy2(newest, os.path.join(d, "weeks", os.path.basename(newest)))
-        brand = os.path.join(ws, "brand-config.json")
-        if os.path.exists(brand):
-            shutil.copy2(brand, os.path.join(d, "brand-config.json"))
-        status = {"week": os.path.basename(newest),
-                  "written_at": datetime.now().astimezone().isoformat(timespec="seconds")}
-        tmp = os.path.join(d, "status.json.tmp")
-        with open(tmp, "w") as f:
-            json.dump(status, f, indent=2)
-        os.replace(tmp, os.path.join(d, "status.json"))
-        print(f"synced {os.path.basename(newest)} to the phone folder {d}")
-    except OSError as e:
-        warn(f"could not sync to mobile.sync_dir {d}: {e}")
-
-
 def open_file(path):
     try:
         if sys.platform == "darwin":
@@ -544,7 +516,6 @@ def main(argv=None):
         fh.write(html)
     tail = f", tracking seeded for {len(seed)} id(s) from {n_events} event(s)" if n_events else ""
     print(f"wrote {dest} from {len(weeks)} week(s){tail}")
-    sync_mobile(ws, cfg, weeks, bundled)
     if args.open:
         open_file(dest)
     return 0
