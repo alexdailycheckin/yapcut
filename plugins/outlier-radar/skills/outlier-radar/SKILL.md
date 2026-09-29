@@ -24,7 +24,8 @@ The output is a weekly batch of filmable scripts and LinkedIn posts on a dashboa
 | the first-mover lane, coined terms | `references/trend-creation.md` |
 | what happens after the post is written | `references/distribution.md` |
 | a gate is red | the gate's own output names the rule; `radar_gate.py --help` |
-| connecting the Anima app on the creator's iPhone ("connect anima") | run `python3 anima_link.py` in the background and give them the 6-digit code it prints; the phone syncs while it runs |
+| connecting the Anima app on the creator's iPhone ("connect anima") | run `python3 anima_link.py` in the background and give them the 6-digit code it prints; the phone syncs while it runs, and afterwards from anywhere with the sync code the link hands it |
+| the creator's sync code for Anima ("anima sync code") | run `python3 anima_sync.py` and give them the code it prints; they type it once in Anima (Use a sync code) and the phone gets every week from anywhere. `--new-code` if the code leaked |
 
 ## The workspace
 
@@ -118,7 +119,7 @@ When something breaks in the niche mid-week and the creator asks, or the sweep f
 
 ## Handoff to the editor
 
-Route picked scripts to `tiktok-yap-editor`. Mode A (talking head) is the default; a `day-in-life-vo` script with `beats[]` routes to Mode B. On a phone: "connect anima" (`anima_link.py`) opens a link on the local Wi-Fi while it runs; the Anima app pairs with the 6-digit code it prints, reads the newest week and `brand-config.json` from it, films and cuts with the editor's own `rules.json`, and sends its picks, kills and posted links to `mobile/inbox/` and its cuts and edit records to `mobile/output/<week>/` for `log_perf.py --edits`. Write `post_copy` on the item (caption, description, `search_query` verbatim, pinned comment) so the editor's finalize step ships the video with its words. The editor writes an edit record carrying the item id; `log_perf.py --edits <output dir>` joins the cut to the outcome.
+Route picked scripts to `tiktok-yap-editor`. Mode A (talking head) is the default; a `day-in-life-vo` script with `beats[]` routes to Mode B. On a phone: "connect anima" (`anima_link.py`) opens a link on the local Wi-Fi while it runs, and the sync code (`anima_sync.py`, pushed after every dashboard build) carries the week to the phone from anywhere; the Anima app pairs with the 6-digit code or the sync code, reads the newest week and `brand-config.json`, films and cuts with the editor's own `rules.json`, and sends its picks, kills and posted links to `mobile/inbox/` and its cuts and edit records to `mobile/output/<week>/` for `log_perf.py --edits`. Write `post_copy` on the item (caption, description, `search_query` verbatim, pinned comment) so the editor's finalize step ships the video with its words. The editor writes an edit record carrying the item id; `log_perf.py --edits <output dir>` joins the cut to the outcome.
 
 ## Optional layers (config-gated)
 

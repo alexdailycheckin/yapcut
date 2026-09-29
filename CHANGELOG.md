@@ -2,6 +2,21 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.15.0 (outlier-radar)
+
+**The phone gets the week from anywhere, with a sync code.** `anima_sync.py` ("anima sync code")
+makes a 12-character code on its first run, seals the newest week and the brand config with a key
+derived from it, and uploads them to Anima's relay (`anima-sync.netlify.app`). The phone types the
+code once and pulls the week on any network, with the Mac asleep, so every script is there to film
+later. The relay holds bytes it cannot read: the code never leaves the Mac and the phone, and the
+first upload to a box locks it to that Mac's write secret. Every dashboard build pushes a changed
+week by itself, and "connect anima" pushes too and hands a phone paired over the Wi-Fi the code,
+so that phone never types it. Standard library only (no AES on a Mac's Python): PBKDF2, an HMAC
+keystream and an HMAC tag, pinned by a test vector that Anima's Swift side shares. `tests/run.sh`
+stage 2c checks the vector, a wrong code, a changed byte, and a push to a relay with the real
+one's rules. The code lives in `<workspace>/mobile/relay.json`, readable only by the creator.
+
+
 ## What's new in 3.14.0 (outlier-radar)
 
 **"connect anima" links the phone over the local Wi-Fi, only while it runs.** The shared iCloud

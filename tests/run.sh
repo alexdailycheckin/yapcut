@@ -81,7 +81,7 @@ AWS="$(mktemp -d /tmp/yapcut-aws.XXXXXX)"; APORT=$((20000 + RANDOM % 20000))
 mkdir -p "$AWS/weeks"
 cp "$RADAR/radar-config.example.json" "$AWS/radar-config.json"
 cp "$RADAR/weeks/0000-00-00-example.json" "$AWS/weeks/2026-01-05.json"
-python3 -B "$RADAR/anima_link.py" --dir "$AWS" --port "$APORT" --code 314159 --no-bonjour --minutes 2 --quiet >/tmp/yapcut-link.log 2>&1 &
+python3 -B "$RADAR/anima_link.py" --dir "$AWS" --port "$APORT" --code 314159 --no-bonjour --no-sync --minutes 2 --quiet >/tmp/yapcut-link.log 2>&1 &
 APID=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null "http://127.0.0.1:$APORT/status" && break; sleep 0.5; done
 python3 - "$AWS" "$APORT" <<'LINK'
@@ -114,6 +114,74 @@ LINK
 [ $? = 0 ] && ok "anima_link.py pairs, serves the week, takes events and cuts" || { bad "anima link contract"; tail -5 /tmp/yapcut-link.log; }
 kill "$APID" 2>/dev/null; wait "$APID" 2>/dev/null
 rm -rf "$AWS"
+
+# Stage 2c: sync from anywhere with a code. The seal matches the shared vector that Anima's
+# SyncCode.swift pins, a wrong code or a changed byte never opens, and a push to a relay with
+# the real one's rules sends the week, then the status, and nothing again while nothing changed.
+echo "[2c] anima sync"
+SWS="$(mktemp -d /tmp/yapcut-sws.XXXXXX)"
+mkdir -p "$SWS/weeks"
+cp "$RADAR/radar-config.example.json" "$SWS/radar-config.json"
+cp "$RADAR/weeks/0000-00-00-example.json" "$SWS/weeks/2026-01-05.json"
+python3 -B - "$RADAR" "$SWS" <<'SYNC'
+import hashlib, http.server, json, os, sys, threading
+sys.path.insert(0, sys.argv[1])
+import anima_sync as s
+from anima_link import Link
+ws = sys.argv[2]
+
+assert s.normalize("k7qm 2xdp 9rta") == s.normalize("K7QM-2XDP-9RTA") == "K7QM2XDP9RTA"
+assert s.normalize("O1Il") == "0111", "O reads as 0, I and L as 1"
+enc, mac, box = s.keys("K7QM-2XDP-9RTA")
+assert box == "fa14db30fb23391bc8c9aca10ea7638dd25e7caa5ce953fe55b490f08a3b7746", box
+plain = b'{"week":"2026-09-27"}'
+blob = s.seal(plain, enc, mac, nonce=bytes(range(16)))
+assert blob.hex() == ("415331000102030405060708090a0b0c0d0e0f6feca0a1b58f16346d30e0d4224955e773f820cce865e7"
+                      "fadfa81c23f6cac584791c3bb7d9e945aeb117b3d6f9de8f566a2128ff9d"), blob.hex()
+assert s.open_sealed(blob, enc, mac) == plain
+changed = bytearray(blob); changed[25] ^= 1
+for bad, keys in ((bytes(changed), (enc, mac)), (blob, s.keys("0000-0000-0000")[:2]), (b"AS1short", (enc, mac))):
+    try:
+        s.open_sealed(bad, *keys)
+        raise SystemExit("a changed blob or another code must not open")
+    except ValueError:
+        pass
+assert len(s.normalize(s.new_code())) == 12
+
+store = {}
+class Relay(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_PUT(self):
+        _, _, bx, name = self.path.split("/")
+        h = hashlib.sha256(self.headers.get("Authorization", "")[7:].encode()).hexdigest()
+        if store.get((bx, "owner"), h) != h:
+            self.send_response(403); self.end_headers(); return
+        store[(bx, "owner")] = h
+        store[(bx, name)] = self.rfile.read(int(self.headers["Content-Length"]))
+        self.send_response(200); self.end_headers()
+srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Relay)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+r = s.load_relay(ws)
+r["relay"] = f"http://127.0.0.1:{srv.server_port}"
+assert oct(os.stat(s.relay_path(ws)).st_mode & 0o777) == "0o600", "the code is a secret"
+sent, err = s.push(ws, r)
+assert err is None and "week" in sent and sent[-1] == "status", (sent, err)
+enc, mac, box = s.keys(r["code"])
+status = json.loads(s.open_sealed(store[(box, "status")], enc, mac))
+assert status["week"] == "2026-01-05.json" and status["workspace_id"], status
+assert json.loads(s.open_sealed(store[(box, "week")], enc, mac)) == json.load(open(os.path.join(ws, "weeks", "2026-01-05.json")))
+assert s.push(ws, r) == ([], None), "an unchanged week is not pushed again"
+other = dict(r, write_secret="x" * 43, pushed={})
+assert "403" in (s.push(ws, other)[1] or ""), "another Mac cannot overwrite the box"
+
+link = Link(ws)
+link.sync_code = r["code"]
+assert link.status(paired=True)["sync_code"] == r["code"] and "sync_code" not in link.status()
+srv.shutdown()
+SYNC
+[ $? = 0 ] && ok "anima_sync.py seals to the shared vector and pushes a changed week once" || bad "anima sync contract"
+rm -rf "$SWS"
 
 # Stage 3: the dashboard builds and renders cards.
 echo "[3] dashboard"

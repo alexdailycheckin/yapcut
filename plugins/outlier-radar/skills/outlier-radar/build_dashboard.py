@@ -516,6 +516,13 @@ def main(argv=None):
         fh.write(html)
     tail = f", tracking seeded for {len(seed)} id(s) from {n_events} event(s)" if n_events else ""
     print(f"wrote {dest} from {len(weeks)} week(s){tail}")
+    # The phone's copy of the week, once the creator syncs with a code (anima_sync.py). It pushes
+    # only a changed week and never fails the build.
+    try:
+        import anima_sync
+        anima_sync.push_quietly(ws)
+    except Exception as e:
+        print(f"anima sync skipped: {e}")
     if args.open:
         open_file(dest)
     return 0

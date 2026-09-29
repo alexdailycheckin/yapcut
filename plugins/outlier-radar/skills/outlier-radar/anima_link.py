@@ -14,12 +14,16 @@ iCloud would have failed for every creator whose storage is full.
 
 What the phone can do, each call but /pair carrying `Authorization: Bearer <token>`:
 
-    POST /pair                 {"code", "device"} -> {"token", "workspace_id", "workspace_name", "mac_name"}
+    POST /pair                 {"code", "device"} -> {"token", "workspace_id", "workspace_name", "mac_name", "sync_code"}
     GET  /status               who the Mac is, the newest week and when it was written
     GET  /week                 the newest weeks/<date>.json
     GET  /brand                brand-config.json
     POST /inbox                one event (a pick, a kill with its reason, a posted link...)
     PUT  /output/<week>/<name> a cut or its edit record
+
+`/pair` and `/status` also hand the phone the workspace's sync code (anima_sync.py), so a phone
+paired here syncs from anywhere afterwards without typing it. The link pushes the week to the
+sync relay when it opens.
 
 The Mac keeps what arrives under `<workspace>/mobile/`: `devices.json` (paired phones, token
 hashes only), `inbox/` and `output/<week>/`. The phone never writes anywhere else.
@@ -90,22 +94,30 @@ def now_iso():
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def workspace_identity(ws):
+    """The workspace's id and display name. The first call writes `mobile.workspace_id` into
+    radar-config.json, the only change the link makes to the workspace's own files."""
+    cfg_path = pathlib.Path(ws) / "radar-config.json"
+    cfg = json.loads(cfg_path.read_text())
+    mobile = cfg.get("mobile") if isinstance(cfg.get("mobile"), dict) else {}
+    if not mobile.get("workspace_id"):
+        mobile["workspace_id"] = str(uuid.uuid4())
+        cfg["mobile"] = mobile
+        tmp = cfg_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
+        os.replace(tmp, cfg_path)
+    name = ((cfg.get("brand") or {}).get("name") or "").strip() or "Your YapCut"
+    return mobile["workspace_id"], name
+
+
 class Link:
     """The workspace side of the link: identity, the pairing code, paired phones."""
 
     def __init__(self, ws, code=None):
         self.ws = pathlib.Path(ws)
-        self.cfg_path = self.ws / "radar-config.json"
-        cfg = json.loads(self.cfg_path.read_text())
-        mobile = cfg.get("mobile") if isinstance(cfg.get("mobile"), dict) else {}
-        if not mobile.get("workspace_id"):
-            mobile["workspace_id"] = str(uuid.uuid4())
-            cfg["mobile"] = mobile
-            tmp = self.cfg_path.with_suffix(".json.tmp")
-            tmp.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
-            os.replace(tmp, self.cfg_path)
-        self.workspace_id = mobile["workspace_id"]
-        self.workspace_name = ((cfg.get("brand") or {}).get("name") or "").strip() or "Your YapCut"
+        self.workspace_id, self.workspace_name = workspace_identity(ws)
+        # The sync code goes only to a phone that proved it is paired (/pair, /status).
+        self.sync_code = None
         self.mac = mac_name()
         self.home = self.ws / "mobile"
         for sub in ("inbox", "output"):
@@ -152,9 +164,11 @@ class Link:
                 return d
         return None
 
-    def status(self):
+    def status(self, paired=False):
         week = newest_week(self.ws)
+        extra = {"sync_code": self.sync_code} if paired and self.sync_code else {}
         return {
+            **extra,
             "v": 1,
             "workspace_id": self.workspace_id,
             "workspace_name": self.workspace_name,
@@ -209,7 +223,7 @@ def make_handler(link, quiet=False):
             if not self.authed():
                 return
             if path == "/status":
-                return self.send_json(200, link.status())
+                return self.send_json(200, link.status(paired=True))
             if path == "/week":
                 week = newest_week(link.ws)
                 return self.send_file(week) if week else self.send_json(404, {"error": "no week yet"})
@@ -231,7 +245,7 @@ def make_handler(link, quiet=False):
                     return self.send_json(403, {"error": err})
                 print(f"Paired with {device}.")
                 sys.stdout.flush()
-                return self.send_json(200, {"token": token, **link.status()})
+                return self.send_json(200, {"token": token, **link.status(paired=True)})
             if path == "/inbox":
                 device = self.authed()
                 if not device:
@@ -305,6 +319,7 @@ def main(argv=None):
     ap.add_argument("--minutes", type=float, default=120, help="close the link after this long (default 120)")
     ap.add_argument("--code", help="a fixed pairing code, for tests")
     ap.add_argument("--no-bonjour", action="store_true", help="do not announce on the network (tests)")
+    ap.add_argument("--no-sync", action="store_true", help="do not push to the sync relay (tests)")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
 
@@ -320,11 +335,26 @@ def main(argv=None):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, close)
 
+    if not args.no_sync:
+        # Sync from anywhere: make the code on the first run, push the week, hand paired phones
+        # the code. A relay problem never stops the Wi-Fi link.
+        try:
+            import anima_sync
+            relay = anima_sync.load_relay(ws)
+            link.sync_code = relay["code"]
+            _sent, err = anima_sync.push(ws, relay)
+            if err:
+                print(f"Sync from anywhere could not push this time: {err}")
+        except Exception as e:
+            print(f"Sync from anywhere is off this time: {e}")
+
     paired = len(link.devices())
     print(f"Anima link open for {link.workspace_name}, as YapCut on {link.mac}.")
     print(f"On your iPhone, open Anima, tap YapCut on {link.mac} and enter the code: {link.code}")
     if paired:
         print(f"{paired} phone(s) already paired sync without the code.")
+    if link.sync_code:
+        print(f"Away from this Wi-Fi, tap Use a sync code in Anima instead and type: {link.sync_code}")
     print(f"The link closes in {args.minutes:g} minutes, or when this stops.")
     sys.stdout.flush()
     timer = threading.Timer(args.minutes * 60, lambda: os.kill(os.getpid(), signal.SIGTERM))

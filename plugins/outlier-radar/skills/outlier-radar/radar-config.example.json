@@ -88,7 +88,7 @@
   "experiment_per_week": true,
   "_comment_v2": "2026-09-09: audience, voice (as a block), quantity and secondary_lane.enabled added. The weekly run reads quantity instead of the old 'about 10 per lane' bar.",
   "mobile": {
-    "_what": "Set by anima_link.py (say: connect anima) the first time it runs. The Anima app on the phone pairs with this workspace over the local Wi-Fi while anima_link.py runs; what the phone sends lands in mobile/ in the workspace.",
+    "_what": "Set by anima_link.py (say: connect anima) or anima_sync.py the first time either runs. The Anima app on the phone pairs with this workspace over the local Wi-Fi while anima_link.py runs, or from anywhere with the sync code in mobile/relay.json; what the phone sends lands in mobile/ in the workspace.",
     "workspace_id": ""
   }
 }
