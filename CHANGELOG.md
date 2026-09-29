@@ -2,6 +2,14 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.13.1 (outlier-radar)
+
+**"connect anima" finds the Anima folder under its real name.** macOS names another
+developer's iCloud container with that developer's team id in front
+(`6FJR96W34Q~iCloud~com~animaai~app`), so `anima_link.py` looked in a folder that never exists.
+It now matches the container by its suffix, with or without the prefix.
+
+
 ## What's new in 3.13.0 (outlier-radar)
 
 **"connect anima" links a workspace to the Anima app on the creator's iPhone.** `anima_link.py`

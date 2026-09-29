@@ -38,8 +38,24 @@ import uuid
 
 from yapcut_home import radar_home
 
-CONTAINER = pathlib.Path.home() / "Library" / "Mobile Documents" / "iCloud~com~animaai~app" / "Documents"
+MOBILE_DOCUMENTS = pathlib.Path.home() / "Library" / "Mobile Documents"
+# macOS names another developer's iCloud container with that developer's team id in front
+# (`6FJR96W34Q~iCloud~com~animaai~app`), so match the suffix rather than one exact name.
+CONTAINER_SUFFIX = "iCloud~com~animaai~app"
 WEEK_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.json$")
+
+
+def find_container():
+    """Anima's iCloud folder on this Mac, or None while iCloud has not brought it over."""
+    try:
+        names = sorted(n for n in os.listdir(MOBILE_DOCUMENTS) if n.endswith(CONTAINER_SUFFIX))
+    except OSError:
+        return None
+    for name in names:
+        docs = MOBILE_DOCUMENTS / name / "Documents"
+        if docs.is_dir():
+            return docs
+    return None
 
 
 def mac_name():
@@ -59,11 +75,10 @@ def plugin_version():
         return "unknown"
 
 
-def why_missing(container):
+def why_missing():
     """The folder appears on the Mac only once the phone has written to it and iCloud has
     carried it over, so the three reasons are checked from the most to the least likely."""
-    drive = container.parents[1] / "com~apple~CloudDocs"
-    if not drive.exists():
+    if not (MOBILE_DOCUMENTS / "com~apple~CloudDocs").exists():
         return ("iCloud Drive is off on this Mac. Turn it on in System Settings, under your "
                 "name, then iCloud, then iCloud Drive, and run this again.")
     return ("Anima's folder is not on this Mac yet. Open Anima on your iPhone once, which "
@@ -92,9 +107,9 @@ def main(argv=None):
     ap.add_argument("--container", help="Anima's iCloud folder (default: the real one; for tests)")
     args = ap.parse_args(argv)
 
-    container = pathlib.Path(args.container).expanduser() if args.container else CONTAINER
-    if not container.is_dir():
-        print(why_missing(container))
+    container = pathlib.Path(args.container).expanduser() if args.container else find_container()
+    if container is None or not container.is_dir():
+        print(why_missing())
         return 3
 
     cfg_path = pathlib.Path(ws) / "radar-config.json"
