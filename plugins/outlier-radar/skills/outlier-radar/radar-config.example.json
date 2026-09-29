@@ -88,7 +88,8 @@
   "experiment_per_week": true,
   "_comment_v2": "2026-09-09: audience, voice (as a block), quantity and secondary_lane.enabled added. The weekly run reads quantity instead of the old 'about 10 per lane' bar.",
   "mobile": {
-    "_what": "Optional. A folder the phone editor (the Anima app) reads: build_dashboard.py copies the newest week and brand-config.json into it after every build, and the phone writes its cuts and edit records back into output/<week>/ there. An iCloud Drive folder works on a Mac: ~/Library/Mobile Documents/com~apple~CloudDocs/YapCut. Empty turns it off.",
-    "sync_dir": ""
+    "_what": "Optional. Set by anima_link.py (say: connect anima), which puts it inside the Anima app's own iCloud Drive folder. build_dashboard.py copies the newest week into <sync_dir>/weeks/ with brand-config.json and status.json after every build, and the phone writes its cuts and edit records back into output/<week>/ there. Empty turns it off.",
+    "sync_dir": "",
+    "workspace_id": ""
   }
 }

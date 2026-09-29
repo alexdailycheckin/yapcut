@@ -74,6 +74,36 @@ rm -f "$WS/weeks/0000-00-00-late.json" "$WS/weeks/0000-00-00-para.json"
 # no workspace: exit 2, never the skill folder
 ( cd /tmp && env -u YAPCUT_HOME -u OUTLIER_RADAR_HOME -u LEAD_MAGNET_HOME HOME=/tmp/yapcut-nohome python3 "$RADAR/yapcut_home.py" >/dev/null 2>&1 ); [ $? = 2 ] && ok "no workspace exits 2" || bad "no workspace did not exit 2"
 
+# Stage 2b: "connect anima" links a workspace to the Anima app's iCloud folder, keeps its id on a
+# rerun, explains a missing folder with exit 3, and the dashboard build refreshes the week there.
+echo "[2b] anima link"
+AWS="$(mktemp -d /tmp/yapcut-aws.XXXXXX)"; AC="$(mktemp -d /tmp/yapcut-anima.XXXXXX)"
+mkdir -p "$AWS/weeks"
+cp "$RADAR/radar-config.example.json" "$AWS/radar-config.json"
+cp "$RADAR/weeks/0000-00-00-example.json" "$AWS/weeks/2026-01-05.json"
+python3 -B "$RADAR/anima_link.py" --dir "$AWS" --container /tmp/yapcut-no-such-folder >/dev/null 2>&1
+[ $? = 3 ] && ok "missing Anima folder exits 3" || bad "missing Anima folder did not exit 3"
+if python3 -B "$RADAR/anima_link.py" --dir "$AWS" --container "$AC" >/tmp/yapcut-link.log 2>&1; then ok "anima_link.py"; else bad "anima_link.py"; tail -5 /tmp/yapcut-link.log; fi
+python3 -B "$RADAR/anima_link.py" --dir "$AWS" --container "$AC" >/dev/null 2>&1
+python3 - "$AWS" "$AC" <<'LINK'
+import json, os, sys
+ws, c = sys.argv[1], sys.argv[2]
+ids = os.listdir(os.path.join(c, "YapCut"))
+assert len(ids) == 1, f"a rerun made a second folder: {ids}"
+f = os.path.join(c, "YapCut", ids[0])
+p = json.load(open(os.path.join(f, "pairing.json")))
+assert p["workspace_id"] == ids[0] and p["v"] == 1
+m = json.load(open(os.path.join(ws, "radar-config.json")))["mobile"]
+assert m["sync_dir"] == f and m["workspace_id"] == ids[0]
+assert os.path.exists(os.path.join(f, "weeks", "2026-01-05.json"))
+for sub in ("inbox", "output"):
+    assert os.path.isdir(os.path.join(f, sub))
+LINK
+[ $? = 0 ] && ok "pairing.json, sync_dir and the week are in place" || bad "anima link contract"
+python3 -B "$RADAR/build_dashboard.py" --dir "$AWS" >/dev/null 2>&1
+ls "$AC"/YapCut/*/status.json >/dev/null 2>&1 && ok "dashboard build writes status.json for the phone" || bad "no status.json after the dashboard build"
+rm -rf "$AWS" "$AC"
+
 # Stage 3: the dashboard builds and renders cards.
 echo "[3] dashboard"
 python3 "$RADAR/build_dashboard.py" --dir "$WS" >/tmp/yapcut-dash.log 2>&1 && ok "build_dashboard.py" || { bad "build_dashboard.py"; tail -5 /tmp/yapcut-dash.log; }

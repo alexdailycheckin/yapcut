@@ -2,6 +2,19 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.13.0 (outlier-radar)
+
+**"connect anima" links a workspace to the Anima app on the creator's iPhone.** `anima_link.py`
+finds the Anima app's own iCloud Drive folder on the Mac, gives the workspace a folder inside it
+(`YapCut/<workspace-id>/`), writes `pairing.json` there, which the phone watches for, and sets
+`mobile.sync_dir` to it, so every dashboard build refreshes the week on the phone. A rerun keeps
+the same folder. When the folder is missing it says why in plain words (iCloud Drive off, the
+phone never opened, a different Apple ID) and exits 3. `build_dashboard.py` now copies the week
+into `<sync_dir>/weeks/` and writes `status.json` beside it. The phone only ever adds files to
+`inbox/` and `output/`, and the Mac never writes there, so iCloud never has two devices editing
+one file. `tests/run.sh` stage 2b pins the contract.
+
+
 ## What's new in 3.12.2 (outlier-radar)
 
 **The first-run interview and the writer's rules, as data.** `rules.json` gains `onboarding`,
