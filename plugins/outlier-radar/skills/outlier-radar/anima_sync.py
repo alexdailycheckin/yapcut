@@ -136,7 +136,12 @@ def _put(r, box, name, blob):
         with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.status, ""
     except urllib.error.HTTPError as e:
-        return e.code, e.read().decode(errors="replace")[:200]
+        # A relay that refuses early can drop the connection before its reason arrives.
+        try:
+            why = e.read().decode(errors="replace")[:200]
+        except OSError:
+            why = ""
+        return e.code, why
     except (urllib.error.URLError, OSError) as e:
         return 0, str(getattr(e, "reason", e))
 

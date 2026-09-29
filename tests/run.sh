@@ -153,12 +153,13 @@ class Relay(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_PUT(self):
         _, _, bx, name = self.path.split("/")
+        body = self.rfile.read(int(self.headers["Content-Length"]))
         h = hashlib.sha256(self.headers.get("Authorization", "")[7:].encode()).hexdigest()
         if store.get((bx, "owner"), h) != h:
-            self.send_response(403); self.end_headers(); return
+            self.send_response(403); self.send_header("Content-Length", "0"); self.end_headers(); return
         store[(bx, "owner")] = h
-        store[(bx, name)] = self.rfile.read(int(self.headers["Content-Length"]))
-        self.send_response(200); self.end_headers()
+        store[(bx, name)] = body
+        self.send_response(200); self.send_header("Content-Length", "0"); self.end_headers()
 srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Relay)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
