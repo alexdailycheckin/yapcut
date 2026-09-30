@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # tests/run.sh: the repo's only test harness. Three stages, no creator footage involved.
 #
-#   tests/run.sh          all stages (the editor stage cuts a synthetic clip; ~30-60s)
-#   tests/run.sh --fast   stages 2 and 3 only (radar gates + dashboard), a few seconds;
+#   tests/run.sh          all stages (the editor stages cut a synthetic clip and scan a
+#                         synthetic restart; a few minutes)
+#   tests/run.sh --fast   stages 0, 0b, 2 and 3 (rulebooks, editor units, radar gates,
+#                         dashboard), a few seconds;
 #                         wired into release.sh and usable from the pre-commit hook
 #
 # Every regression in CHANGELOG.md before 3.5.0 was found by watching a shipped video or a
@@ -21,6 +23,11 @@ bad()  { echo "  FAIL $1"; fails=$((fails+1)); }
 echo "[0] rulebooks"
 python3 -B "$ROOT/tests/rules_check.py" && ok "rules_check.py" || bad "rules_check.py"
 
+# Stage 0b: editor contracts with no footage, whisper or fonts (the resolver, named caption
+# corrections, the hook fitter and style, receipt placement, finalize's build-folder warning).
+echo "[0b] editor units"
+python3 -B "$ROOT/tests/editor_units.py" >/tmp/yapcut-units.log 2>&1 && ok "editor_units.py" || { bad "editor_units.py"; grep FAIL /tmp/yapcut-units.log; }
+
 # Stage 1: the editor on a synthetic fixture (Mode A, Mode B, a hook variant).
 if [ "$FAST" = 0 ]; then
   echo "[1] editor smoke"
@@ -29,6 +36,9 @@ if [ "$FAST" = 0 ]; then
   else
     bad "tests/editor_smoke.sh missing"
   fi
+  # Stage 1b: the cross-window scan catches a known restart (needs say + whisper; ~60s)
+  echo "[1b] cross-window restart scan"
+  if bash "$ROOT/tests/xwin_restart.sh" >/tmp/yapcut-xwin.log 2>&1; then ok "xwin_restart.sh"; else bad "xwin_restart.sh (see /tmp/yapcut-xwin.log)"; tail -20 /tmp/yapcut-xwin.log; fi
 fi
 
 # Stage 2: the radar gates on the bundled example week, in a throwaway workspace.

@@ -51,11 +51,25 @@ real headline card (outlet visible, real screenshot only); a statistic gets a co
 headline that contains it. `evidence_card.py` writes brand-typeset transparent PNGs at the
 locked width so each drops into an `_overlays.json` pip entry.
 
-Placement is locked: logos and cards BELOW the caption line, centred, in the y 1440 to 1650
-band at 1080x1920, all receipt ink above y=1650 (the platform's bottom chrome starts there).
-Counters may sit upper third. Never over the face. Keep receipts clear of the burned CTA
-block and of source lower-thirds: sequence, never stack. One insert per claim, on screen only
-while the claim is spoken, a whoosh on entry.
+Placement is locked, at 1080x1920 (ruled 2026-07-26; the old "below the caption line,
+y 1440 to 1650" text was stale until 2026-09-30):
+
+- **The receipt band is above the head, y 180 to 440**, centred, under the platform's top
+  chrome (y 0 to 180). The creator frames low and films with headroom for it. Logos, headline
+  cards and counters all go here.
+- **The hook window is the one exception.** From 0.00 to about 5s the hook holds the top
+  (centred near y 430). A receipt on screen then, usually an episode's frame-one headline,
+  sits under the caption line at y 1424, about 620px wide, so it ends above the platform's
+  bottom chrome (y 1580). Every later receipt goes back to the band.
+- A list card that builds item by item may sit under the caption when the head fills the top.
+- Never over the face. Text always wins: an overlay that touches the hook or the caption line
+  moves (`burn_pips.py` does this). Keep receipts clear of the burned CTA block and of source
+  lower-thirds: sequence, never stack. One insert per claim, 2 to 4 seconds, on screen while
+  the claim is spoken, a whoosh on entry.
+
+`burn_pips.py` places a pip entry that carries no `y` by these rules. A counter's `y` defaults
+to 1150 in `build_ass.py`, just above the caption line; give a counter `"y": 255` to put it in
+the band (the block spans y-75 to y+130).
 
 `pip_coverage.py` scans the cut transcript for claim moments and checks each against the
 overlays JSON; `yapfull.sh` runs it on the finished file, build-fatal when brand-config sets

@@ -2,6 +2,91 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.15.1 (outlier-radar)
+
+**Receipt placement matches the ruling.** `references/receipts.md` still said logos and cards
+go below the caption line, in the y 1440 to 1650 band. The ruling since 2026-07-26 is the band
+above the head, y 180 to 440, under the platform's top chrome. The one receipt that goes under
+the caption is one on screen during the hook window, when the hook holds the top: it sits at
+y 1424, about 620px wide, and ends above the bottom chrome at y 1580. Counters belong in the
+band too. The editor's `burn_pips.py` now places by the same rule (tiktok-yap-editor 3.4.0).
+Prevents: a creator following the plugin's own doctrine putting every receipt on their chest.
+
+**A per-video brand override is not a workspace.** `yapcut_home.py` carries the editor's fix
+(the two files stay byte-identical, and `tests/editor_units.py` now checks that): a
+`brand-config.json` inside `.yap_build` no longer makes that folder the workspace. Prevents:
+`log_perf.py --filmed` run from a build folder writing the filmed event to
+`.yap_build/performance/tracking.jsonl`, where the dashboard never reads it.
+
+
+## What's new in 3.4.0 (tiktok-yap-editor)
+
+**The repetition gate hears a restart the transcript reads once.** On a September 30th take
+the first pass of a line trailed off and the clean pass followed 0.22s later ("It's the same
+bet we made. It's the same bet we made at <company>"). `stutter_check.py`, `restart_scan.py`
+and `segmenter.py` all read it as one phrase, and it was caught by ear. `xwin_scan.py` is now
+the third detector inside the `stutter_restart` gate (the ladder keeps its ten gates). It
+transcribes the cut in 1.1s and 1.6s windows at a 0.45s hop, one whisper-cli call per window
+size with every window as its own input, and flags the same trigram, or a bigram carrying a
+content word, in two windows that do not overlap and start within 3s. A hit gates as MEDIUM
+only when the cut's own transcript says those words once across that span: two separate
+pieces of audio said them, and the transcript merged them. Everything else is LOW and printed
+without failing: the script's own repeated nouns, windows the transcript never agrees with,
+numbers and single letters, and window decodes with more words than 1.1s of speech can hold.
+A MEDIUM clears the way the other two detectors' do: cut the first pass in the clause plan, or
+listen and add its printed key to `<out>_stutter_ok.json` (`YAP_ALLOW_STUTTER=1` still
+overrides). Proven on the real take before any zero was trusted: MEDIUM at confidence 1.00 on
+the restart, and 0 MEDIUM on the batch's four finished cuts, where the "thousands of thousands"
+mis-decode that had to be cleared by hand now reports LOW with its reason. A fresh scan costs
+about 1s of whisper per window on an Apple M4 (a 55s cut is about 235 windows, 4 minutes); the decodes are
+cached as `xwin_<out>.json` beside the accept-file, so a `YAP_FROM_CUT=1` rebuild reuses them.
+The gates json records each detector's rc under `repetition`. A whisper failure exits 2
+instead of reading as a clean zero. `tests/xwin_restart.sh` pins it on a synthetic restart.
+Prevents: a doubled line shipping because every transcript of it reads clean.
+
+**A per-video brand override no longer hijacks finalize.** `yaplib/home.py` treated any
+folder holding `brand-config.json` as the workspace, and the documented per-video override
+lives at `<footage>/.yap_build/brand-config.json`. `finalize.sh` run from inside `.yap_build`
+then delivered to `.yap_build/output/<folder>/`, wrote the filmed event to
+`.yap_build/performance/tracking.jsonl` and skipped the footage library, with no error. A
+brand config now marks a workspace only outside a `.yap_build`; `radar-config.json` still
+marks one anywhere. `finalize.sh` warns when the output dir it resolved sits inside a
+`.yap_build`, and passes the workspace it resolved to `log_perf.py --filmed`, so the event
+lands where the video did. Prevents: finals, tracking and the library stamp silently landing
+in a folder `--wipe` deletes.
+
+**Receipts default to the band above the head.** `burn_pips.py` put every pip with no `y` at
+y 1400, under the caption, which is the placement the 2026-07-26 ruling replaced. A pip with
+no `y` now goes in the receipt band (y 180 to 440, shrunk to its 260px height); one that
+starts inside the hook window goes under the caption line at y 1424, at most 620px wide,
+ending above the bottom chrome at y 1580. An explicit `y` is honoured as before, and the
+docstring says the same thing as `references/receipts.md`. Prevents: a receipt placed by
+default covering the creator's chest for the whole video.
+
+**A minimal hook no longer turns the claim into fine print.** `minimal` draws every line
+after the first at 55% (`rules.json` `hook.styles.minimal.sub_frac`). When a later line
+carries the claim ("$1 billion in under 200 days") it reads as small print, and the September
+30th batch ran all four hooks on `outline` by hand. `build_ass.py` now draws outline whenever a
+later line has more characters than line 1 and prints why; `sub_frac` stays 55% for a real
+context line. The gates json and the edit record carry the style actually drawn, with the
+brand's in `style_asked`. Prevents: the hook's claim rendering at half size on a muted feed.
+
+**The hook fitter shrinks before it wraps.** It used to wrap an over-wide line at full size,
+which broke "Reasons to follow|or unfollow me" into "Reasons to / follow / or unfollow me".
+Every author line now stays on one line while the whole hook shrinks toward the 54px floor
+(`hook.min_size`); only a line that cannot fit there wraps, and then shrinks as before. The
+cost is size: a 20-character line such as "bought a spreadsheet" now sets a two-line hook at
+88px where it used to wrap to three lines at 120px. Break lines yourself at about 16
+characters. Prevents: an orphan word alone on a hook line.
+
+**Caption corrections name the word they expect.** A drop computed for a stray "-" token
+deleted the word "software" after a re-transcription moved the indices. `corrections.json`
+entries may now carry the word they expect, `{"fix": {"12": {"from": "chat", "to":
+"ChatGPT"}}}` and `{"drop": {"13": {"from": "-"}}}`, and `yaplib/words.apply_corrections`
+skips a stale one with a warning that says where the expected word sits now. The legacy forms
+still apply blind. `stutter_check.py --emit-corrections` writes the named form. Prevents: a
+re-cut turning an old correction onto a real word.
+
 ## What's new in 3.15.0 (outlier-radar)
 
 **The phone gets the week from anywhere, with a sync code.** `anima_sync.py` ("anima sync code")

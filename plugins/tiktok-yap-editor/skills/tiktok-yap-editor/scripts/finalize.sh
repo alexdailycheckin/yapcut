@@ -13,13 +13,14 @@
 #
 # Output dir, first hit wins: --out-dir | $YAP_OUTPUT_ROOT/<footage-folder-name> |
 #   <workspace>/output/<footage-folder-name> (workspace = yaplib.home, required=False)
-#   | <footage_dir>/output (no workspace: the legacy location).
+#   | <footage_dir>/output (no workspace: the legacy location). An output dir inside a
+#   .yap_build prints a WARNING: that is a per-video build folder, not a workspace.
 # Then, when reachable: the footage library is stamped (library.py mark-used for
 # every clip in clauses.json, then reconcile --roots <footage_dir>), and the Radar
 # tracking log gets a `filmed` event (log_perf.py --filmed <id>) when that flag
 # exists in the installed log_perf.py; otherwise the command is printed to run.
 set -euo pipefail
-usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 [ $# -ge 3 ] || usage
 FINAL="$1"; FOOTAGE="$2"; NAME="$3"; shift 3
 RADAR_ID=""; STANDALONE=0; WIPE=0; PILLAR=""; EPISODE=""; WD=""; OUTDIR=""; COVER=""; POST_URL=""
@@ -56,6 +57,13 @@ if [ -z "$OUTDIR" ]; then
   elif [ -n "$HOME_DIR" ]; then OUTDIR="$HOME_DIR/output/$FOLDER"
   else OUTDIR="$FOOTAGE/output"; fi
 fi
+case "/$OUTDIR/" in
+  */.yap_build/*)
+    echo "finalize: WARNING the output dir resolved inside a build directory: $OUTDIR"
+    echo "  Finals belong in <workspace>/output/<folder>/, and a .yap_build is wiped with --wipe."
+    echo "  The workspace resolved to: ${HOME_DIR:-none}. Pass --out-dir, export YAPCUT_HOME=<workspace>,"
+    echo "  or run finalize from the workspace." ;;
+esac
 mkdir -p "$OUTDIR"
 DEST="$OUTDIR/$NAME.mp4"
 if [ "$(cd "$(dirname "$FINAL")" && pwd)/$(basename "$FINAL")" != "$(cd "$OUTDIR" && pwd)/$NAME.mp4" ]; then
@@ -167,7 +175,8 @@ if [ "$RADAR_ID" != "standalone" ]; then
   done
   if [ -n "$LOGPERF" ]; then
     if python3 "$LOGPERF" --help </dev/null 2>&1 | grep -q -- '--filmed' || grep -q -- '--filmed' "$LOGPERF"; then
-      python3 "$LOGPERF" --filmed "$RADAR_ID" ${POST_URL:+--link "$POST_URL"} || echo "log_perf --filmed failed (non-fatal)"
+      # the same workspace the output went to, never log_perf's own guess from the cwd
+      python3 "$LOGPERF" --filmed "$RADAR_ID" ${HOME_DIR:+--dir "$HOME_DIR"} ${POST_URL:+--link "$POST_URL"} || echo "log_perf --filmed failed (non-fatal)"
     else
       echo "log_perf.py has no --filmed yet; when it lands, run:"
       echo "  python3 \"$LOGPERF\" --filmed $RADAR_ID"

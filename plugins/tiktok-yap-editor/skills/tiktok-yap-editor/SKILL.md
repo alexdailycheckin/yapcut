@@ -201,13 +201,13 @@ because of a shipped defect (why: `references/gotchas.md`, CHANGELOG).
 | 1. Survey | | probe every clip; never pre-judge takes by length | | |
 | 2. Transcribe | | `transcribe.sh <clip> <out>` per clip; read all transcripts together | | |
 | 2b. Restart-heavy takes | `keep_whole` rows via `mkclauses.py` | `segmenter.py <clip>` for silence-accurate runs | | gotchas.md, "Clause boundaries": use run boundaries verbatim, never auto-fit them |
-| 2c. Stutters | `<out>_stutter_ok.json` for deliberate repeats | `stutter_check.py --words`, `restart_scan.py --video` | listen; cut it via the clause plan or record its key. A MEDIUM is a decision, not a note | `references/speech-and-repetition.md` |
+| 2c. Stutters | `<out>_stutter_ok.json` for deliberate repeats | `stutter_check.py --words`, `restart_scan.py --video`, `xwin_scan.py --video --words` (1.1s and 1.6s windows: the restart the transcript reads once) | listen; cut it via the clause plan or record its key. A MEDIUM is a decision, not a note | `references/speech-and-repetition.md`, gotchas.md "The transcript merges a short restart" |
 | 2d. Footage library | `records.json` (kind, tags, moments, `reads_as`) | `library.py prep`, `upsert`; after finalize `mark-used`, `reconcile --roots` | | `library.py --help`; data in `<home>/footage-library/` |
 | 3. Storyline | the beat sheet, with the receipt and the cutaway per line, approved by the creator | | | Part 1 |
 | 4. Clause plan | `clauses.json` with boundaries taken from a window re-transcription, never a full-file transcript | `transcribe.sh` on a trimmed window | | gotchas.md, "Boundary placement" |
 | 5. Cut | | `yapcut.py` (flags fixed in yapfull.sh; `--grade` rides inside the segment pass) | black frames are a canary; `seam_qa.py` is the fatal check | "Why yapcut", CHANGELOG 2.3 |
 | 6. Gates | `<out>_script.txt` (scripted runs), `<out>_corrections.json`, `<out>_capqa_ok.json`, `<out>_overlays.json` | inside `yapfull.sh`: hook words, stutter and restart, dead air, caption, seam, receipts, retention (with `--keeps`, so pause cuts do not count as events), drift, frame zero | the gate prints the fix and its `YAP_*` override; a scripted run with a garbled caption fixes it in corrections and reruns with `YAP_FROM_CUT=1` | `gates.sh` header |
-| 7. Captions, hook, CTA | the hook (9 words or fewer, first line static at frame zero) and the spark word | `yapfull.sh <workdir> <clauses> <out> "<hook|line two>" "<spark>"` | hook too long: cut words, never shrink type | `hook_styles.py` for a designed hook |
+| 7. Captions, hook, CTA | the hook (9 words or fewer, first line static at frame zero, `|` breaks at about 16 characters a line) and the spark word | `yapfull.sh <workdir> <clauses> <out> "<hook|line two>" "<spark>"`; a `minimal` hook whose later line is longer than line 1 is drawn `outline` | hook too long: cut words, never shrink type | `hook_styles.py` for a designed hook; gotchas.md "Captions" |
 | 8. Compose, receipts, cover | `<out>_overlays.json` pip entries; cover title and kicker (from `series`) | `compose_ass.sh`, `burn_pips.py` (inside yapfull), `cover.py --video <caption-free cut> --contact-sheet`, then `--frame N --title` | loudness is measured and printed; check the line | `references/receipts.md`, 8c below |
 | 8b. Variants and platforms | a second hook | `hook_variant.sh <workdir> <clauses> <out> "<hook B>" "<spark B>"`; `YAP_PLATFORM=linkedin yapfull.sh ...` re-composes from the cut | outside the platform's length band: a warning | brand config `platforms` |
 | 9. Finalize | the Radar item id, pillar, episode | `finalize.sh <final> <footage_dir> <name> --radar-id <id>` (or `--standalone`) | refuses without an id: the edit record is the point | Contract in the script header |
@@ -281,9 +281,10 @@ Which lever, and how much, is Part 1, "Density and receipts".
 
 ## Receipts
 
-The law, the hierarchy (logo chip, headline card, counter), the placement band (receipt ink
-above y=1650, below the caption line, never over the face) and `pip_coverage.py` live in
-`references/receipts.md`, shared with the Radar. `evidence_card.py` (`capture`, `quote`, `stat`,
+The law, the hierarchy (logo chip, headline card, counter), the placement (the band above
+the head, y 180 to 440; only a receipt during the hook window goes under the caption line at
+y 1424; never over the face) and `pip_coverage.py` live in `references/receipts.md`, shared
+with the Radar. `evidence_card.py` (`capture`, `quote`, `stat`,
 `bars`, `chips`, `timeline`) writes the cards; `logo_fetch.py` fetches and chips a logo. Every
 figure on a card is verbatim from the source in its pill.
 

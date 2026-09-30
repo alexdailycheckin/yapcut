@@ -172,14 +172,48 @@ and sometimes hallucinates a doubled function word ("It it", "took took") that
 is not in the audio at all: check before cutting anything, because deleting a
 "duplicate" that does not exist removes a real word.
 
+## The transcript merges a short restart; short windows do not
+
+A restart whose first pass trails off and whose second pass follows within a
+fraction of a second reads as ONE phrase in the whole-cut transcript, in
+`restart_scan.py`'s 30s and 6s windows, and in the segmenter. On 2026-09-30 a take
+said "It's the same bet we made. It's the same bet we made at <company>" with 0.22s
+between the passes, and all three passed it. `xwin_scan.py`, the third detector in
+the repetition gate, transcribes the cut in 1.1s and 1.6s windows (0.45s hop) and
+flags the same trigram, or a bigram carrying a content word, in two windows that do
+not overlap and start within 3s. It is MEDIUM only when the cut's own transcript
+says those words exactly once across that span: two separate pieces of audio said
+them, the transcript merged them. Everything else is LOW and printed without failing:
+the transcript says it twice too (the script's own repeated noun, "the work ... the
+work"), the transcript never says it (a mis-decode), or it carries a number or a
+letter (short windows decode "28th, 2027" as "28th, 20th, 20th"). Clear a MEDIUM like
+any other: cut the first pass in the clause plan, or listen and add its printed key
+to `<out>_stutter_ok.json`. A fresh scan costs about 1s of whisper per window
+(about 4 minutes on a 55s cut); the decodes are cached in `xwin_<out>.json`, so a
+`YAP_FROM_CUT=1` rebuild reuses them.
+
 ## Caption corrections are position-keyed, so a recut invalidates them
 
 `<out>_corrections.json` maps a WORD INDEX to a replacement. Change anything
 about the cut and every index after the change shifts. Symptom: the corrected and
 original words both render, stacked in the same spot, e.g. a burned caption
 reading "and posted 109.4 190.4" after `protect_tail` lengthened one clause by a
-few frames. Re-derive the indices from the fresh `w_<slug>.json` on every rebuild,
-and leave a note in the corrections file saying so.
+few frames. Worse, a drop lands on a real word: on 2026-09-30 a drop computed for a
+stray "-" token deleted "software" after a re-transcription.
+
+Name the word each entry expects, and a stale entry is skipped with a warning
+instead of applied:
+
+```json
+{"fix":  {"12": {"from": "chat", "to": "ChatGPT"}},
+ "drop": {"13": {"from": "-"}}}
+```
+
+The legacy forms (`"fix": {"12": "ChatGPT"}`, `"drop": [13]`) still apply blind.
+The warning says where the expected word sits now when it is within six words.
+`stutter_check.py --emit-corrections` writes the named form. Still re-derive the
+indices from the fresh `w_<slug>.json` after a rebuild; the check stops the damage,
+it does not move the entry for you.
 
 ## Captions
 
@@ -194,6 +228,19 @@ and leave a note in the corrections file saying so.
   frame. There is no perfect spot; raise `--hook-y`, shorten the line, or accept
   it for the 2.5s it shows. Differentiate hook colour from the active-word colour
   so they do not read as the same element.
+- **The minimal hook is for small print only.** `hook_style: minimal` draws every
+  line after the first at 55% (`rules.json` `hook.styles.minimal.sub_frac`). When a
+  later line carries the claim ("ChatGPT ads:|$1 billion in|under 200 days") that
+  is fine print; a 2026-09-30 batch put the claim on line two in all four hooks and
+  ran on `outline`. `build_ass.py` now switches a minimal hook to outline whenever a
+  later line has more characters than line 1, and prints why. Minimal also has no
+  stroke, so white type vanishes on a bright sky or a pale wall: use outline outdoors.
+- **The hook fitter shrinks before it wraps.** Each `|` line stays on one line and
+  the whole hook shrinks toward the 54px floor (`hook.min_size`); only a line that
+  cannot fit at the floor wraps. Wrapping first broke "Reasons to follow|or unfollow
+  me" into "Reasons to / follow / or unfollow me". The cost: an over-long line now
+  renders small instead of on two lines ("bought a spreadsheet", 20 characters, sets
+  the hook at 88px). Break lines yourself at about 16 characters.
 
 ## Reframing
 

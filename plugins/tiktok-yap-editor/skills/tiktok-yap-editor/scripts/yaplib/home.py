@@ -6,8 +6,15 @@ scripts/yaplib/home.py). Resolution order, and there is no other:
 
   1. --dir <path> or --dir=<path> on the command line (consumed from argv)
   2. $YAPCUT_HOME, then the legacy $OUTLIER_RADAR_HOME / $LEAD_MAGNET_HOME
-  3. the current directory, if it holds radar-config.json, brand-config.json or brand.json
+  3. the current directory, if it is a workspace (is_home below)
   4. ~/outlier-radar, under the same test
+
+A workspace holds radar-config.json, or brand-config.json / brand.json OUTSIDE a build
+directory. A build directory is any path with a .yap_build component: the documented
+per-video brand override lives at <footage>/.yap_build/brand-config.json, and until
+2026-09-30 that file alone made .yap_build a workspace. finalize.sh run from inside it then
+delivered to .yap_build/output/<folder>/, logged the filmed event to
+.yap_build/performance/tracking.jsonl and skipped the footage library, with no error.
 
 Nothing else. In particular there is NO fallback to the skill folder: that fallback is
 how six scripts run from ~/Desktop/Claude quietly graded the bundled example week inside
@@ -23,6 +30,8 @@ import pathlib
 import sys
 
 MARKERS = ("radar-config.json", "brand-config.json", "brand.json")
+STRONG = "radar-config.json"          # only this one marks a workspace inside a build dir
+BUILD_DIR = ".yap_build"
 ENV_KEYS = ("YAPCUT_HOME", "OUTLIER_RADAR_HOME", "LEAD_MAGNET_HOME")
 DEFAULT = "~/outlier-radar"
 
@@ -31,9 +40,17 @@ def _p(s):
     return pathlib.Path(os.path.abspath(os.path.expanduser(str(s))))
 
 
+def in_build_dir(p):
+    return BUILD_DIR in _p(p).parts
+
+
 def is_home(p):
+    """radar-config.json marks a workspace anywhere. brand-config.json or brand.json mark
+    one only outside a build directory: inside .yap_build they are a per-video override."""
     p = _p(p)
-    return any((p / m).exists() for m in MARKERS)
+    if (p / STRONG).exists():
+        return True
+    return not in_build_dir(p) and any((p / m).exists() for m in MARKERS)
 
 
 def radar_home(argv=None, required=True):
@@ -60,7 +77,8 @@ def radar_home(argv=None, required=True):
     if not required:
         return None
     sys.stderr.write(
-        "no YapCut workspace found. Looked for radar-config.json / brand-config.json in:\n"
+        "no YapCut workspace found. Looked for radar-config.json / brand-config.json in\n"
+        "(a brand-config.json inside .yap_build is a per-video override, not a workspace):\n"
         + "".join(f"  {p}\n" for p in looked)
         + "Pass --dir <workspace>, or export YAPCUT_HOME=<workspace>.\n"
         "A fresh install has no workspace until discovery creates one (say: run outlier radar).\n")

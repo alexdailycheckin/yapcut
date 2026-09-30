@@ -5,13 +5,19 @@ overlays (source tags, number counters); the `pip` entries in the overlays JSON
 are burned here instead. yapfull calls this after compose so PiPs are automatic.
 
 Overlays JSON entry:
-  {"type":"pip","file":"evidence/chip_arc.png","start":5.6,"end":8.6,"w":300,"y":470}
+  {"type":"pip","file":"evidence/chip_arc.png","start":5.6,"end":8.6,"w":300,"y":180}
 - file: path (relative to --workdir, or absolute) of a REAL screenshot/logo PNG.
 - start/end: seconds on the finished timeline.
 - w: rendered width in px (default 720). Height auto (aspect kept).
-- y: top edge y in px (default 1400: UNDER the caption line at ~1320, never over
-     the face). Horizontally centered. Rolling number counters go ABOVE the
-     caption (build_ass, ~1150); logos/screenshots go BELOW it (here).
+- y: top edge y in px. Horizontally centered. Omit it and the pip is placed by the
+     receipt rule (references/receipts.md in outlier-radar, ruled 2026-07-26):
+     - the RECEIPT BAND above the head, y 180 to 440, under the platform's top
+       chrome; the pip shrinks to fit the band's 260px height;
+     - EXCEPT a pip that starts inside the hook window, when the hook holds the top:
+       it goes under the caption line at y 1424, at most 620px wide, ending above
+       the bottom chrome at y 1580. That is an episode's frame-one headline.
+     Until 2026-09-30 the default was y=1400 under the caption for every pip, which
+     was the placement the ruling replaced.
 
 TEXT COLLISION RULE (hard, added after the Jul 26 batch burned logos straight
 over the hook): PiPs are composited ON TOP of the already-burned captions, so
@@ -36,6 +42,10 @@ from yaplib import media  # noqa: E402
 TOP_MARGIN = 60          # stay clear of the platform UI at the very top
 PAD = 20                 # min gap between a pip and any text block
 BOTTOM_LIMIT = 1880      # never off the bottom edge
+BAND = (180, 440)        # the receipt band above the head, under the top chrome (y 0 to 180)
+HOOK_WINDOW_Y = 1424     # a receipt during the hook: under the caption line (y 1320)...
+HOOK_WINDOW_W = 620      # ...at most this wide...
+BOTTOM_CHROME = 1580     # ...and ending above the platform's bottom chrome
 
 def img_size(path):
     return media.image_size(path)
@@ -43,15 +53,34 @@ def img_size(path):
 def fit_pip(p, iw, ih, meta):
     """Return (w, y) honouring the text-collision rule. Never lets the pip
     cover the hook (while it is up) or the caption band."""
-    w = int(p.get("w", 720)); y = int(p.get("y", 1400))
     ar = ih / iw
-    h = int(w * ar)
     hook = (meta or {}).get("hook")
     cap = (meta or {}).get("caption_band") or {"top": 1220, "bottom": 1420}
     s = float(p["start"])
 
     def log(msg):
         print(f"burn_pips: {os.path.basename(p['file'])}: {msg}")
+
+    def under_caption(w):
+        """The hook-window placement: under the caption line, ending above the chrome."""
+        w = min(w, HOOK_WINDOW_W)
+        y = max(HOOK_WINDOW_Y, cap["bottom"] + 4)
+        if y + int(w * ar) > BOTTOM_CHROME:
+            w = max(1, int((BOTTOM_CHROME - y) / ar))
+        return w, y
+
+    w = int(p.get("w", 720))
+    if "y" in p:
+        y = int(p["y"])
+    elif hook and s < hook["secs"]:
+        w, y = under_caption(w)
+        log(f"no y, on screen during the hook: under the caption at y {y}, {w}px wide")
+    else:
+        y = BAND[0]
+        if int(w * ar) > BAND[1] - BAND[0]:
+            w = max(1, int((BAND[1] - BAND[0]) / ar))
+        log(f"no y: receipt band y {BAND[0]} to {BAND[1]}, {w}px wide")
+    h = int(w * ar)
 
     # 1) hook window: the pip must live entirely ABOVE the hook block
     if hook and s < hook["secs"] and y + h > hook["top"] - PAD and y < hook["bottom"] + PAD:
@@ -65,8 +94,8 @@ def fit_pip(p, iw, ih, meta):
                 f"{hook['top']}-{hook['bottom']})")
             y = ny
         else:
-            y = cap["bottom"] + PAD
-            log(f"no room above the hook; moved under the captions (y={y})")
+            w, y = under_caption(w); h = int(w * ar)
+            log(f"no room above the hook; moved under the captions (y={y}, {w}px wide)")
 
     # 2) caption band: always on screen; a pip may sit fully above or fully below
     if y < cap["top"] and y + h > cap["top"] - PAD:

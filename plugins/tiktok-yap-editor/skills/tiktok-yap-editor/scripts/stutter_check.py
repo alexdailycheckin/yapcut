@@ -11,11 +11,12 @@ with timestamps, plus a ready-to-use caption drop-list and video cut-ranges.
 Input is the SAME whisper JSON build_ass.py eats: whisper-cli -oj -ml 1 -sow
 -dtw  ->  {"transcription":[{"offsets":{"from":ms,"to":ms},"text":"..."}]}.
 Word indices match build_ass.py exactly (non-empty words only), so the emitted
-{"drop":[...]} feeds straight into build_ass.py --corrections.
+drops feed straight into build_ass.py --corrections. Each names the word it drops,
+so a re-cut that moves the index skips it instead of deleting another word.
 
 Usage:
   python3 stutter_check.py --words words.json
-      [--emit-corrections fix.json]   # write {"drop":[idx,...]} for captions
+      [--emit-corrections fix.json]   # merge {"drop":{"<idx>":{"from":word}}} for captions
       [--accept-file <out>_stutter_ok.json]
       [--max-phrase 6] [--gap 3] [--strict]
 Exit code: 0 = clean, 2 = something needs a decision (so a QA gate can fail).
@@ -249,8 +250,15 @@ def main():
             existing = json.load(open(a.emit_corrections))
         except Exception:
             existing = {}
-        existing.setdefault("drop", [])
-        existing["drop"] = sorted(set(existing["drop"]) | set(drop))
+        # the drop form that names its word, so a re-cut cannot turn it on another one;
+        # legacy list entries stay blind ({}), exactly as they were applied before
+        cur = existing.get("drop", [])
+        if isinstance(cur, list):
+            cur = {str(v["index"] if isinstance(v, dict) else v):
+                   ({"from": v["from"]} if isinstance(v, dict) and v.get("from") else {})
+                   for v in cur}
+        cur.update(ywords.drop_entries(w, drop))
+        existing["drop"] = dict(sorted(cur.items(), key=lambda kv: int(kv[0])))
         json.dump(existing, open(a.emit_corrections, "w"), indent=2)
         print(f"\nwrote/merged {len(drop)} drops into {a.emit_corrections}")
 

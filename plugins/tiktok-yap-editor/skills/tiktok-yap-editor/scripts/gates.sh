@@ -61,6 +61,21 @@ d = json.load(open(p)); d[k] = json.loads(v); json.dump(d, open(p, "w"), indent=
 PY
 }
 
+# gate_hook_drawn <cap.ass.meta.json>: the hook style build_ass actually drew. gate_hook_words
+# records the brand's style before the render, and a minimal hook whose later line is longer
+# than line 1 is drawn as outline, so the edit record takes the drawn one from the sidecar.
+gate_hook_drawn() {
+  python3 - "$GATES_JSON" "$1" <<'PY'
+import json, os, sys
+p, m = sys.argv[1:3]
+st = json.load(open(m)).get("hook_style") if os.path.isfile(m) else None
+d = json.load(open(p))
+if st and d.get("hook") and d["hook"].get("style") != st:
+    d["hook"]["style_asked"] = d["hook"].get("style"); d["hook"]["style"] = st
+    json.dump(d, open(p, "w"), indent=1)
+PY
+}
+
 # gate_finish <name> <rc> "<fail message>": records, fails the build on 2.
 gate_finish() {
   local name="$1" rc="$2" msg="${3:-}"
@@ -104,14 +119,21 @@ PY
   gate_finish hook_words "$rc" "Shorten the hook (7 words is the target)."
 }
 
-# --- repetition: transcript detector AND windowed audio scan -------------------
+# --- repetition: transcript detector, windowed audio scan, cross-window scan ----
+# Three detectors, one gate, one accept-file. The third (xwin_scan.py, 2026-09-30) reads
+# 1.1s and 1.6s windows for a restart the other two read as one phrase; it caches its
+# window decodes as xwin_<cut>.json beside the accept-file, so YAP_FROM_CUT=1 reuses them.
 gate_stutter_restart() {             # gate_stutter_restart <words.json> <video> <accept-file>
-  local words="$1" video="$2" accept="$3" r1=0 r2=0 rc=0
+  local words="$1" video="$2" accept="$3" r1=0 r2=0 r3=0 rc=0 base
   echo "--- gate stutter_restart ---"
   [ -f "$accept" ] || echo '[]' > "$accept"
+  base="$(basename "${accept%_stutter_ok.json}")"
   python3 "$SCRIPTS/stutter_check.py" --words "$words" --accept-file "$accept" || r1=$?
   python3 "$SCRIPTS/restart_scan.py" --video "$video" --accept-file "$accept" || r2=$?
-  rc=$(( r1 > r2 ? r1 : r2 ))
+  python3 "$SCRIPTS/xwin_scan.py" --video "$video" --words "$words" --accept-file "$accept" \
+    --cache "$(dirname "$accept")/xwin_${base}.json" || r3=$?
+  gate_meta_json repetition "{\"stutter_check\": $r1, \"restart_scan\": $r2, \"xwin_scan\": $r3}"
+  rc=$(( r1 > r2 ? r1 : r2 )); rc=$(( r3 > rc ? r3 : rc ))
   if [ "$rc" -eq 2 ] && [ "${YAP_ALLOW_STUTTER:-0}" = "1" ]; then
     echo "  repetition findings overridden by YAP_ALLOW_STUTTER=1"; rc=1
   fi

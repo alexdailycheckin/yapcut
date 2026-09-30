@@ -123,7 +123,7 @@ def _measurer(font_name, spacing_px):
 
 def fit_hook(hlines, font_name, caps, spacing_px, base_size,
              safe_w, max_lines, min_size, sub_frac=None):
-    """Wrap + shrink author hook lines so the widest fits in safe_w.
+    """Shrink, then wrap + shrink, author hook lines so the widest fits in safe_w.
 
     hlines: author segments (already split on '|'); each is a HARD break we
     keep, but we may wrap a long segment further.
@@ -136,6 +136,13 @@ def fit_hook(hlines, font_name, caps, spacing_px, base_size,
     3 lines, hit max_lines and returned without ever shrinking. A subheading
     is a single line by design, so this silently broke the intended look.
 
+    SHRINK BEFORE WRAP (2026-09-30). Each author line is first kept on one line and the
+    whole hook shrinks, down to the floor (min_size, rules.json hook.min_size), before
+    any line is wrapped. Wrapping first broke an over-wide first line into an orphan word:
+    "Reasons to follow|or unfollow me" rendered "Reasons to / follow / or unfollow me" at
+    full size, where one size step less keeps the author's two lines. Only a line that
+    cannot fit even at the floor is wrapped, and the wrap then shrinks as before.
+
     Returns (lines, size, n_head), where n_head = how many of the returned
     lines belong to the first segment (the big statement)."""
     measure = _measurer(font_name, spacing_px)
@@ -145,6 +152,12 @@ def fit_hook(hlines, font_name, caps, spacing_px, base_size,
 
     def sub_of(size):
         return max(min_size // 2, int(size * sub_frac)) if sub_frac else size
+
+    if len(segs) <= max_lines:
+        for size in list(range(base_size, min_size, -HOOK["shrink_step"])) + [min_size]:
+            if all(measure(sg, size if i == 0 else sub_of(size)) <= safe_w
+                   for i, sg in enumerate(segs)):
+                return list(segs), size, 1
 
     def wrap_at(size):
         sub_size = sub_of(size)
@@ -176,6 +189,20 @@ def fit_hook(hlines, font_name, caps, spacing_px, base_size,
     # floor: best effort at min_size (still wrapped, so worst case it shrank)
     lines, n_head = wrap_at(min_size)
     return lines, min_size, n_head
+
+
+def minimal_demoted(hlines):
+    """The minimal hook draws every line after the first at sub_frac (55%) of the first:
+    right for a small context line under a complete statement, fine print when a later
+    line carries the claim. On 2026-09-30 all four hooks of a batch put the claim on line
+    two ("ChatGPT ads:|$1 billion in|under 200 days") and minimal made it unreadable, so
+    the batch ran on outline. A later author line with more characters than line 1 is the
+    test; returns its index (the build switches to outline), else 0."""
+    segs = [l.strip() for l in hlines if l.strip()]
+    for i, seg in enumerate(segs[1:], start=1):
+        if len(seg) > len(segs[0]):
+            return i
+    return 0
 
 
 def tw_units(s, glue_newline=True):
@@ -264,7 +291,9 @@ def main():
     ap.add_argument("--hook-style", choices=["outline", "minimal"], default="outline",
                     help="outline = heavy stroked hook (legacy default). minimal = no "
                          "outline, soft shadow, second line at ~55%% size (the "
-                         "hook_styles.py 'minimal' look, but inline so typewriter works)")
+                         "hook_styles.py 'minimal' look, but inline so typewriter works). "
+                         "minimal switches to outline when a later line is longer than "
+                         "line 1: that line carries the claim and 55%% is fine print.")
     ap.add_argument("--hook-spark", default="",
                     help="word in the hook to colour in the accent on the held frame")
     ap.add_argument("--overlays", default="",
@@ -370,6 +399,13 @@ def main():
             # breaks are kept as hard breaks; we only ADD breaks / shrink.
             safe_w = a.hook_safe_frac * W
             SUB_FRAC = HOOK["styles"]["minimal"]["sub_frac"]
+            if a.hook_style == "minimal":
+                longer = minimal_demoted(hlines)
+                if longer:
+                    print(f"  hook style: minimal -> outline. Line {longer + 1} is longer than "
+                          f"line 1, so it carries the claim, and minimal would draw it at "
+                          f"{int(SUB_FRAC * 100)}% as small print (rules.json hook.styles.minimal).")
+                    a.hook_style = "outline"
             disp_lines, fit_size, n_head = fit_hook(
                 hlines, p["font"], p["caps"], p["spacing"],
                 p["hook_size"], safe_w, a.hook_max_lines, a.hook_min_size,
@@ -550,7 +586,7 @@ def main():
         f.write("\n".join(lines) + "\n")
     # geometry sidecar: burn_pips.py reads this to keep raster PiPs off the
     # hook text and the caption line (it cannot parse .ass itself).
-    meta = {"hook": hook_band,
+    meta = {"hook": hook_band, "hook_style": a.hook_style if a.hook else None,
             "caption_band": {"top": p["cap_y"] - 100, "bottom": p["cap_y"] + 100},
             "width": W, "height": H}
     json.dump(meta, open(a.out + ".meta.json", "w"), indent=1)

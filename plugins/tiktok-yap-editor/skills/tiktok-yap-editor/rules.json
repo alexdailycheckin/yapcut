@@ -111,7 +111,7 @@
     }
   },
   "hook": {
-    "_about": "The burned hook. Word limits are gates.sh; fit and animation are build_ass.py. shadow_ass_alpha is the ASS alpha byte: 0 opaque, 255 clear.",
+    "_about": "The burned hook. Word limits are gates.sh; fit and animation are build_ass.py. The fitter shrinks every author line toward min_size before it wraps one. minimal draws lines after the first at sub_frac, and build_ass draws outline instead when a later line is longer than line 1. shadow_ass_alpha is the ASS alpha byte: 0 opaque, 255 clear.",
     "max_words": 9,
     "warn_words": 7,
     "seconds": 5.0,

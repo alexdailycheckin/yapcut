@@ -94,6 +94,7 @@ python3 "$SCRIPTS/build_ass.py" --words "$WORDS" --out "$ASS" \
   --preset minimal --font "$CFONT" --caps "$CCASE" --accent none \
   --hook "$HOOK" --hook-secs "$HOOK_SECS" --hook-anim "$HANIM" --hook-style "$HSTYLE" \
   --hook-spark "$HOOKWORD" --accent-hex "$ACCENT" --overlays "$OVRFILE" --corrections "$CORR"
+gate_hook_drawn "$ASS.meta.json"
 python3 "$SCRIPTS/cta_block.py" --ass "$ASS" --dur "$DUR" --handle "$HANDLE" --contact "$CONTACT" \
   --font "$HFONT" --accent "$ACCENT" --base "$BASE" --ink "$INK" --lead 9.7
 
