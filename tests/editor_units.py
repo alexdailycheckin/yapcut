@@ -176,6 +176,22 @@ with tempfile.TemporaryDirectory() as t:
         sys.stdin = io.StringIO("not json"); wn.hook()
     check(True, "a broken hook input never fails the session")
     sys.stdin = sys.__stdin__
+check(filecmp.cmp(os.path.join(ROOT, "plugins/tiktok-yap-editor/hooks/whats_new.py"),
+                  os.path.join(ROOT, "plugins/outlier-radar/hooks/whats_new.py"), shallow=False),
+      "both plugins ship the same whats_new.py")
+radar_meta = json.load(open(os.path.join(ROOT, "plugins/outlier-radar/.claude-plugin/plugin.json")))
+check(max(e[0] for e in wn.entries(os.path.join(ROOT, "plugins/outlier-radar/WHATS-NEW.md"))) >= wn.vt(radar_meta["version"]),
+      f"outlier-radar WHATS-NEW.md is not behind the plugin ({radar_meta['version']})")
+with tempfile.TemporaryDirectory() as t:
+    man = os.path.join(t, "voice-corpus", "manual"); os.makedirs(man)
+    json.dump({}, open(os.path.join(t, "radar-config.json"), "w"))
+    open(os.path.join(man, "vlog.md"), "w").write("register: personal\nform: monologue\n\n" + "word " * 3000)
+    open(os.path.join(man, "rant.md"), "w").write("register: work\nform: monologue\n\n" + "word " * 900)
+    check(wn._work_monologue_words(os.path.join(t, "voice-corpus")) < wn.WORK_MONOLOGUE_WORDS,
+          "an off-subject monologue does not count toward the voice supply")
+    open(os.path.join(man, "rant2.md"), "w").write("register: work\nform: monologue\n\n" + "word " * 2000)
+    check(wn._work_monologue_words(os.path.join(t, "voice-corpus")) >= wn.WORK_MONOLOGUE_WORDS,
+          "twenty minutes of on-subject monologue clears the voice check")
 
 
 if fails:

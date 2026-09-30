@@ -1,5 +1,41 @@
 # What's new
 
+The first session after an update shows the entries you have not seen yet, once, and checks
+what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
+session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
+
+## 3.16.0: everything since 3.5, and you hear about updates now
+
+**What's new.** Ten releases went out without a note here. The ones you will notice:
+
+- **Your yeses teach it.** The weekly brief now opens with the last three scripts you filmed,
+  posted or approved, so it learns what you want and not only what you killed. The checks on
+  the writing are fewer; the ones that stay guard the facts, the sources and the length. (3.11)
+- **Every episode states what you believe before the proof.** Five moves: the receipt at frame
+  one, your belief, the break, how it works, the verdict. Stated after the facts, a belief reads
+  as a summary; stated before, the same facts land as an argument. (3.9)
+- **Scripts are written as you talking alone to camera**, not as you on a call, because the two
+  sound measurably different. (3.10)
+- **One file to film from.** The filming pack is generated from the week: the full read, the
+  shots, the sources and the LinkedIn text. (3.11)
+- **Carousels draw charts and tables**, have a second look, and LinkedIn text keeps its bold
+  and line breaks. (3.7, 3.8)
+- **The dashboard** takes a post you made outside the weekly run, and links the files each post
+  ships with. (3.8)
+- **Your phone.** If you use the Anima app on your iPhone, "connect anima" puts the week's
+  scripts on it, over the Wi-Fi or from anywhere with a sync code. (3.13 to 3.15)
+- **Receipts sit in the band above your head**, under the platform's top bar; only the one on
+  screen during the hook goes under the captions. (3.15.1)
+- From now on the first session after an update tells you what changed, once.
+
+**To get it.**
+1. Run your week as usual. Your workspace, your weeks and your rulings are untouched.
+2. Tell Claude "I filmed <the script>" after you film one. That is what the brief learns from.
+3. Record about twenty minutes of yourself talking to a camera about your own subject, and ask
+   Claude to add it to your voice corpus as a work monologue. It is the biggest single fix for
+   scripts that sound like somebody else wrote them.
+4. Optional: if you use Anima on your iPhone, say "connect anima".
+
 ## 3.5.0: the audit release
 
 An audit of the repo and its live install on 2026-09-09 found the engine optimising the one

@@ -1,6 +1,6 @@
 {
   "name": "outlier-radar",
-  "description": "Weekly script and post engine for a creator or brand, plus the Lead Magnet Report. 3.11: the brief opens with the scripts the creator approved, cadence gates off by default, one item one subject, a rendered filming pack, a strict dashboard build. Data lives in a local workspace plugin updates never touch.",
+  "description": "Weekly script and post engine for a creator or brand, plus the Lead Magnet Report. 3.16: a what's-new notice after every update; the brief opens with the scripts the creator filmed; every episode states the belief before the proof; the week reaches the Anima phone app. Data lives in a local workspace plugin updates never touch.",
   "version": "3.15.1",
   "author": {
     "name": "Alex Muresan",

@@ -2,6 +2,22 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.16.0 (outlier-radar)
+
+**Creators hear about an update the first session after it, and catch up on ten silent ones.**
+`WHATS-NEW.md` had stopped at 3.5.0 while the plugin shipped through 3.15.1, so every creator
+who updated got the changes with no word of them. It now opens with one catch-up entry for
+3.6 to 3.15, written for the creator: what changed and what to do to get it. The plugin ships
+the same SessionStart hook as the editor (`hooks/whats_new.py`, byte-identical in both plugins,
+which `tests/editor_units.py` checks): the first fresh session after an update shows a banner
+and hands Claude the unseen entries plus a check of the workspace. The check names what the
+weekly scripts still learn nothing from: no workspace yet, no filmed script marked, and less
+than about twenty minutes (2,500 words) of the creator alone to camera on their own subject
+filed `register: work` and `form: monologue`, which is the voice supply 3.10.1 found missing.
+A personal vlog does not count toward it. `release.sh` already refuses a release of a plugin
+that ships the hook without a `WHATS-NEW.md` entry. Prevents: a release nobody hears about,
+and a creator waiting on better scripts when the missing input is their own recording.
+
 ## What's new in 3.5.1 (tiktok-yap-editor)
 
 **Users hear about an update the first time they open a session after it.** The plugin now
