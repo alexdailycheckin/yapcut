@@ -273,6 +273,9 @@ curated sound library needs a free HeyGen account, with a CC0 fallback. Read
 `references/hyperframes-packaging.md` before the first one, and look at every snapshot before
 rendering: containment fails there, not in `hyperframes check`.
 
+Asked what changed in an update, run `python3 <plugin>/hooks/whats_new.py --all` (the plugin folder is
+two levels above this skill); `--check` prints only what this machine still needs.
+
 ## SFX and music (optional, both modes)
 
 `gen_sfx.py` builds a CC0 pack once (`assets/sfx/`, generated, never shipped). An `sfx.json`

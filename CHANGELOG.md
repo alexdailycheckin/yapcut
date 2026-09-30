@@ -2,6 +2,20 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.5.1 (tiktok-yap-editor)
+
+**Users hear about an update the first time they open a session after it.** The plugin now
+ships a SessionStart hook, `hooks/whats_new.py`. The first session after an update shows a
+one-line banner and hands Claude the WHATS-NEW.md entries that machine has not seen, plus a
+setup check of what it still needs for them (Node 22, ffmpeg, the HeyGen CLI and the sound
+library, HeyGen's HyperFrames skills). Claude tells the user once, in plain words, at the start
+of its first reply. The last version seen lives in `~/.config/yapcut/seen.json`; a machine with
+no record sees the whole current minor line, so someone coming from 3.4 hears about 3.5.0 too.
+It runs on a fresh session only, never on resume or compact, and never fails a session.
+`python3 hooks/whats_new.py --all` reads the list again. `release.sh` now refuses a release of
+a plugin that ships the hook when `WHATS-NEW.md` has no entry for that version. Prevents: an
+update that adds a feature nobody finds, and a release that updates users in silence.
+
 ## What's new in 3.5.0 (tiktok-yap-editor)
 
 **A finished cut can be packaged in HyperFrames.** `scripts/hfkit/` turns a yapcut cut into a

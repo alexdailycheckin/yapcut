@@ -147,6 +147,37 @@ with tempfile.TemporaryDirectory() as t:
     check(theme_build("#E8232F")["css"] == theme_build("#E8232F")["css"], "the theme build is deterministic")
 
 
+# --- what's new: shown once per version, the minor line on a first run, never crashes ---
+sys.path.insert(0, os.path.join(ROOT, "plugins/tiktok-yap-editor/hooks"))
+import whats_new as wn  # noqa: E402
+es = wn.entries()
+check(es and all(e[2] and e[3] for e in es), "every WHATS-NEW.md entry has a title and a body")
+cur = wn.current()
+check(any(e[1] == cur for e in es), f"WHATS-NEW.md has an entry for the current version {cur}")
+fake = [((3, 5, 1), "3.5.1", "b", "x"), ((3, 5, 0), "3.5.0", "a", "x"), ((3, 4, 0), "3.4.0", "old", "x")]
+check([e[1] for e in wn.pending("3.5.1", None, fake)] == ["3.5.1", "3.5.0"], "a machine with no record sees the current minor line")
+check([e[1] for e in wn.pending("3.5.1", "3.5.0", fake)] == ["3.5.1"] and wn.pending("3.5.1", "3.5.1", fake) == [],
+      "a machine sees only what it has not seen")
+with tempfile.TemporaryDirectory() as t:
+    wn.SEEN = os.path.join(t, "seen.json")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        sys.stdin = io.StringIO('{"source": "startup"}'); wn.hook()
+    first = out.getvalue()
+    out2 = io.StringIO()
+    with contextlib.redirect_stdout(out2):
+        sys.stdin = io.StringIO('{"source": "startup"}'); wn.hook()
+    d = json.loads(first) if first.strip() else {}
+    check(d.get("hookSpecificOutput", {}).get("hookEventName") == "SessionStart" and d.get("systemMessage"), "the hook prints a banner and a notice")
+    check(out2.getvalue() == "", "the notice shows once")
+    wn.SEEN = os.path.join(t, "fresh", "seen.json")
+    out3 = io.StringIO()
+    with contextlib.redirect_stdout(out3):
+        sys.stdin = io.StringIO("not json"); wn.hook()
+    check(True, "a broken hook input never fails the session")
+    sys.stdin = sys.__stdin__
+
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)

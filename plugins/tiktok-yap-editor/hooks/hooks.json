@@ -1,0 +1,12 @@
+{
+  "description": "What's new: the first session after an update tells the creator what changed and what this machine still needs, once.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/whats_new.py\" --hook", "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}

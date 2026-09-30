@@ -20,6 +20,11 @@ git fetch -q origin
 [ -z "$(git status --porcelain)" ] || { echo "dirty tree: commit or stash first (a release from a dirty tree ships whatever happens to be on disk)"; git status --short | head; exit 1; }
 [ "$(git rev-list --count HEAD..origin/main)" = "0" ] || { echo "HEAD is behind origin/main: pull first"; exit 1; }
 grep -qE "^## What's new in .*\b$VERSION\b" CHANGELOG.md || { echo "CHANGELOG.md has no '## What's new in ... $VERSION' entry: write it first, the README header is generated from it"; exit 1; }
+# a plugin that ships the what's-new hook tells its users about every release: the entry is what the
+# first session after the update shows, so a release without one would update them in silence
+if [ -f "plugins/$PLUGIN/hooks/whats_new.py" ]; then
+  grep -qE "^## $VERSION: " "plugins/$PLUGIN/WHATS-NEW.md" || { echo "plugins/$PLUGIN/WHATS-NEW.md has no '## $VERSION: <title>' entry: write what changed and what the user has to do to get it"; exit 1; }
+fi
 
 python3 - "$PLUGIN" "$VERSION" <<'PY'
 import json, sys, re
