@@ -115,7 +115,9 @@ pass preflight.
 - `plugins/outlier-radar/skills/lead-magnet-report/`: the report builder, the request ledger,
   the measurement law.
 - `plugins/tiktok-yap-editor/skills/tiktok-yap-editor/`: the editor playbook, the gate ladder
-  (`scripts/gates.sh`), `scripts/yaplib/`, the drivers, `brand-config.example.json`.
+  (`scripts/gates.sh`), `scripts/yaplib/`, the drivers, `brand-config.example.json`, and
+  `scripts/hfkit/`, which packages a finished cut in HyperFrames (renders with `npx hyperframes`,
+  no account; the curated sounds download with a free HeyGen account, or fall back to a CC0 pack).
 - `rules.json` in each plugin: the numbers and rules a second surface has to apply the same
   way (cut rules, caption presets, hook limits, gate thresholds, the week schema, the script
   patterns). The scripts read them instead of carrying copies, and a phone editor reads the

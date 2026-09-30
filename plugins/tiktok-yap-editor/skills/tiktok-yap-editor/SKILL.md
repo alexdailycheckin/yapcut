@@ -262,6 +262,17 @@ the same gates.
    length; chronology reads as day flow; read the full VO aloud once to catch three beats
    starting "so I".
 
+## HyperFrames packaging (optional, Mode A, after the cut)
+
+The finished cut can be packaged in HyperFrames instead of the burned-in overlays: receipt cards
+that build as the line is said, counters, flows, quotes underlined as they are spoken, camera
+push-ins, a tagged sound per event and a music bed carved around the voice. `scripts/hfkit/` is
+the engine; a video is a short spec anchored to phrases in the corrected transcript
+(`scripts/hfkit/example_spec.py`). Rendering needs Node and `npx hyperframes`, no account; the
+curated sound library needs a free HeyGen account, with a CC0 fallback. Read
+`references/hyperframes-packaging.md` before the first one, and look at every snapshot before
+rendering: containment fails there, not in `hyperframes check`.
+
 ## SFX and music (optional, both modes)
 
 `gen_sfx.py` builds a CC0 pack once (`assets/sfx/`, generated, never shipped). An `sfx.json`

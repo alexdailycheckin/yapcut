@@ -2,6 +2,38 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.5.0 (tiktok-yap-editor)
+
+**A finished cut can be packaged in HyperFrames.** `scripts/hfkit/` turns a yapcut cut into a
+HyperFrames composition (HeyGen's open-source HTML video renderer): the hook on screen at frame
+zero, word captions that scale the spoken word, receipt cards that build as the line is said,
+slow camera push-ins on the lines that carry the belief, a tagged sound per on-screen event and
+a music bed carved around the voice. A video is a short Python spec that anchors every card to a
+phrase in the cut's corrected transcript and fails loudly when the phrase is not there
+(`example_spec.py`). Seventeen card types: headline, image with wipe, title slam, logo chip,
+chip set, flow with strike and light, counter (money, count, multiple, percent, rank), bars with
+a stop line, quote underlined as it is said, struck spreadsheet, build-once fan, word-of-mouth
+network, converge, route, checklist, timeline, push-in. `run.py` builds it, carves the bed once,
+runs `hyperframes check`, snapshots every card at the moment before it leaves, and renders.
+The theme is read from `brand-config.json` (`accent_hex`, `ink_hex`, optional `pill_hex` and
+`overlay_font`, the contact lines, the series mark), so it ships with no one's brand in it.
+
+**The sounds are fetched, not shipped.** `sfx_library.py fetch` downloads 30 picks from HeyGen's
+sound and music catalog, chosen by ear from ranked searches, with the creator's own free HeyGen
+account; the repo carries the catalog IDs and the queries, never the audio. `offline` maps every
+tag to the CC0 pack `gen_sfx.py` synthesizes, for a creator with no account. Rendering itself
+needs Node and `npx hyperframes`, no account at all. `references/hyperframes-packaging.md` has
+the install table.
+
+**Containment is checked where it fails.** Built on the September 30th batch, where a four-node
+flow ran past both edges of its card and `hyperframes check` passed it. Rows are sized in em and
+scaled to the card's inner width after fonts load; hook lines, stats and titles shrink to their
+own box; counters measure their widest text before they count; SVG lines are drawn in the card's
+own pixels (a stretched viewBox with a non-scaling stroke drew them as broken dashes); push-ins
+that would overlap are refused; the same image in two elements gets a second name. The snapshot
+of every card is the review, and the playbook says to look at it before rendering. Prevents: a
+packaged video shipping with text outside its box, which the linter cannot see.
+
 ## What's new in 3.15.1 (outlier-radar)
 
 **Receipt placement matches the ruling.** `references/receipts.md` still said logos and cards

@@ -104,6 +104,49 @@ with tempfile.TemporaryDirectory() as t:
     check(r.returncode == 0 and "WARNING the output dir resolved inside a build directory" in r.stdout,
           f"finalize warns on an output dir inside .yap_build (rc {r.returncode})")
 
+# --- HyperFrames kit: anchors, counters, containment, sounds, no brand ----------
+from hfkit import kit as hk  # noqa: E402
+from hfkit.themes.cards import from_brand, build as theme_build  # noqa: E402
+with tempfile.TemporaryDirectory() as t:
+    words = [{"t0": 0.1 + 0.4 * i, "t1": 0.45 + 0.4 * i, "w": w} for i, w in enumerate(
+        "Acme bought a spreadsheet startup. It is running at $7 billion a year. That's a bet.".split())]
+    json.dump(words, open(os.path.join(t, "w.json"), "w"))
+    clip = os.path.join(t, "cut.mp4")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:s=1080x1920:d=8", "-f", "lavfi", "-i",
+                    "anullsrc=r=48000:cl=stereo", "-t", "8", "-shortest", "-c:v", "libx264", "-c:a", "aac", clip], check=True)
+    lib = os.path.join(t, "lib"); os.makedirs(os.path.join(lib, "files"))
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "1", os.path.join(lib, "files", "x.mp3")], check=True)
+    json.dump({tag: {"file": "files/x.mp3", "seconds": 1.0} for tag in ("card_in", "card_in_heavy", "headline", "counter", "money", "pop",
+               "slam", "bed_corporate")}, open(os.path.join(lib, "library.json"), "w"))
+    ep = hk.Episode("unit", words=os.path.join(t, "w.json"), footage=clip, voice=clip, project_root=os.path.join(t, "p"),
+                    library=os.path.join(lib, "library.json"))
+    check(ep.t("running at $7 billion") == 2.9 and ep.e("a spreadsheet startup") == 2.05, "phrase anchors read the cut's own seconds")
+    try:
+        ep.t("never said this"); check(False, "an unknown phrase stops the build")
+    except SystemExit:
+        check(True, "an unknown phrase stops the build")
+    f = hk._fmt({"pre": "$", "suf": " billion", "dec": 1}, 7, final="$7 billion")
+    check(len(hk._widest(f)) == len("$7.0 billion") and hk._num(hk._fmt("rank", 1), 100) == "#100", "counters measure their widest text first")
+    ep.hook(["Acme just", "bought a spreadsheet"], spark="spreadsheet")
+    ep.counter(7, {"pre": "$", "suf": " billion", "dec": 1}, 3.0, ep.t("$7 billion"), 2.7, 6.0, "Run rate", "example.com", "1 Jan 2026")
+    ep.title("That's a bet.", 6.0, ep.dur, slam_at=ep.t("thats a bet"))
+    ep.push(0.5, 2.0); ep.push(2.2, 3.0)
+    try:
+        ep.build(); check(False, "overlapping push-ins are refused")
+    except SystemExit:
+        check(True, "overlapping push-ins are refused")
+    ep.pushes = [(0.5, 2.0, 1.05)]; ep._built = False
+    html = open(os.path.join(ep.build(), "index.html")).read()
+    check("{{" not in html and "document.fonts.ready" in html and ".flowrow" in html, "the page fits rows to their card after fonts load")
+    check('src="assets/lib/x.mp3"' in html and os.path.exists(os.path.join(t, "p", "assets", "lib", "x.mp3")), "sounds come from the library by tag")
+    check(ep.snaps and all(0 < s < ep.dur for s in ep.snaps), "every card has a snapshot time before it leaves")
+    neutral = from_brand({})
+    check(neutral["contact"] is None and neutral["star"] is None, "the default theme carries no creator's brand")
+    th = from_brand({"accent_hex": "#1570EF", "ink_hex": "#101010", "handle": "YOU.COM", "contact_lines": ["you@you.com"]})
+    check("#1570EF" in th["css"] and th["contact"] == ["YOU.COM", "you@you.com"], "the theme reads accent, ink and contact from brand-config")
+    check(theme_build("#E8232F")["css"] == theme_build("#E8232F")["css"], "the theme build is deterministic")
+
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)
