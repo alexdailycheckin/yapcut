@@ -86,7 +86,12 @@ def canon(text: str) -> list:
     return out
 
 
-def caption_words(ass_path: str) -> list:
+def _ass_secs(t):
+    h, m, sec = t.strip().split(":")
+    return int(h) * 3600 + int(m) * 60 + float(sec)
+
+
+def caption_words(ass_path: str, free_from=None) -> list:
     """Unique display words from Cap-style dialogue, tags stripped.
 
     Overlay-rendered events (counter tick frames, source lower-thirds) reuse
@@ -97,6 +102,13 @@ def caption_words(ass_path: str) -> list:
     for line in open(ass_path, encoding="utf-8", errors="ignore"):
         if not line.startswith("Dialogue:") or ",Cap," not in line:
             continue
+        if free_from is not None:
+            # the opinion slot: the take is unscripted, so nothing after it starts is diffed
+            try:
+                if _ass_secs(line.split(",")[1]) >= free_from:
+                    continue
+            except (IndexError, ValueError):
+                pass
         text = line.split(",,", 1)[-1]
         m = re.search(r"\\pos\(\s*[\d.]+\s*,\s*([\d.]+)\s*\)", text)
         if m and float(m.group(1)) < 1150:
@@ -120,6 +132,9 @@ def main() -> int:
     ap.add_argument("--overlays", default="",
                     help="overlays json: counter values/labels and source-tag "
                     "text are burned as caption-styled events, allowlist them")
+    ap.add_argument("--free-from", type=float, default=None,
+                    help="seconds into the cut where the unscripted opinion slot starts: captions "
+                    "from there on are the creator's own take and are not diffed (3.6.0)")
     a = ap.parse_args()
 
     vocab = set(canon(open(a.script, encoding="utf-8").read())) | GLUE
@@ -145,7 +160,7 @@ def main() -> int:
         except FileNotFoundError:
             pass
 
-    caps = caption_words(a.ass)
+    caps = caption_words(a.ass, a.free_from)
     bad = []
     for i, w in enumerate(caps):
         if ywords.has_dash(w):

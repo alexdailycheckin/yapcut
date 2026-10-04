@@ -161,8 +161,15 @@ gate_caption() {                     # gate_caption <cap.ass> <script.txt> <bran
   elif [ "${YAP_ALLOW_CAPTIONS:-0}" = "1" ]; then
     echo "  skipped by YAP_ALLOW_CAPTIONS=1"; rc=1
   else
+    # the opinion slot (3.6.0): <out>_opinion.json {"start": seconds in the cut} marks where the
+    # creator's unscripted take begins; captions from there on are theirs and are not diffed
+    local op="${accept%_capqa_ok.json}_opinion.json" free=()
+    if [ -f "$op" ]; then
+      local t; t=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("start",""))' "$op" 2>/dev/null || true)
+      [ -n "$t" ] && free=(--free-from "$t") && echo "  opinion slot from ${t}s: the take is unscripted, not diffed"
+    fi
     python3 "$SCRIPTS/caption_qa.py" --ass "$ass" --script "$script" --brand "$brand" \
-      --overlays "$ovr" --accept-file "$accept" || rc=$?
+      --overlays "$ovr" --accept-file "$accept" ${free[@]+"${free[@]}"} || rc=$?
   fi
   gate_finish caption "$rc" "Garbles -> $(basename "${accept%_capqa_ok.json}")_corrections.json + YAP_FROM_CUT=1; ad-libs -> $(basename "$accept")."
 }

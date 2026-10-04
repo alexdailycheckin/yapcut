@@ -38,6 +38,13 @@
       .title { text-align: center; text-wrap: balance; margin-top: 10px; }
       .chipcard { position: absolute; left: 390px; top: 170px; width: 300px; text-align: center; will-change: transform, opacity; }
       .chipcard img { width: 250px; height: auto; display: block; margin: 0 auto 18px; }
+      .iconcard { position: absolute; will-change: transform, opacity; }
+      .iconcard img { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 10px 18px rgba(0,0,0,.22)); }
+      .takepill { position: absolute; left: 70px; top: 120px; display: inline-flex; align-items: center; gap: 14px; padding: 12px 26px 12px 12px; border-radius: 999px; background: var(--sand, #EFE3CE); color: var(--ink, #17181B); font-size: 34px; font-weight: 700; will-change: transform, opacity; }
+      .takechip { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px; border-radius: 999px; background: {{ACCENT}}; color: {{ONACCENT}}; font-size: 30px; }
+      .stamp { position: absolute; left: 70px; top: 140px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px 28px; border-radius: 26px; background: var(--card, #FFFFFF); color: var(--ink, #17181B); will-change: transform, opacity; }
+      .stampclock { font-size: 64px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+      .stamplab { font-size: 28px; font-weight: 600; opacity: .7; }
       .stat { display: block; white-space: nowrap; text-align: center; font-variant-numeric: tabular-nums; transform-origin: 50% 60%; line-height: 1.28 !important; margin-bottom: 0 !important; }
       .whead { display: flex; align-items: center; gap: 22px; }
       .whead img { width: 150px; height: auto; }

@@ -44,6 +44,8 @@ CSS = """
       .strike path { stroke: INK; }
       .title { font-weight: 800; font-size: 84px; line-height: 1.02; letter-spacing: -0.03em; color: RED; }
       .tagpill { display: inline-block; background: INK; color: #FFFFFF; border-radius: 999px; padding: 12px 24px; font-weight: 700; font-size: 24px; white-space: nowrap; }
+      .takepill { background: SAND; color: INK; } .takechip { background: RED; color: #FFFFFF; }
+      .stamp { background: #FFFFFF; color: INK; box-shadow: 0 24px 60px rgba(INKRGB, 0.25); } .stamplab { color: MUTED; }
       .chipcard img { border-radius: 26px; box-shadow: 0 24px 60px rgba(INKRGB, 0.3); }
       .stat { font-weight: 800; font-size: 150px; line-height: 1.05; letter-spacing: -0.04em; color: RED; margin-bottom: 8px; }
       .whead img { border-radius: 16px; box-shadow: 0 0 0 2px rgba(INKRGB, 0.08); }

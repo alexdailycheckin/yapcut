@@ -18,12 +18,50 @@ Rules the kit enforces:
 - Sounds come from the tagged library by what the event means (library.json tags).
 - Receipts sit in the band above the speaker's head; the frame-one receipt sits under the captions.
 - Captions scale the spoken word, never recolour it.
+- The creator's own take (the opinion slot) is labelled as theirs, and brand objects from their
+  icon kit pop in on the line that names them (icon, take, stamp: 3.6.0).
 """
 import html as _h, json, math, os, re, shutil, subprocess, importlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _norm = lambda s: re.sub(r"[^a-z0-9.%#$]", "", s.lower()).rstrip(".")
 esc = lambda s: _h.escape(str(s))
+
+
+def icon_library(home=None):
+    """The creator's icon kit: <workspace>/assets/icons/library.json, {icons: [{name, file, tags}]}.
+    None when the workspace has no kit."""
+    if home is None:
+        try:
+            from yaplib.home import radar_home
+        except ImportError:
+            return None
+        home = radar_home(argv=[], required=False)
+    path = os.path.join(str(home), "assets", "icons", "library.json") if home else None
+    if not path or not os.path.exists(path):
+        return None
+    lib = json.load(open(path))
+    lib["_dir"] = os.path.dirname(path)
+    return lib
+
+
+def find_icon(name, lib=None):
+    """A kit icon's PNG path by name ("check"), or by a tag it answers to ("growth")."""
+    if name and os.path.exists(str(name)):
+        return str(name)
+    lib = lib or icon_library()
+    if not lib:
+        raise SystemExit(f"no icon kit in this workspace (assets/icons/library.json) for {name!r}")
+    want = str(name).lower().strip()
+    for it in lib.get("icons", []):
+        if it.get("name") == want:
+            return os.path.join(lib["_dir"], it["file"])
+    for it in lib.get("icons", []):
+        if want in [t.lower() for t in it.get("tags", [])]:
+            return os.path.join(lib["_dir"], it["file"])
+    raise SystemExit(f"no icon named or tagged {name!r} in {lib['_dir']}/library.json")
+
+
 FMT = {"money": {"pre": "$"}, "int": {}, "mult": {"suf": "x"}, "pct": {"suf": "%"}, "rank": {"pre": "#", "from": 100}}
 ARROW = '<svg class="arrow" viewBox="0 0 44 24"><path id="{id}" d="M4 12 H36 M28 4 L37 12 L28 20" /></svg>'
 
@@ -364,6 +402,46 @@ class Episode:
         for j, k in enumerate(ticks):
             self.js.append(f'pop("#{cid}k{j}", {k["at"]});')
             self.sound("pop_small", k["at"])
+
+    # ------------------------------------------------------------ the brand objects (3.6.0)
+    def icon(self, name, t0, t1, x=None, y=None, size=300, tilt=0, sfx="pop"):
+        """A transparent brand object from the creator's icon kit, popped in on its line.
+        name: a kit name ("check", "arrow-trend-up"), a tag ("growth"), or a PNG path. Default
+        spot is the right side of the band above the head; x, y place the object's centre. One
+        object per beat, never over the face or the caption line."""
+        path = find_icon(name)
+        cid = self._id("ic")
+        cx = (1080 - 70 - size // 2) if x is None else x
+        cy = 300 if y is None else y
+        style = (f"left:{cx - size // 2}px;top:{cy - size // 2}px;width:{size}px;height:{size}px;"
+                 f"transform:rotate({tilt}deg)")
+        self.cards.append(f'      <div class="iconcard" id="{cid}" style="{style}"><img src="{self._img(path)}" alt="" /></div>')
+        self.js.append(f'pop("#{cid}", {t0}); tl.to("#{cid}", {{opacity: 0, scale: 0.6, duration: 0.22, ease: "power2.in"}}, {t1 - 0.22});')
+        self.snaps.append(round(min(t1, self.dur) - 0.4, 2))
+        if sfx and t0 > 0.05:
+            self.sound(sfx, t0)
+
+    def take(self, t0, t1=None, label="My take"):
+        """The opinion slot: the creator's own take, said off the cuff after the reported story.
+        A pill on the band above the head names it as theirs for as long as it runs, the way a
+        newspaper labels its opinion page. t1 defaults to the end of the cut."""
+        cid = self._id("tk")
+        t1 = self.dur if t1 is None else t1
+        self.cards.append(f'      <div class="takepill" id="{cid}"><span class="takechip">&rarr;</span>{esc(label)}</div>')
+        self.js.append(f'pop("#{cid}", {t0}); tl.to("#{cid}", {{opacity: 0, duration: 0.25, ease: "power2.in"}}, {max(t0, t1 - 0.25)});')
+        self.snaps.append(round(min(t0 + 1.0, self.dur - 0.1), 2))
+        self.sound("pop", t0)
+
+    def stamp(self, clock, t0, t1, label=None):
+        """A time stamp for day-in-the-life and break clips: the clock time big, what is happening
+        small, top left. One per clip, in at the cut, out before the next stamp."""
+        cid = self._id("st")
+        sub = f'<span class="stamplab">{esc(label)}</span>' if label else ""
+        self.cards.append(f'      <div class="stamp" id="{cid}"><span class="stampclock">{esc(clock)}</span>{sub}</div>')
+        self.js.append(f'cardIn("#{cid}", {t0}); cardOut("#{cid}", {t1});')
+        self.snaps.append(round(min(t1, self.dur) - 0.3, 2))
+        if t0 > 0.05:
+            self.sound("tick", t0)
 
     def push(self, t0, t1, scale=1.06):
         """Slow camera push-in on a line that carries the belief."""

@@ -148,7 +148,9 @@ editorial half is simpler: assign the receipt to the claim while you write the
 story, not after the cut. A script that names a claim with no capturable receipt
 gets rewritten now, not discovered at compose.
 
-Real footage and real screenshots only. No AI-generated visuals anywhere.
+Real footage and real screenshots only. No AI-generated visuals as footage or as evidence. The
+one exception is the creator's own icon kit (`<workspace>/assets/icons/`): brand objects made
+for overlays, which sit on the picture the way type does and never stand in for a receipt.
 
 ## The words
 
@@ -164,6 +166,58 @@ reaches the clauses file. If you would not say it to someone's face, it does not
 get said to camera.
 
 Never use em dashes or en dashes, on screen or anywhere else. Commas and colons.
+
+## The opinion slot: the reported story, then the take
+
+A Radar script with `opinion.ideas` ends in two parts. The script reports the story and lands
+on its last line; after it, under the label `[NAME'S OPINION, IF ANY]`, the creator says their
+own take off the cuff, or says nothing. The ideas in the pack are prompts, not lines, so the
+take never matches any text you were given. Cut it like this:
+
+- **Keep the take whole.** Cut only restarts, stutters and dead air inside it. Never trim it for
+  length, never move a line of it into the scripted part, never cut it because it is not in
+  the script. It is the part of the video only this person could have made.
+- **Mark where it starts.** Write `<out>_opinion.json` `{"start": <seconds in the cut>}` before
+  the gates run. `<out>_script.txt` holds the scripted text only, never the label or the ideas.
+  The caption gate then diffs the script part and leaves the take alone.
+- **Label it.** Packaged in HyperFrames, `ep.take(ep.t("<first words of the take>"))` puts a
+  "My take" pill above the head for as long as it runs. A reporter labels the opinion page.
+- **No take, no problem.** If the creator stopped on the landing, the video ends there. Do not
+  pad it.
+
+## Moments: day in the life and Pomodoro breaks (Mode B)
+
+A `moments[]` item is filmed, not read: a capture list of short clips (a coffee, a walk, the
+desk at 7am). Picture leads, so it is Mode B with a different finish:
+
+- **Order by clock.** The clip's own capture time (`scripts/clip_clock.py <clips>` reads the
+  phone's metadata) orders the clips and becomes the stamp on screen: `07:40` big, what is
+  happening small. Hour by hour is the format; the stamp carries it.
+- **Short and quick.** Day in the life: 20 to 45 seconds, 1.5 to 3 seconds a clip. A Pomodoro
+  break: 10 to 20 seconds, the break from the timer going off to sitting back down.
+- **Words are optional.** No voiceover by default: a music bed and the stamps carry it. If the
+  item has `vo[]`, record it after over the picture (the Mode B guide) and keep it to one line a
+  clip.
+- **Package it.** One `ep.stamp(clock, t0, t1, label)` per clip, timed from
+  `picture.timeline.json`, and an icon from the kit where an object helps (`coffee-cup`,
+  `tomato-timer`, `sneaker`). The hook text from the item is on screen at 0.00.
+
+## Explainers (long form, Mode A)
+
+An `explainers[]` item explains a new feature or release to someone who has never done the job.
+It is a talking head at 90 to 180 seconds, past 90 with a mid-point re-hook. Every step the
+script walks gets the screen it describes: the creator records the screens in the guide's
+order, or you capture them, and each step opens with its numbered badge from the kit
+(`ep.icon("num-1", ...)`). Plain speech outranks density here: one idea on screen at a time.
+
+## The icon kit
+
+`<workspace>/assets/icons/library.json` lists the creator's brand objects, each with the spoken
+words it answers to (`tags`). `ep.icon(name_or_tag, t0, t1)` pops one in on the line that names
+it: a tick on "that worked", a falling arrow on "churn", the coffee cup on a break. One object per
+beat, on the band above the head or beside it, never over the face or the caption line. The
+containers (`bubble-*`, `card`, `pill`, `sign`, `banner`) have blank faces for text laid over
+them. Used sparingly it reads as a brand; on every line it reads as clip art.
 
 ## Before it ships
 
@@ -312,6 +366,7 @@ figure on a card is verbatim from the source in its pill.
 | Caption preset | brand config (minimal, scale-only highlight). |
 | Hook | One line if it fits (9 words or fewer), else two with `|`. Second hook as a variant when the platforms differ. |
 | Platform | TikTok by default; `YAP_PLATFORM=linkedin` for the ICP lane. |
+| Opinion slot | Keep the take whole, mark its start in `<out>_opinion.json`, label it "My take". |
 | Crop alternation | On (masks jump-cut stutter). Off only if the creator dislikes any framing change. |
 
 ## When it misbehaves
@@ -332,5 +387,5 @@ pauses, restarts and stutters go; speech cadence stays.
 
 ## Hard rules
 
-Editorial hard rules (no AI-generated visuals, no dashes, receipts on every claim) are Part 1.
+Editorial hard rules (no AI-generated footage or evidence, the icon kit excepted; no dashes; receipts on every claim) are Part 1.
 Operational: run the batch sequentially in one process and never build ahead of the gates.

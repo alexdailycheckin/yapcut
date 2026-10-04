@@ -4,6 +4,21 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.6.0: your take stays whole, brand objects, time stamps
+
+**What's new.**
+
+- **The opinion slot.** When a script ends in your own take, the editor keeps it whole (only
+  restarts and dead air come out), labels it "My take" on screen, and the caption check stops
+  flagging your own words as garbles.
+- **Your icon kit.** Put brand objects in `<workspace>/assets/icons/` with a `library.json` and
+  `ep.icon("check", ...)` pops one in on the line that names it.
+- **Day-in-the-life and break clips.** `scripts/clip_clock.py` reads when each clip was filmed,
+  and `ep.stamp("07:40", ...)` puts the time on screen, hour by hour.
+- **Explainers** get a long-form recipe: 90 to 180 seconds, a numbered badge per step.
+
+**To get it.** Nothing to install. The icon kit is yours to make; without one, `ep.icon` says so.
+
 ## 3.5.1: you hear about updates now
 
 **What's new.** The first session after an update tells you what changed and what your machine
