@@ -51,6 +51,7 @@ import sys
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 HOME = radar_home()          # consumes --dir; exits 2 with the places looked when none found
 PY = sys.executable or "python3"
@@ -203,7 +204,7 @@ def cross_week(path, d):
     return rc, lines
 
 
-VIDEO_LANES = ("distribution", "office")
+VIDEO_LANES = rules.video_lanes()
 POST_LANES = ("linkedin", "gtm_linkedin")
 
 
@@ -279,7 +280,7 @@ def declared_accents(d, home):
         if isinstance(v, dict) and v.get("path") and v.get("accent"):
             p = v["path"]
             out[os.path.abspath(p if os.path.isabs(p) else os.path.join(home, p))] = str(v["accent"])
-    for lane in ("distribution", "office", "linkedin", "gtm_linkedin"):
+    for lane in VIDEO_LANES + ("linkedin", "gtm_linkedin"):
         for it in d.get(lane) or []:
             if not isinstance(it, dict):
                 continue

@@ -16,6 +16,8 @@ week files carry history; fields marked FAIL stop the batch.
 | `supersedes` | string | optional: the `week` value this file replaces. The dashboard hides the superseded week unless `--all`. |
 | `distribution[]` | items | the PRIMARY lane (the tab label comes from config). |
 | `office[]` | items | the SECONDARY lane. |
+| `explainers[]` | items | optional (3.17.0): ids `x-YYYYMMDD-n`, `script_class: explainer`. A new feature or release explained for someone who has never done the job. |
+| `moments[]` | items | optional (3.17.0): ids `m-YYYYMMDD-n`, `script_class: moment`. Day-in-the-life and break clips, filmed not read. |
 | `linkedin[]` | posts | LinkedIn-only posts. |
 | `gtm_linkedin[]` | posts | the leaders-scan posts (legacy key, still read). |
 | `inspiration[]` | `{creator, platform, metric, metric_confidence, mechanic, link}` | the outliers found. |
@@ -86,3 +88,28 @@ waiting on the creator). Anything else: FAIL.
 `radar_gate.py` writes `weeks/<date>.gate.json` `{week_file, passed_at, engine, results
 {gate: rc}, skipped[], ok}`. The dashboard warns on a missing or stale stamp, and refuses with
 `--strict`.
+
+## The opinion slot (3.17.0)
+
+`opinion` `{ideas: [string, ...]}` on a `research` or `explainer` item: two or three positions the
+creator could take after the script lands, each one sentence, written as prompts and never as
+lines to read. The script itself ends on the landing and never contains the slot. Renderers show
+the ideas under `rules.json` `opinion.label` (`[SAM'S OPINION, IF ANY]` with the creator's first
+name); the editor keeps whatever is said there whole. Nothing counts it toward the word ceiling.
+
+## Explainers (3.17.0)
+
+An episode's fields plus `guide`, the creator's own walkthrough, so they learn the thing before
+explaining it: `{what_it_is, who_its_for, you_need[], steps[{do, why, url}], say_it_simply[],
+watch_out, try_it_first}`. Every step is checked against the official docs and carries the URL.
+`script` is plain speech for a viewer with zero prior knowledge; `rules.json`
+`explainer.target_seconds` is the band the pack prints against. `shot_list` names the screens to
+record.
+
+## Moments (3.17.0)
+
+`format` (`day-in-the-life` or `pomodoro-break`), `title`, `text_hook`, `film_on` (a date),
+`length` (for example `20 to 30 seconds`), `clips[{t, moment, shot}]` (the clips to film, with
+the clock time each one stamps on screen), optional `vo[]` (lines recorded after, over the
+picture), `edit` (how the editor cuts it), `post_copy`, `qa`. No `script`: the capture list is the
+plan (`clips`, never `capture`, which is testimony's), and the editor builds the piece from what was filmed (Mode B).

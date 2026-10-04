@@ -68,6 +68,7 @@ from datetime import date, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 RADAR = str(radar_home())      # consumes --dir; exits 2 with the places looked when none found
 PERF = os.path.join(RADAR, "performance", "performance.jsonl")
@@ -185,8 +186,8 @@ def load_video_candidates():
     where exact maps a normalised title or text_hook to the ids that carry it."""
     cands, exact = {}, {}
     for f, d in week_files():
-        for lane in ("distribution", "office"):
-            for it in d.get(lane, []):
+        for lane in rules.video_lanes():
+            for it in d.get(lane) or []:
                 if not it.get("id"):
                     continue
                 strings = [it.get("title"), it.get("text_hook")]

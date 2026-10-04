@@ -67,6 +67,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from cdp import Browser  # noqa: E402
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 HOME = radar_home(required=False)   # consumes --dir; only used to find a relative --week
 
@@ -314,7 +315,7 @@ def check_page(page, url: str, claims):
 
 
 def iter_sources(week):
-    for lane in ("distribution", "office", "linkedin"):
+    for lane in rules.video_lanes() + ("linkedin",):
         for it in week.get(lane) or []:
             for i, s in enumerate(it.get("sources") or []):
                 if isinstance(s, dict) and s.get("url"):

@@ -2,6 +2,32 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.17.0 (outlier-radar)
+
+**The script reports, the creator's take closes it, and two new formats.** Move 5 was a
+verdict written for the creator, and it was the line they most often rewrote on the take. It is
+now the landing (the story's last line, money word last) followed by the opinion slot: the
+label `[NAME'S OPINION, IF ANY]` from `rules.json` and two or three `opinion.ideas` as prompts,
+said off the cuff or skipped. The pack, the dashboard and the phone prompter show it; nothing
+counts it toward the word ceiling. Two optional lanes join the week, read everywhere through
+one helper (`rules.video_lanes()`, so the gates, linters, source check and performance log all
+see them): `explainers[]` (a new feature explained for someone who has never done the job, with
+the creator's own step-by-step `guide`) and `moments[]` (day-in-the-life and break clips, a
+capture list). The phone's bundled rulebook knows two lanes, so `anima_link.phone_week()` folds
+the new ones into them for the trip and leaves the week file alone. `sweep.beats` in the config
+makes the weekly sweep search every beat the creator covers. Prevents: a take written for
+someone who wanted to say their own, and a sweep that only ever saw funding news.
+
+## What's new in 3.6.0 (tiktok-yap-editor)
+
+**The take stays whole.** `<out>_opinion.json` marks where the unscripted take starts;
+`caption_qa.py --free-from` stops diffing there, so an opinion no longer reads as a page of
+garbles. HyperFrames gains `take()` (the "My take" pill), `icon()` (a brand object from the
+creator's own kit, by name or by the spoken tag it answers to) and `stamp()` (the clock time on
+a day-in-the-life clip, read from the phone's metadata by `clip_clock.py`). The playbook adds
+recipes for moments and explainers and says plainly that the creator's icon kit is the one
+AI-made visual allowed on screen: brand graphics, never evidence.
+
 ## What's new in 3.16.0 (outlier-radar)
 
 **Creators hear about an update the first session after it, and catch up on ten silent ones.**

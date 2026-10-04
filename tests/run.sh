@@ -181,7 +181,12 @@ assert err is None and "week" in sent and sent[-1] == "status", (sent, err)
 enc, mac, box = s.keys(r["code"])
 status = json.loads(s.open_sealed(store[(box, "status")], enc, mac))
 assert status["week"] == "2026-01-05.json" and status["workspace_id"], status
-assert json.loads(s.open_sealed(store[(box, "week")], enc, mac)) == json.load(open(os.path.join(ws, "weeks", "2026-01-05.json")))
+# the phone gets the week folded for its two-lane rulebook (3.17.0): new lanes ride in the two it knows
+from anima_link import phone_week
+sent_week = json.loads(s.open_sealed(store[(box, "week")], enc, mac))
+assert sent_week == json.loads(phone_week(os.path.join(ws, "weeks", "2026-01-05.json"), ws))
+assert "explainers" not in sent_week and any(i["id"] == "x-example-1" for i in sent_week["distribution"])
+assert "[" in sent_week["distribution"][0]["script"] and "OPINION, IF ANY]" in sent_week["distribution"][0]["script"]
 assert s.push(ws, r) == ([], None), "an unchanged week is not pushed again"
 other = dict(r, write_secret="x" * 43, pushed={})
 assert "403" in (s.push(ws, other)[1] or ""), "another Mac cannot overwrite the box"

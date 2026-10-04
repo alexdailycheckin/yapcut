@@ -49,6 +49,30 @@ def regex(name):
     return compile_pattern(spec)
 
 
+def video_lanes():
+    """The week file's video lanes in order: ("distribution", "office", "explainers", "moments").
+    Every script that walks the scripts reads them here, so a new lane reaches the gates, the
+    linters, the source check and the performance log in one edit (3.17.0)."""
+    return tuple(l["key"] for l in get("week.video_lanes"))
+
+
+def opinion_label(cfg=None):
+    """The opinion slot's label, with the creator's first name from the config's brand:
+    "[SAM'S OPINION, IF ANY]". No name falls back to "[YOUR OPINION, IF ANY]"."""
+    name = (((cfg or {}).get("brand") or {}).get("name") or "").strip()
+    first = name.split()[0].upper() if name else ""
+    whose = f"{first}'S" if first and first not in ("YOUR", "MY", "NAME") else get("opinion.fallback_name")
+    return get("opinion.label").replace("{WHOSE}", whose)
+
+
+def opinion_ideas(item):
+    """The ideas under an item's opinion slot, trimmed and capped. Empty means no slot."""
+    op = item.get("opinion") if isinstance(item, dict) else None
+    ideas = (op or {}).get("ideas") if isinstance(op, dict) else None
+    out = [i.strip() for i in (ideas or []) if isinstance(i, str) and i.strip()]
+    return out[: get("opinion.max_ideas")]
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "get":
         v = get(sys.argv[2])

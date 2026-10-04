@@ -350,3 +350,12 @@
     .idx{display:none}
     .ring{margin-top:0;align-self:flex-start}
   }
+
+/* 3.17.0: the opinion slot under a script, an explainer's guide */
+.opinion{border-left:3px solid var(--accent);padding-left:12px;margin-top:12px}
+.opnote{font-size:13px;opacity:.75;margin:4px 0 6px}
+.opideas{margin:0;padding-left:18px}
+.opideas li{margin:4px 0;line-height:1.45}
+.guide p{margin:8px 0}
+.guide ol,.guide ul{margin:4px 0 8px;padding-left:20px}
+.guide li{margin:4px 0;line-height:1.45}

@@ -56,6 +56,7 @@ from datetime import date, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 RADAR = str(radar_home())      # consumes --dir; exits 2 with the places looked when none found
 PERFDIR = os.path.join(RADAR, "performance")
@@ -172,8 +173,8 @@ def load_items():
         except Exception:
             continue
         week = d.get("week") or os.path.basename(f).replace(".json", "")
-        for lane in ("distribution", "office"):
-            for it in d.get(lane, []):
+        for lane in rules.video_lanes():
+            for it in d.get(lane) or []:
                 if it.get("id"):
                     proof = it.get("proof") if isinstance(it.get("proof"), dict) else {}
                     items[it["id"]] = {

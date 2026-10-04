@@ -634,10 +634,9 @@ def run_linkedin(d):
 # and the performance store key on them.
 
 SCHEMA_VERSION = rules.get("week.schema_version")
-TOP_KNOWN = {"schema_version", "week", "positioning", "supersedes", "distribution",
-             "office", "linkedin", "gtm_linkedin", "inspiration", "experiment", "ammo",
-             "promised"}
-VIDEO_LANES = tuple(l["key"] for l in rules.get("week.video_lanes"))
+VIDEO_LANES = rules.video_lanes()
+TOP_KNOWN = {"schema_version", "week", "positioning", "supersedes", "linkedin", "gtm_linkedin",
+             "inspiration", "experiment", "ammo", "promised"} | set(VIDEO_LANES)
 POST_LANES = tuple(rules.get("week.post_lanes"))
 ID_PREFERRED = rules.regex("week.id_pattern")
 # d-2026-06-23-9, d-2026-06-23b-8, li-2026-09-07-A1: the dashed shape real weeks use.
@@ -844,7 +843,7 @@ def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
     cls = it.get("script_class", "testimony")
     if not it.get("title"):
         warns.append(f"{where}: no title")
-    if cls != "format" and not (it.get("script") or it.get("beats")):
+    if cls not in ("format", "moment") and not (it.get("script") or it.get("beats")):
         warns.append(f"{where}: no script and no beats")
     if cls == "research":
         check_belief_order(it, where, fails, warns)

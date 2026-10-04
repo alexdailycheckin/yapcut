@@ -538,7 +538,7 @@ def check_targets(it, targets, week_date=""):
 
 FIELDS_SPOKEN = ("spoken_hook", "script")
 FIELDS_WRITTEN = ("body",)
-VIDEO_LANES = ("distribution", "office")
+VIDEO_LANES = rules.video_lanes()
 
 
 def lint_week(path: pathlib.Path):
@@ -546,7 +546,7 @@ def lint_week(path: pathlib.Path):
     findings = []
     targets = load_targets()
     spoken_items = []
-    for lane in ("distribution", "office", "linkedin"):
+    for lane in VIDEO_LANES + ("linkedin",):
         for it in d.get(lane) or []:
             # format class is a skit: speaker marks, deliberately clipped, words are the
             # trend's, not the creator's. Gate-1 only per constitution rule 3, so it is not held

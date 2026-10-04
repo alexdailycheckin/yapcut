@@ -64,6 +64,13 @@
         "description": "A 10 minute setup that ends April panic.",
         "search_query": "freelancer tax account",
         "pinned_comment": "Is 25% too much for your country? Say what you set aside."
+      },
+      "opinion": {
+        "ideas": [
+          "Agree and go further: say what you would copy from it on Monday.",
+          "Disagree: say what it costs that nobody mentions.",
+          "Your own version: the time you did the opposite and what happened."
+        ]
       }
     },
     {
@@ -243,6 +250,103 @@
       "made_in": "d-example-2",
       "due_week": "example+1",
       "paid_in": null
+    }
+  ],
+  "explainers": [
+    {
+      "id": "x-example-1",
+      "title": "How to set up a first prospect list in an afternoon",
+      "script_class": "explainer",
+      "text_hook": "Your first 20 prospects, this afternoon",
+      "spoken_hook": "You can find your first twenty customers this afternoon, without buying a database.",
+      "script": "Here's the whole thing in four steps. First, write down who buys from you in one sentence. Then you ask the assistant to find companies that match it, twenty at a time. Then you check each one yourself, because it gets about one in five wrong. Last, you write one line per company about why you're writing to them.",
+      "value": "A first-time founder can build a real prospect list in an hour.",
+      "sources": [
+        {
+          "label": "Example docs page",
+          "url": "https://example.com/docs",
+          "published": "2026-01-01"
+        }
+      ],
+      "qa": "pending-approval",
+      "psych": "Utility: a job the viewer has this week, done in four steps.",
+      "intent": "educational",
+      "tam": "wide",
+      "proof": {
+        "kind": "public",
+        "ref": "the tool's own docs"
+      },
+      "opinion": {
+        "ideas": [
+          "Say which step most founders skip."
+        ]
+      },
+      "guide": {
+        "what_it_is": "An AI assistant that can search the web for you.",
+        "who_its_for": "A founder who has never sold anything",
+        "you_need": [
+          "An account on the assistant"
+        ],
+        "steps": [
+          {
+            "do": "Write your buyer in one sentence",
+            "why": "The list is only as good as this line",
+            "url": "https://example.com/docs"
+          },
+          {
+            "do": "Ask for 20 matching companies with their websites",
+            "why": "Small batches are easier to check"
+          }
+        ],
+        "say_it_simply": [
+          "It's a research intern that works fast and needs checking."
+        ],
+        "watch_out": "It invents companies sometimes; open every website.",
+        "try_it_first": "Run it on your own company first and see what it gets wrong."
+      },
+      "shot_list": [
+        {
+          "n": 1,
+          "beat": "step 1",
+          "shoot": "Screen recording: typing the one-sentence buyer",
+          "url": "https://example.com/docs"
+        }
+      ]
+    }
+  ],
+  "moments": [
+    {
+      "id": "m-example-1",
+      "title": "A Tuesday, hour by hour",
+      "format": "day-in-the-life",
+      "script_class": "moment",
+      "text_hook": "A Tuesday, hour by hour",
+      "film_on": "2026-01-06",
+      "length": "30 seconds",
+      "clips": [
+        {
+          "t": "07:30",
+          "moment": "coffee at the window",
+          "shot": "phone propped on the sill"
+        },
+        {
+          "t": "09:00",
+          "moment": "first call of the day",
+          "shot": "over the shoulder, screen dark"
+        },
+        {
+          "t": "13:00",
+          "moment": "lunch walk",
+          "shot": "feet on the pavement"
+        }
+      ],
+      "edit": "Clips in clock order, a time stamp on each, a music bed, no voiceover.",
+      "value": "What the work actually looks like.",
+      "sources": [],
+      "qa": "pending-approval",
+      "psych": "Curiosity about a real day.",
+      "intent": "storytelling",
+      "tam": "wide"
     }
   ]
 }

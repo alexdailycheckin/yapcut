@@ -4,6 +4,27 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.17.0: report first, then your take; explainers and moments
+
+**What's new.**
+
+- **Your opinion has its own slot.** Episodes now end on the reported story, and then on a
+  labelled slot for your own take, said off the cuff: `[YOUR NAME'S OPINION, IF ANY]` with two or
+  three ideas under it. The ideas are prompts, never lines to read, and you can skip the slot.
+  It shows in the filming pack, the dashboard and the phone prompter, and it never counts
+  toward the word limit.
+- **Explainers.** A slower piece on a new feature or release, explained for someone who has
+  never done the job, with your own step-by-step guide underneath so you learn it before you
+  film it.
+- **Moments.** Day-in-the-life and break clips: a capture list of short moments to film, cut
+  later with the clock time on screen.
+- **A wider sweep.** List the beats you cover in `radar-config.json` `sweep.beats` and the
+  weekly run searches each one, not only the loudest funding news.
+
+**To get it.** Set `quantity.explainers` and `quantity.moments` in `radar-config.json` (try 1
+and 3), and `sweep.beats` if you want the wider sweep. The next weekly run writes them. Update
+the editor to 3.6.0 too, so it keeps your take whole when it cuts.
+
 ## 3.16.0: everything since 3.5, and you hear about updates now
 
 **What's new.** Ten releases went out without a note here. The ones you will notice:

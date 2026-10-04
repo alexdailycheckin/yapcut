@@ -89,6 +89,9 @@ function applyTheme(mode){
 function toggleTheme(){ applyTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"); }
 
 function officeOf(w){ return (w.office&&w.office.length)?w.office:(w.food||[]); }
+/* Every video item in the week, in lane order: the show, the secondary lane, explainers and
+   moments (3.17.0). Everything that counts, finds or exports videos reads this one list. */
+function videosOf(w){ return [].concat(w.distribution||[], officeOf(w), w.explainers||[], w.moments||[]); }
 /* Three sources feed the LinkedIn tab and they are not interchangeable.
    soloPosts  = linkedin[], written for the feed alone, no video behind them.
    leaderPosts= gtm_linkedin[], mined from the leaders the creator studies.
@@ -107,9 +110,11 @@ function updateTabCounts(w){
   if(!w) return;
   const set=(c,n)=>{const e=document.querySelector('.cnt[data-c="'+c+'"]'); if(e) e.textContent=n?String(n):"";};
   const office=officeOf(w);
-  const all=[].concat(w.distribution||[], office);
+  const all=videosOf(w);
   set("dist", poolCount(w.distribution));
   set("office", poolCount(office));
+  set("explainers", poolCount(w.explainers));
+  set("moments", poolCount(w.moments));
   set("filmed", all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length);
   set("linkedin", liveTwinsOf(w).length + soloPostsOf(w).length + leaderPostsOf(w).length);
   set("insp", (w.inspiration||[]).length);
@@ -129,7 +134,7 @@ function humanWeek(s){
 /* ---------------- exports (payload shapes are load-bearing downstream) ---------------- */
 function exportFilmed(){
   const w=curWeek(); if(!w) return;
-  const items=[].concat(w.distribution||[], officeOf(w)).filter(x=>t(x.id).status==="filmed");
+  const items=videosOf(w).filter(x=>t(x.id).status==="filmed");
   if(!items.length){alert("Nothing marked Filmed in this week yet.\n\nOn each video you shot, click 'Filmed', then export.");return;}
   let out=`FILMED THIS WEEK (week of ${w.week}) - ${items.length} clip(s). Edit each per its spec using the tiktok-yap-editor skill.\n\n`;
   items.forEach((x,i)=>{
@@ -164,7 +169,7 @@ async function saveJson(json, fname, okMsg){
 }
 async function exportForBlog(){
   const w=curWeek(); if(!w) return;
-  const all=[].concat(w.distribution||[], officeOf(w));
+  const all=videosOf(w);
   const items=all.filter(x=>["filmed","posted"].includes(t(x.id).status))
                  .map(x=>Object.assign({}, x, {tracking:t(x.id)}));
   if(!items.length){alert("Nothing marked Filmed or Posted in this week yet.\n\nMark the scripts you shot, then export.");return;}
@@ -174,7 +179,7 @@ async function exportForBlog(){
 }
 async function exportCarousels(){
   const w=curWeek(); if(!w) return;
-  const all=[].concat(w.distribution||[], officeOf(w));
+  const all=videosOf(w);
   const items=all.filter(x=>t(x.id).carousel);
   if(!items.length){alert("No scripts flagged for a carousel yet.\n\nClick 'Carousel' on any script card, then export.");return;}
   const payload={week:w.week, positioning:w.positioning||"", exported_at:new Date().toISOString(), items};
@@ -195,7 +200,8 @@ async function exportPerformance(){
   };
   const weeksOut = WEEKS.map(w=>{
     const office=officeOf(w);
-    const vids=[].concat(w.distribution||[], office).map(x=>row(x, office.includes(x)?"secondary":"primary"));
+    const second=[].concat(office, w.moments||[]);
+    const vids=videosOf(w).map(x=>row(x, second.includes(x)?"secondary":"primary"));
     const twins=(w.distribution||[]).filter(x=>x.linkedin&&x.linkedin.id).map(x=>x.linkedin);
     const posts=[].concat(w.linkedin||[], leaderPostsOf(w), twins).map(x=>row(x,"linkedin"));
     const items=vids.concat(posts).filter(Boolean);
@@ -235,7 +241,7 @@ function toggleBrief(){
   if(b) b.textContent = open ? "Collapse the brief" : "Read the brief";
 }
 function renderRing(w){
-  const all=[].concat(w.distribution||[], officeOf(w)).filter(x=>t(x.id).status!=="ignored");
+  const all=videosOf(w).filter(x=>t(x.id).status!=="ignored");
   const done=all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length;
   const total=all.length||1;
   const R=44, C=2*Math.PI*R, off=C*(1-done/total);
@@ -254,7 +260,7 @@ function statsBar(){
   const w = curWeek(); if(!w) return;
   const dist=w.distribution||[], office=officeOf(w);
   let tofilm=0, filmed=0, posted=0, views=0, ignored=0;
-  [].concat(dist, office).forEach(x=>{
+  videosOf(w).forEach(x=>{
     const s=t(x.id).status;
     if(s==="ignored") ignored++;
     else if(s==="posted"){posted++; views+=parseInt(t(x.id).views||0)||0;}
@@ -327,7 +333,21 @@ function readSections(x, sentCls, hookCls, secCls){
   }
   return section("Hook", x.spoken_hook, false, true)
     + section("Script", x.script, false, false)
+    + opinionSection(x, secCls)
     + section("CTA", x.cta, true, false);
+}
+/* The opinion slot (3.17.0): the script reports the story, then the creator's own take,
+   off the cuff. The ideas are prompts, never lines to read, and the slot is optional. */
+function opinionIdeas(x){
+  const o=x&&x.opinion;
+  return (o&&Array.isArray(o.ideas)) ? o.ideas.filter(v=>typeof v==="string"&&v.trim()).slice(0,3) : [];
+}
+function opinionLabel(){ return UI.opinion_label || "[YOUR OPINION, IF ANY]"; }
+function opinionSection(x, secCls){
+  const ideas=opinionIdeas(x); if(!ideas.length) return "";
+  return `<div class="${secCls} opinion"><div class="seclabel">${esc(opinionLabel())} <span class="opt">optional</span></div>`
+    + `<p class="opnote">Off the cuff, your words. Take one, your own, or none and stop on the line above.</p>`
+    + `<ul class="opideas">${ideas.map(v=>`<li>${esc(v)}</li>`).join("")}</ul></div>`;
 }
 function readScript(x){
   const html=readSections(x, "sent", "hook", "scriptsec");
@@ -371,8 +391,35 @@ function captureLine(x){
   return bits.length?`<p class="tinyline">${esc(bits.join(" · "))}</p>`:"";
 }
 
+/* An explainer carries the creator's own guide: learn it before explaining it (3.17.0). */
+function guideBlock(x){
+  const g=x.guide; if(!g||typeof g!=="object") return "";
+  const ul=a=>`<ul>${a.map(v=>`<li>${esc(v)}</li>`).join("")}</ul>`;
+  let h=`<div class="block"><div class="lab">Your guide · learn it before you film it</div><div class="guide">`;
+  if(g.what_it_is) h+=`<p><b>What it is.</b> ${esc(g.what_it_is)}</p>`;
+  if(g.who_its_for) h+=`<p><b>Explained for.</b> ${esc(g.who_its_for)}</p>`;
+  if(Array.isArray(g.you_need)&&g.you_need.length) h+=`<p><b>You need.</b></p>`+ul(g.you_need);
+  if(Array.isArray(g.steps)&&g.steps.length) h+=`<p><b>Step by step.</b></p><ol>${g.steps.map(st=>typeof st==="string"?`<li>${esc(st)}</li>`
+      :`<li>${esc(st.do||"")}${st.why?` <span class="bmut">${esc(st.why)}</span>`:""}${st.url?` <a href="${esc(st.url)}" target="_blank">docs &rarr;</a>`:""}</li>`).join("")}</ol>`;
+  if(Array.isArray(g.say_it_simply)&&g.say_it_simply.length) h+=`<p><b>Say it simply.</b></p>`+ul(g.say_it_simply);
+  if(g.watch_out) h+=`<p><b>Watch out.</b> ${esc(g.watch_out)}</p>`;
+  if(g.try_it_first) h+=`<p><b>Try it yourself first.</b> ${esc(g.try_it_first)}</p>`;
+  return h+`</div></div>`;
+}
+/* A moment (day in the life, a Pomodoro break) is filmed, not read: a capture list. */
+function captureBlock(x){
+  if(!Array.isArray(x.clips)||!x.clips.length) return "";
+  const rows=x.clips.map(c=>typeof c==="string"?`<tr><td class="bn"></td><td>${esc(c)}</td><td></td></tr>`
+    :`<tr><td class="bn">${esc(c.t||"")}</td><td>${esc(c.moment||"")}</td><td class="bmut">${esc(c.shot||"")}</td></tr>`).join("");
+  let h=`<div class="block"><div class="lab">Capture these${x.film_on?` · film on ${esc(x.film_on)}`:""}</div><div class="tblwrap"><table class="tbl"><thead><tr><th>Time</th><th>Moment</th><th>Shot</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  if(Array.isArray(x.vo)&&x.vo.length) h+=`<div class="block"><div class="lab">Voiceover, optional</div><ul class="opideas">${x.vo.map(v=>`<li>${esc(v)}</li>`).join("")}</ul></div>`;
+  return h + block("Edit · how the editor cuts it", x.edit, "dirbox");
+}
+
 function detailBlocks(x){
   let out = readScript(x)
+    + guideBlock(x)
+    + captureBlock(x)
     + shotTable(x)
     + beatsTable(x)
     + block("Directions · do this, do not read it", x.directions, "dirbox")
@@ -742,7 +789,7 @@ function emptyState(msg){
 /* ---------------- film mode ---------------- */
 function findItem(id){
   const w=curWeek();
-  let it = w ? [].concat(w.distribution||[], officeOf(w)).find(x=>x.id===id) : null;
+  let it = w ? videosOf(w).find(x=>x.id===id) : null;
   if(!it) for(const c of CAMPAIGNS){
     it=[].concat(c.distribution||[], c.office||[], c.linkedin||[]).find(x=>x.id===id);
     if(it) break;
@@ -761,6 +808,8 @@ function scriptText(x){
     if(typeof x.beats==="string") parts.push(x.beats.trim());
   }
   if(x.cta) parts.push(String(x.cta).trim());
+  const ideas=opinionIdeas(x);
+  if(ideas.length) parts.push(opinionLabel()+"\nNot script: the take is said off the cuff, or skipped. Ideas: "+ideas.join(" / "));
   return parts.filter(Boolean).join("\n\n");
 }
 function copyScript(id){
@@ -776,7 +825,7 @@ function openFilm(id){
   if(x.text_hook) body+=`<div class="filmburn">${esc(x.text_hook)}</div><p class="filmburncap">Burned on screen · not spoken</p>`;
   const read=readSections(x, "fsent", "fhook", "fsec");
   body+= read || "";
-  let extra = shotTable(x) + beatsTable(x)
+  let extra = captureBlock(x) + shotTable(x) + beatsTable(x)
     + block("Directions · do this, do not read it", x.directions, "dirbox")
     + block("Value · the payoff to protect", x.value, "valbox");
   if(extra.trim()) body+=`<div class="fextra">${extra}</div>`;
@@ -892,7 +941,7 @@ function render(){
   statsBar();
   updateTabCounts(w);
   const showIgn = document.getElementById("showIgnored") && document.getElementById("showIgnored").checked;
-  document.getElementById("ignrow").style.display = (TAB==="dist"||TAB==="office")?"block":"none";
+  document.getElementById("ignrow").style.display = ["dist","office","explainers","moments"].includes(TAB)?"block":"none";
   const pool = arr => showIgn
     ? arr.filter(x=>t(x.id).status==="ignored")
     : arr.filter(x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";});
@@ -904,7 +953,9 @@ function render(){
     html = promisesBlock(w) + (cards || emptyState(empty));
   }
   else if(TAB==="office"){ html=pool(office).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored scripts.":"Nothing left to film in this lane. Everything is filmed, posted, or ignored."; }
-  else if(TAB==="filmed"){ const items=[].concat(w.distribution||[], office).filter(x=>["filmed","posted"].includes(t(x.id).status)); html=items.map((x,i)=>scriptCard(x, office.includes(x), i)).join(""); empty="Nothing filmed yet. Mark a script Filmed and it lands here for metric tracking."; }
+  else if(TAB==="explainers"){ html=pool(w.explainers||[]).map((x,i)=>scriptCard(x,false,i)).join(""); empty=showIgn?"No ignored explainers.":"No explainer to film this week."; }
+  else if(TAB==="moments"){ html=pool(w.moments||[]).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored moments.":"No day-in-the-life or break clips this week."; }
+  else if(TAB==="filmed"){ const items=videosOf(w).filter(x=>["filmed","posted"].includes(t(x.id).status)); html=items.map((x,i)=>scriptCard(x, office.includes(x), i)).join(""); empty="Nothing filmed yet. Mark a script Filmed and it lands here for metric tracking."; }
   else if(TAB==="linkedin"){
     /* Cards follow the selector's posting order so the list agrees with the calendar
        above it. Anything without an assigned slot keeps its file order, at the end. */

@@ -13,6 +13,16 @@
         "key": "office",
         "role": "secondary",
         "default_label": "Viral videos"
+      },
+      {
+        "key": "explainers",
+        "role": "primary",
+        "default_label": "Explainers"
+      },
+      {
+        "key": "moments",
+        "role": "secondary",
+        "default_label": "Moments"
       }
     ],
     "post_lanes": [
@@ -24,7 +34,7 @@
       "pending-approval"
     ],
     "id_pattern": {
-      "pattern": "^(d|o|li|li-tw)-\\d{8}-\\d+$",
+      "pattern": "^(d|o|x|m|li|li-tw)-\\d{8}-\\d+$",
       "flags": ""
     },
     "id_legacy_pattern": {
@@ -39,7 +49,9 @@
     "script_classes": [
       "testimony",
       "format",
-      "research"
+      "research",
+      "explainer",
+      "moment"
     ]
   },
   "script": {
@@ -218,10 +230,23 @@
         "does": "Why it happened, arriving as the consequence of move 3, never announced"
       },
       {
-        "move": "The verdict",
-        "does": "The creator's POV in one line, money word last, hard stop"
+        "move": "The landing, then the opinion slot",
+        "does": "The story lands in one line, money word last; then `[NAME'S OPINION, IF ANY]`, the creator's own take said off the cuff, with two or three `opinion.ideas` as prompts"
       }
     ],
     "quantity": "`quantity`: default 3 video slots, 2 spares, 5 LinkedIn slots"
+  },
+  "opinion": {
+    "_about": "The opinion slot (3.17.0). A research or explainer item may carry opinion {ideas: [...]}: the script ends on the reported story, then this label marks room for the creator's own take, said off the cuff. The ideas are prompts, never lines to read. The label is shown wherever the script is (pack, dashboard, phone prompter) and never counted toward the word ceiling.",
+    "label": "[{WHOSE} OPINION, IF ANY]",
+    "fallback_name": "YOUR",
+    "max_ideas": 3
+  },
+  "explainer": {
+    "_about": "explainers[] (3.17.0): a slower piece on a new feature or release, explained for someone who has never done marketing. Longer than an episode; the pack prints the count, nothing fails on it.",
+    "target_seconds": [
+      90,
+      180
+    ]
   }
 }

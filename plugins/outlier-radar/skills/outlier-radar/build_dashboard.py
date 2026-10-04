@@ -44,6 +44,7 @@ from datetime import datetime
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 TPL_DIR = os.path.join(HERE, "dashboard")
 
@@ -52,8 +53,8 @@ TPL_DIR = os.path.join(HERE, "dashboard")
 # (method, coined_term, signals, food).
 WEEK_KEYS = {
     "schema_version", "week", "positioning", "supersedes",
-    "distribution", "office", "linkedin", "gtm_linkedin", "inspiration",
-    "experiment", "ammo", "promised",
+    "distribution", "office", "explainers", "moments", "linkedin", "gtm_linkedin",
+    "inspiration", "experiment", "ammo", "promised",
 }
 
 # Contract 5: the tracking event -> the dashboard status it seeds.
@@ -447,7 +448,7 @@ def render(ws, cfg, weeks, campaigns, seed):
         # needs the absolute root to build a file:// link the browser can follow.
         "__UI_JSON__": json_for_script({
             "primary_label": primary, "secondary_label": secondary, "leaders_hdr": leaders,
-            "workspace": os.path.abspath(ws)}),
+            "opinion_label": rules.opinion_label(cfg), "workspace": os.path.abspath(ws)}),
     }
 
     html = (read_part("template.html")[:-1]

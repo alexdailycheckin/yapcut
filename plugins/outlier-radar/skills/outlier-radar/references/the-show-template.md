@@ -89,10 +89,10 @@ down, because the retain half is the half that goes missing.
 | 2 | The belief | 4-12s | Say what the viewer already believes about this, in their words, as if it were true. | FIXED as a function |
 | 3 | The break | 12-45s | The receipts that make the belief untenable. 2 to 4 moves, but/therefore chained, escalating. Every number, brand and claim gets its artifact on screen within a second of being spoken. | FREE |
 | 4 | The mechanism | 45-55s | Why it happened, named, arriving as the consequence of move 3 in the same breath. One thing the viewer can carry. | FIXED as a function |
-| 5 | The verdict | 55-65s | The creator's POV through their lens, one line, money word last. Hard stop on the payoff. No CTA by default. | FIXED |
+| 5 | The landing, then the opinion slot | 55-65s | The script lands the story in one line, money word last, and stops. Then the label `[NAME'S OPINION, IF ANY]`: the creator's own take, said off the cuff. The item carries two or three `opinion.ideas` as prompts. Skipped, the video ends on the landing. No CTA by default. | FIXED |
 
 FREE means the order, count and wording are the writer's call, and an episode that gets from
-the belief to the verdict in a different order should run that way. FIXED as a function means
+the belief to the landing in a different order should run that way. FIXED as a function means
 the move happens every episode and its wording is never the same twice.
 
 ### Move 2 is the load-bearing one
@@ -141,7 +141,21 @@ paying off. If `show.takeaway_lines` is empty in config, that is deliberate and 
 
 Peak-end: the audience judges the whole video by its emotional peak and its last line. Hoyos
 plans the last line before filming, after measuring a single trailing second cost her 20 to 25
-points of retention. Write move 5 and move 1 first, then fill the middle.
+points of retention. Write the landing and move 1 first, then fill the middle.
+
+### The opinion slot: report, then take (3.17.0)
+
+A good reporter keeps the news and the opinion apart and labels which is which. The script is
+the reporting: what happened, the belief, the receipts, why. The take is the creator's, and it
+is never written for them: a verdict put in their mouth is the line they rewrite most often on
+the take, and a view they actually hold, said in their own words, is the part a stranger
+follows them for. So the script ends on the landing, and the item carries `opinion.ideas`: two
+or three different positions the creator could take, each one sentence, written as prompts
+(agree and go further, disagree, what I would do instead). The pack, the dashboard and the
+phone prompter show them under the label `[NAME'S OPINION, IF ANY]`. The creator takes one, says
+their own, or skips it. The editor keeps whatever is said there whole, cutting only restarts
+and dead air, and labels it on screen as the take. The landing must work as a last line on its
+own, because some days there is no take.
 
 ## Series memory: callback, promise, follow-up (added 2026-09-09)
 
@@ -216,8 +230,8 @@ test is human: read each hook to someone who hasn't seen the episode; if they as
    before filming. VERIFY each fact while researching: confirm it, adjust it, or cut
    the line. Never soften an unverifiable number into "many" or "huge".
 2. **Two-question gate** (the skill's master filter) on every episode.
-3. **Ownership on the verdict.** The closing POV must be a line only this creator
-   would say, through their configured lens. If anyone could say it, re-cut or kill.
+3. **Ownership on the opinion ideas.** Each idea must be a position only this creator would
+   take, through their configured lens. If anyone could say it, re-cut it.
 4. **Punch up or sideways.** Giants and well-funded subjects take the jab; small
    independents get admiration, never mockery.
 5. **Clarity outranks compression.** A zero-prior-knowledge viewer follows every line;

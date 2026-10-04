@@ -83,12 +83,19 @@
     "video_slots": 3,
     "spares": 2,
     "linkedin_slots": 5,
-    "_comment": "Slots are FILMING slots the creator has confirmed for the week, not scripts. Write slots plus spares, then spend the remaining budget on 3 to 4 variations of the last measured winner. Defaults for the first 4 weeks; raise once 8 items are marked Posted. Unfilmed scripts carry no information back into the loop."
+    "_comment": "Slots are FILMING slots the creator has confirmed for the week, not scripts. Write slots plus spares, then spend the remaining budget on 3 to 4 variations of the last measured winner. Defaults for the first 4 weeks; raise once 8 items are marked Posted. Unfilmed scripts carry no information back into the loop.",
+    "explainers": 0,
+    "moments": 0,
+    "_comment_3_17": "explainers and moments are optional formats on top of the video slots (3.17.0): 1 explainer and 2 or 3 moments a week is a sensible start."
   },
   "experiment_per_week": true,
   "_comment_v2": "2026-09-09: audience, voice (as a block), quantity and secondary_lane.enabled added. The weekly run reads quantity instead of the old 'about 10 per lane' bar.",
   "mobile": {
     "_what": "Set by anima_link.py (say: connect anima) or anima_sync.py the first time either runs. The Anima app on the phone pairs with this workspace over the local Wi-Fi while anima_link.py runs, or from anywhere with the sync code in mobile/relay.json; what the phone sends lands in mobile/ in the workspace.",
     "workspace_id": ""
+  },
+  "sweep": {
+    "beats": [],
+    "_comment": "Optional (3.17.0). The beats the weekly sweep searches one by one, so the batch covers the niche and not only its loudest funding news. Example for a growth creator: marketing, sales, growth, distribution platforms."
   }
 }

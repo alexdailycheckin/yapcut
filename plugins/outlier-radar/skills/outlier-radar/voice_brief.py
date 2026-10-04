@@ -49,6 +49,7 @@ import sys
 # resolved by yapcut_home and never by following a symlink (see yapcut_home.py).
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yapcut_home import radar_home  # noqa: E402
+import rules  # noqa: E402
 
 WORK_CORPUS = "corpus-work-spoken.txt"
 
@@ -104,7 +105,7 @@ def approved_scripts(home, n=3):
             d = json.loads(wf.read_text(encoding="utf-8"))
         except ValueError:
             continue
-        for lane in ("distribution", "office"):
+        for lane in rules.video_lanes():
             for it in d.get(lane) or []:
                 if not isinstance(it, dict) or not it.get("script"):
                     continue

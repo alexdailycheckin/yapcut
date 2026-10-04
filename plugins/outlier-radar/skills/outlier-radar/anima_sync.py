@@ -41,7 +41,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from anima_link import mac_name, newest_week, now_iso, workspace_identity
+from anima_link import mac_name, newest_week, now_iso, phone_week, workspace_identity
 from yapcut_home import radar_home
 
 RELAY = "https://anima-sync.netlify.app"
@@ -173,7 +173,7 @@ def push(ws, r, force=False):
     for name, path in parts:
         if not path:
             continue
-        data = path.read_bytes()
+        data = phone_week(path, ws) if name == "week" else path.read_bytes()
         digest = hashlib.sha256(data).hexdigest()
         if not force and pushed.get(name) == {"file": path.name, "sha256": digest}:
             continue

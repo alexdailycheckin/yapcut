@@ -108,7 +108,7 @@ def main():
         print(f"no week file at {path}")
         sys.exit(2)
     week = json.load(open(path))
-    items = week.get("distribution", []) + week.get("office", [])
+    items = [it for lane in rules.video_lanes() for it in (week.get(lane) or []) if isinstance(it, dict)]
     firsts = [(it.get("text_hook", "").split() or [""])[0].lower().strip(".,!?")
               for it in items]
 

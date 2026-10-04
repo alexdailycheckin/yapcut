@@ -49,6 +49,7 @@ import threading
 import uuid
 
 from yapcut_home import radar_home
+import rules
 
 SERVICE = "_anima._tcp"
 WEEK_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.json$")
@@ -88,6 +89,59 @@ def lan_ip():
 def newest_week(ws):
     weeks = sorted(p for p in glob.glob(os.path.join(ws, "weeks", "*.json")) if WEEK_RE.match(os.path.basename(p)))
     return weeks[-1] if weeks else None
+
+
+# The phone's view of the week (3.17.0). Anima parses a week with its own bundled copy of the
+# rulebook, which knows two video lanes and reads the prompter from `script`. Until the app
+# ships the new lanes, the week travels folded: explainers ride in the primary lane and moments
+# in the secondary, titled so they read as what they are, and the opinion slot lands at the end
+# of the script as the prompter's last lines. The week file on the Mac is never changed.
+PHONE_LANES = ("distribution", "office")
+MOMENT_TITLES = {"day-in-the-life": "Day in the life", "pomodoro-break": "Pomodoro break"}
+
+
+def phone_week(path, ws=None):
+    """The newest week as bytes for the phone. Anything that does not parse goes as it is."""
+    raw = pathlib.Path(path).read_bytes()
+    try:
+        d = json.loads(raw)
+    except ValueError:
+        return raw
+    if not isinstance(d, dict):
+        return raw
+    try:
+        cfg = json.loads((pathlib.Path(ws or os.path.dirname(os.path.dirname(path))) / "radar-config.json").read_text())
+    except (OSError, ValueError):
+        cfg = {}
+    label = rules.opinion_label(cfg)
+    folded = False
+    for lane in rules.video_lanes():
+        for it in d.get(lane) or []:
+            ideas = rules.opinion_ideas(it)
+            if isinstance(it, dict) and ideas and it.get("script"):
+                it["script"] = (it["script"].rstrip() + "\n\n" + label + "\n\n"
+                                + "\n\n".join(f"Idea: {i}" for i in ideas))
+                folded = True
+    for it in d.get("explainers") or []:
+        if isinstance(it, dict):
+            d.setdefault("distribution", []).append(dict(it, title=f"Explainer: {it.get('title') or it.get('id')}"))
+            folded = True
+    for it in d.get("moments") or []:
+        if not isinstance(it, dict):
+            continue
+        cap = [c for c in it.get("clips") or [] if c]
+        lines = [f"{c.get('t') or ''} {c.get('moment') or ''}".strip() + "." if isinstance(c, dict) else f"{c}." for c in cap]
+        kind = MOMENT_TITLES.get(it.get("format"), "Moments")
+        d.setdefault("office", []).append(dict(it, title=f"{kind}: {it.get('title') or it.get('id')}",
+                                               spoken_hook=it.get("spoken_hook") or "Film these moments.",
+                                               script="\n\n".join(lines) or it.get("script") or ""))
+        folded = True
+    if not folded:
+        return raw
+    for lane in rules.video_lanes():
+        if lane not in PHONE_LANES:
+            d.pop(lane, None)
+    return json.dumps(d, ensure_ascii=False, indent=1).encode()
 
 
 def now_iso():
@@ -197,7 +251,9 @@ def make_handler(link, quiet=False):
             self.wfile.write(data)
 
         def send_file(self, path):
-            data = pathlib.Path(path).read_bytes()
+            self.send_bytes(pathlib.Path(path).read_bytes())
+
+        def send_bytes(self, data):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
@@ -226,7 +282,7 @@ def make_handler(link, quiet=False):
                 return self.send_json(200, link.status(paired=True))
             if path == "/week":
                 week = newest_week(link.ws)
-                return self.send_file(week) if week else self.send_json(404, {"error": "no week yet"})
+                return self.send_bytes(phone_week(week, link.ws)) if week else self.send_json(404, {"error": "no week yet"})
             if path == "/brand":
                 brand = link.ws / "brand-config.json"
                 return self.send_file(brand) if brand.exists() else self.send_json(404, {"error": "no brand config"})
