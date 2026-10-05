@@ -2,6 +2,18 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.18.2 (outlier-radar)
+
+**Every episode starts from the story in one line.** A creator read a batch that passed every gate
+and said a script "doesn't make any sense", then named the test it failed: say in one line what
+happened, then what happened, then why it matters, or it is not a story. The scripts had been
+written from lists of extracted facts and sentence rules, so they read like lists. Research items
+now carry `story_line`, written before the script. `build_pack.py` prints it above the script
+under "The story in one line", and the dashboard shows it on the episode card and at the top of
+the filming view. `SKILL.md` and `references/week-schema.md` say to write it first and to tell the
+story the way the best reporters did, simple enough for a ten-year-old. `tests/run.sh` stage 2
+pins the pack line. No gate checks the line: a person reads it.
+
 ## What's new in 3.18.1 (outlier-radar)
 
 **A line the creator killed now fails in their LinkedIn twins too.** `spoken_lint.py` checked

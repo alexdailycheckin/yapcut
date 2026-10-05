@@ -97,6 +97,10 @@ def episode_block(it, wps, ceiling, cfg=None):
              f"_{n} words, about {n / wps:.0f} seconds.{over}_"]
     if it.get("text_hook"):
         lines.append(f"_On screen: {it['text_hook']}_")
+    if it.get("story_line"):
+        # The creator's gate (2026-10-05): the story in one line, what happened and why it
+        # matters. It sits above the script so the read starts from the point, not the receipts.
+        lines += ["", f"**The story in one line:** {it['story_line'].strip()}"]
     lines += ["", "**Open on (frame one, flat):**", f"> {(it.get('spoken_hook') or '').strip()}", "",
               (it.get("script") or "").strip(), ""]
     lines += opinion_lines(it, cfg)

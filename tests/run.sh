@@ -111,6 +111,17 @@ python3 "$RADAR/spoken_lint.py" --dir "$WS" --week "$WS/weeks/0000-00-00-twin.js
 rc=$?
 if [ "$rc" = 2 ] && grep -q "d-example-1-li.body" /tmp/yapcut-twin.log; then ok "a rejected phrase in a twin exits 2"; else bad "twin rejection did not fire (rc $rc)"; tail -8 /tmp/yapcut-twin.log; fi
 rm -f "$WS/weeks/0000-00-00-twin.json" "$WS/voice-corpus/rejections.json"
+# the story in one line (3.18.2): an episode's story_line prints above its script in the pack,
+# so the read starts from what happened and why it matters.
+python3 - "$WS" <<'STORY'
+import json, sys, os
+ws = sys.argv[1]; d = json.load(open(os.path.join(ws, "weeks", "0000-00-00-example.json")))
+d["distribution"][0]["story_line"] = "zzq happened, then zzq happened, which matters because zzq."
+json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-story.json"), "w"))
+STORY
+YAPCUT_HOME="$WS" python3 "$RADAR/build_pack.py" --week "$WS/weeks/0000-00-00-story.json" --out /tmp/yapcut-story-pack.md >/dev/null 2>&1
+grep -q "The story in one line:\*\* zzq happened" /tmp/yapcut-story-pack.md && ok "story_line prints above the script in the pack" || bad "story_line missing from the pack"
+rm -f "$WS/weeks/0000-00-00-story.json" /tmp/yapcut-story-pack.md
 # no workspace: exit 2, never the skill folder
 ( cd /tmp && env -u YAPCUT_HOME -u OUTLIER_RADAR_HOME -u LEAD_MAGNET_HOME HOME=/tmp/yapcut-nohome python3 "$RADAR/yapcut_home.py" >/dev/null 2>&1 ); [ $? = 2 ] && ok "no workspace exits 2" || bad "no workspace did not exit 2"
 

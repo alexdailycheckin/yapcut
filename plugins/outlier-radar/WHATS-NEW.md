@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.18.2: every episode starts with the story in one line
+
+**What's new.** Each episode now carries the story in one line: what happened, then what happened,
+then why it matters. Your filming pack prints it above the script. The dashboard shows it on the
+episode card and at the top of the filming view, so you read the point before the words.
+
+**To get it.** Nothing to do. The next weekly run writes the line first, then the script from it.
+
 ## 3.18.1: lines you killed stay out of your LinkedIn posts
 
 **What's new.** A line you've killed (anything in `voice-corpus/rejections.json`) now fails in

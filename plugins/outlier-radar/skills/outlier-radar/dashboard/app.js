@@ -466,9 +466,10 @@ function chipRow(x, r){
 function scriptCard(x, isSecondLane, i){
   const r=t(x.id); const done=r.status==="posted";
   const title = x.title || x.mechanic || x.text_hook || "Untitled";
-  const premise = (x.borrows||x.carries)
+  const story = x.story_line ? `<p class="premise"><b>The story</b> ${esc(x.story_line)}</p>` : "";
+  const premise = story + ((x.borrows||x.carries)
     ? `<p class="premise">${x.borrows?`<b>Borrows</b> ${esc(x.borrows)}`:""}${x.borrows&&x.carries?"<br>":""}${x.carries?`<b>Carries</b> ${esc(x.carries)}`:""}</p>`
-    : (x.mechanic?`<p class="premise"><b>Mechanic</b> ${esc(x.mechanic)}</p>`:"");
+    : (x.mechanic?`<p class="premise"><b>Mechanic</b> ${esc(x.mechanic)}</p>`:""));
   const alts = Array.isArray(x.text_hook_alts)&&x.text_hook_alts.length
     ? `<div class="alts">${x.text_hook_alts.map(a=>`<button class="alt" onclick="copyText(${JSON.stringify(a).replace(/"/g,'&quot;')},'Alt hook copied')" title="Alternate hook for hook testing. Click to copy.">${esc(a)}</button>`).join("")}</div>`:"";
   const hooks = (x.text_hook||x.visual_hook)?`<div class="hookgrid">
@@ -823,6 +824,7 @@ function openFilm(id){
   document.getElementById("filmTitle").textContent = x.title || x.mechanic || x.text_hook || "Untitled";
   let body="";
   if(x.text_hook) body+=`<div class="filmburn">${esc(x.text_hook)}</div><p class="filmburncap">Burned on screen · not spoken</p>`;
+  if(x.story_line) body+=block("The story in one line", x.story_line, "dirbox");
   const read=readSections(x, "fsent", "fhook", "fsec");
   body+= read || "";
   let extra = captureBlock(x) + shotTable(x) + beatsTable(x)

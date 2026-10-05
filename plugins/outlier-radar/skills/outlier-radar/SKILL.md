@@ -101,6 +101,8 @@ The brief prints the approved scripts, then verbatim corpus passages, then the r
 
 When `show.enabled` is true the primary lane becomes THE SHOW under the creator's own name: `episodes_per_week` teardowns of subjects that did something this week, on five moves (`references/the-show-template.md`).
 
+**The story in one line comes first.** Before a word of script, write `story_line`: what happened, then what happened, then why it matters, in one line. If it will not go in one line, it is not a story yet: pick another subject. Then read how the best reporters told it and tell it the way you would tell a friend who has never heard of the company, simple enough for a ten-year-old. A script written from a list of extracted facts reads like a list of facts. The pack and the dashboard print the line above the script.
+
 | # | Move | What it does |
 |---|---|---|
 | 1 | The contradiction | The one true fact that sounds wrong, said first; the receipt is on screen, no date or source in the voice |
