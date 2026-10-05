@@ -11,12 +11,14 @@ Usage:
   python3 logo_fetch.py --page "Perplexity AI" --box 215x150 --out box_perplexity.png
   python3 logo_fetch.py --file "File:Google 2026 logo.svg" --box 215x150 --out box_google.png
 
---page lists the article's images and picks the best logo-ish file (prefers
-SVG, then 'logo'/'wordmark'/'symbol' in the name); --file skips the guess.
+--page takes the file the article's infobox shows as its logo; failing that it
+guesses from the article's images (the brand's name or 'logo' in the file name,
+SVG first). --file skips both.
 """
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -34,26 +36,57 @@ def api(params: dict) -> dict:
     return json.load(urllib.request.urlopen(req))
 
 
+# Wikipedia's own interface icons. "File:Symbol category class.svg" (a gold
+# coin) sits on most company pages and used to win on the word "symbol": the
+# Yahoo, ChatGPT and Safari chips all shipped as that coin.
+JUNK = ("commons-logo", "wikidata", "wikiquote", "wikiversity", "wikinews",
+        "wiktionary", "wikimedia", "wikibooks", "wikisource", "wikivoyage",
+        "file:symbol ", "file:ambox", "file:question book", "file:edit-clear",
+        "file:crystal clear", "file:folder hexagonal", "file:office-book",
+        "file:padlock", "file:semi-protection", "file:nuvola", "file:oojs",
+        "file:red pog", "file:portal-puzzle", "file:increase", "file:decrease",
+        "file:steady", "file:text document")
+
+
+def brand_word(page: str) -> str:
+    words = [w.strip("!.,()").lower() for w in page.split()]
+    words = [w for w in words if w and w not in ("the", "a", "an", "inc", "inc.")]
+    return words[0] if words else page.lower()
+
+
+def infobox_logo(page: str):
+    """The file the article's infobox shows as `logo =`: the current logo, as
+    the editors chose it. A guess from the page's image names picked charts
+    ("Countries where ChatGPT is available.svg") and retired logos."""
+    d = api({"action": "parse", "page": page, "prop": "wikitext", "section": "0",
+             "redirects": "1", "format": "json"})
+    wt = d.get("parse", {}).get("wikitext", {}).get("*", "")
+    m = re.search(r"^\s*\|\s*logo\s*=\s*(.+)$", wt, re.M | re.I)
+    f = m and re.search(r"([^\[\]|=:{}]+?\.(?:svg|png|jpe?g|gif))", m.group(1), re.I)
+    return "File:" + f.group(1).strip() if f else None
+
+
 def pick_logo_file(page: str) -> str:
+    logo = infobox_logo(page)
+    if logo:
+        return logo
     d = api({"action": "query", "prop": "images", "titles": page,
              "imlimit": "100", "format": "json"})
     p = list(d["query"]["pages"].values())[0]
     names = [im["title"] for im in p.get("images", [])]
+    brand = brand_word(page)
     scored = []
     for n in names:
         low = n.lower()
-        if any(x in low for x in ("commons-logo", "wikidata", "wikiquote",
-                                  "wikiversity", "wikinews", "wiktionary")):
+        if any(x in low for x in JUNK):
             continue
-        score = 0
-        if "logo" in low or "wordmark" in low or "symbol" in low:
-            score += 4
-        if page.split()[0].lower() in low:
-            score += 2
+        named = brand in low
+        if not named and "logo" not in low and "wordmark" not in low:
+            continue
+        score = (4 if named else 0) + (3 if "logo" in low or "wordmark" in low else 0)
         if low.endswith(".svg"):
             score += 1
-        if score:
-            scored.append((score, n))
+        scored.append((score, n))
     if not scored:
         sys.exit(f"no logo-ish file on page {page!r}; pass --file explicitly. "
                  f"Page images: {names[:12]}")

@@ -209,6 +209,32 @@ with tempfile.TemporaryDirectory() as t:
     check(wn._work_monologue_words(os.path.join(t, "voice-corpus")) >= wn.WORK_MONOLOGUE_WORDS,
           "twenty minutes of on-subject monologue clears the voice check")
 
+# --- logo picker (3.7.2): Wikipedia's category-class coin shipped as three brands' logos -------
+import logo_fetch  # noqa: E402
+PAGES = {
+    "Yahoo": {"wikitext": "{{Infobox company\n| name = Yahoo\n| logo = Yahoo! (2019).svg\n| type = Subsidiary\n}}",
+              "images": ["File:Symbol category class.svg", "File:Yahoo! (2019).svg", "File:Commons-logo.svg"]},
+    "ChatGPT": {"wikitext": "{{Infobox software\n| logo = [[File:OpenAI logo 2025 (symbol).svg|class=skin-invert|120px]]\n}}",
+                "images": ["File:Countries where ChatGPT is available.svg", "File:Symbol category class.svg"]},
+    "Acme": {"wikitext": "{{Infobox company\n| name = Acme\n}}",
+             "images": ["File:Symbol category class.svg", "File:Acme headquarters.jpg", "File:Acme logo 2020.svg"]},
+}
+
+
+def fake_api(params):
+    page = PAGES[params.get("page") or params.get("titles")]
+    if params["action"] == "parse":
+        return {"parse": {"wikitext": {"*": page["wikitext"]}}}
+    return {"query": {"pages": {"1": {"images": [{"title": t} for t in page["images"]]}}}}
+
+
+logo_fetch.api = fake_api
+check(logo_fetch.pick_logo_file("Yahoo") == "File:Yahoo! (2019).svg", "the infobox logo wins over the category-class coin")
+check(logo_fetch.pick_logo_file("ChatGPT") == "File:OpenAI logo 2025 (symbol).svg",
+      "an infobox logo inside [[File:...|120px]] is read, not a chart that names the brand")
+check(logo_fetch.pick_logo_file("Acme") == "File:Acme logo 2020.svg",
+      "with no infobox logo the guess skips Wikipedia's icons and prefers a logo file")
+
 
 if fails:
     print(f"{len(fails)} failure(s)")

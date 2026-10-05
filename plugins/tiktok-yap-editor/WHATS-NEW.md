@@ -4,6 +4,13 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.2: logo chips show the real logo
+
+**What's new.** `logo_fetch.py --page` reads the logo the Wikipedia article itself shows, so a
+chip no longer comes out as Wikipedia's gold category icon or a company's old logo.
+
+**To get it.** Nothing to do. If a chip from an earlier batch shows a gold coin, fetch it again.
+
 ## 3.7.1: the chart grows with the list
 
 **What's new.** The two-sided chart opens one row at a time as you say it, instead of starting as

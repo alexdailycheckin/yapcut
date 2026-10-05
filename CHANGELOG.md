@@ -2,6 +2,17 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.2 (tiktok-yap-editor)
+
+**Logo chips are the brand's logo again.** Three chips in one batch (Yahoo, ChatGPT, Safari)
+came out as the same gold coin: `File:Symbol category class.svg`, Wikipedia's article-class
+icon, which sits on most company pages and won the old guess on the word "symbol". The fixed
+guess then picked a world map ("Countries where ChatGPT is available.svg") and a retired 1996
+Schneider logo. `logo_fetch.py --page` now takes the file the article's infobox shows as its
+`logo =`, the current logo as the editors chose it, and falls back to a guess that skips
+Wikipedia's own icons and needs the brand's name or "logo" in the file name.
+`tests/editor_units.py` pins all three cases offline.
+
 ## What's new in 3.7.1 (tiktok-yap-editor)
 
 **The two-sided chart grows a row at a time, and a hook number on line one shows its value.**
