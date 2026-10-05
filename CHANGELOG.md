@@ -2,6 +2,32 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.20.0 (outlier-radar)
+
+**The dashboard opens on the scripts.** The creator's verdict on the old page: the first thing
+you want is the scripts, or to pick which lane to film. Ten tabs are now three. **Film** is the
+landing page: one tile per lane with how many scripts are left, then the scripts for the lane you
+pick. A campaign gets its own tile. "Show filmed" is a tick box that says how many it hides.
+**Post** opens on videos posted against videos filmed, with a Fix it drawer for the gap, then the
+week's calendar (LinkedIn posts, twins, the five daily videos and the moments' shoot days), the
+LinkedIn posts, inspiration and comment ammo. **Results** charts filmed against posted per week
+from `tracking.jsonl` and lists every post in `performance.jsonl` at its latest measurement.
+Export moved into one drawer. The tracking keys, the export payloads and Export > Week file are
+unchanged, so `log_perf.py --import`, the blog queue and the carousel queue read the same files.
+
+The look is new too: a light canvas, white cards, hairlines and one accent, with a dark mode. The
+accent is `dashboard.accent`, else `brand.colors.accent`; its tints for both themes are derived
+from it. Titles use the free Newsreader; `dashboard.serif_file` inlines a face you hold a web
+licence for. `dashboard.avatar` (or `avatar.png` in the workspace) and `dashboard.name` fill the
+welcome line. `brand.fonts` and `brand.colors.bg/ink` no longer touch the dashboard; they still
+drive the carousels and the phone. The Reach credit moved from a pill under the masthead to "In
+collaboration with Reach" in the top-right corner.
+
+A carousel post whose body points at its copy ("Copy lives in carousels/.../post.md") now shows
+and copies the post itself; the notes above the file's `---` rule open under Posting notes.
+Those display fields start with `_`, and Export > Week file strips them, so the week file keeps
+its pointer.
+
 ## What's new in 3.7.3 (tiktok-yap-editor)
 
 **A soft word next to a pause stays in the cut.** On 2026-10-05 three words had to be saved by

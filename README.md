@@ -73,8 +73,9 @@ pass preflight.
   your voice corpus, your weeks, your performance ledger. Plugin updates never touch it.
 - **One batch written to your filming slots** (default 3 video slots plus 2 spares and 5
   LinkedIn slots for a new creator), each script gated by machine (`radar_gate.py`: schema,
-  voice, hooks, sources, visuals) before you see it, on a dashboard with an Ammo tab for your
-  daily comments, a proof chip on every card, and this week's one measured question.
+  voice, hooks, sources, visuals) before you see it, on a dashboard that opens on the
+  scripts (pick a lane, read, film), with comment ammo for your daily comments, a proof chip on
+  every card, and this week's one measured question.
 - **A weekly rhythm** that starts by pasting your analytics table (five minutes) and reads the
   result before writing anything. Skip the paste and the digest says so and the batch ships.
 - **Not yet, by design:** your voice will be thin until you have harvested 20 to 30 minutes of

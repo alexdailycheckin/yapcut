@@ -25,7 +25,7 @@ first. Everything below them is protocol.
   for exactly this use, plus one `reply_stance` line.
 - **The engine's job, every research sweep:** emit `ammo[]` in the week file, 10 to 15 rounds
   of `{fact, number, source, lanes[], spent_on}`. They are a by-product of the receipts the
-  sweep already verified, so they cost nothing extra. The dashboard renders an Ammo tab
+  sweep already verified, so they cost nothing extra. The dashboard lists them under Comment ammo on the Post tab
   with a Spent toggle; the creator opens it with the coffee.
 - **Measure:** the people ledger below, plus follower adds and profile views in
   `performance/followers.jsonl` (`log_perf.py --followers <week> <delta> [icp_pct]`).

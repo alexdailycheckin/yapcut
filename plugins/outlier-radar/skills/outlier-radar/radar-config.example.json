@@ -62,7 +62,14 @@
       "mono": "Space Mono",
       "google_import": "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap"
     },
-    "_comment": "colors.accent_text / accent_text_dark are OPTIONAL exact overrides; left empty they are derived from accent (darkened for light mode, lightened for dark). The Reach partner pill is part of the tool and is not configured here; byline set to \"\" hides the byline."
+    "_comment": "colors.accent_text / accent_text_dark are OPTIONAL exact overrides; left empty they are derived from accent (darkened for light mode, lightened for dark). brand.colors.accent also sets the dashboard's accent unless dashboard.accent overrides it; brand.fonts and colors.bg/ink drive the carousels and the phone, not the dashboard. The Reach credit is part of the tool and is not configured here; byline set to \"\" hides the byline."
+  },
+  "dashboard": {
+    "accent": "",
+    "serif_file": "",
+    "avatar": "",
+    "name": "",
+    "_comment": "OPTIONAL, the dashboard's own look (3.20). accent: one hex colour, else brand.colors.accent. serif_file: a .woff2/.woff/.ttf you hold a web licence for, inlined for titles; empty uses the free Newsreader. avatar: a photo shown beside the welcome line (else avatar.png in the workspace). name: the name in 'Welcome, <name>.' (else the first word of brand.name)."
   },
   "show": {
     "enabled": false,

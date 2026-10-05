@@ -1,5 +1,10 @@
-/* Data arrives in <script type="application/json"> blocks the build writes; nothing
-   here is substituted by Python, so this file is plain JS that node --check can read. */
+/* YapCut dashboard, 3.20. Data arrives in <script type="application/json"> blocks the build
+   writes; nothing here is substituted by Python, so this file is plain JS that node --check reads.
+
+   Three tabs. Film is the landing page: pick a lane, read the scripts, film. Post holds what is
+   ready to go out (the posting gap, the week's calendar, the LinkedIn posts, comment ammo).
+   Results holds what was filmed and how it landed. The tracking, the exports and their payload
+   shapes are unchanged from 3.19: they are load-bearing downstream. */
 function readJson(id, fallback){
   const el=document.getElementById(id); if(!el) return fallback;
   try { const v=JSON.parse(el.textContent); return v==null ? fallback : v; }
@@ -8,25 +13,20 @@ function readJson(id, fallback){
 const WEEKS = readJson("weeks-data", []);
 const CAMPAIGNS = readJson("campaigns-data", []);
 const SEED = readJson("tracking-seed", {});
+const PERF = readJson("perf-data", {cadence:[], perf:[], median:0});
 const UI = readJson("ui-config", {});
 const KEY = "outlier-radar-tracking";
 const SEED_KEY = KEY+":seeded";
 const AMMO_KEY = "outlier-radar-ammo";
+const TAB_KEY = "yapcut-tab";
+const THEME_KEY = "yapcut-theme";
 const BLANK = {status:"idea", views:"", link:"", notes:"", carousel:false, body:null};
-/* body: the post as it actually went out. The week file is what the selector wrote;
-   what gets POSTED is edited right up to the moment it ships, and tracking a body
-   nobody published measures the wrong thing. An edit here overrides the embedded
-   text everywhere the page reads it, and "Save week file" writes it back to disk so
-   the next build inherits it instead of silently reverting. */
-let TAB = "dist";
-let FILM_ID = null;
-/* Both tracking calls are guarded. The theme calls below always were; these two
-   were not, and they are the ones the whole UI depends on. Where localStorage
-   throws (Safari on a file:// origin, a browser set to block site data, private
-   mode quota) the unguarded setItem took setT() down before it reached render(),
-   so a click changed nothing on screen: the exact "the button does nothing"
-   report, with no error anywhere a user would look. The read is guarded too,
-   which also covers a corrupted value that no longer parses. */
+/* body: the post as it actually went out. An edit here overrides the embedded text everywhere
+   the page reads it, and Export > Week file writes it back to disk so the next build inherits it. */
+
+/* ---------------- tracking: tracking.jsonl is the truth on disk, the browser an overlay ---------------- */
+/* Both reads and writes are guarded: where localStorage throws (Safari on file://, blocked site
+   data, a full quota) an unguarded call took the whole click down with no visible error. */
 const track = (function(){
   let local={}, seeded={};
   try { local = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { local = {}; }
@@ -34,8 +34,7 @@ const track = (function(){
   const out={};
   Object.keys(SEED).forEach(id=>{ out[id]=Object.assign({}, BLANK, SEED[id]); });
   Object.keys(local).forEach(id=>{
-    /* tracking.jsonl is the truth on disk; the browser is an overlay on it. An entry
-       that still equals what the last build seeded was never touched here, so a newer
+    /* An entry that still equals what the last build seeded was never touched here, so a newer
        seed wins over it. Anything edited in the browser wins over the seed. */
     const untouched = seeded[id] && JSON.stringify(local[id])===JSON.stringify(seeded[id]);
     if(untouched && SEED[id]) return;
@@ -49,87 +48,599 @@ function save(){
     localStorage.setItem(KEY, JSON.stringify(track));
     const snap={}; Object.keys(SEED).forEach(id=>{ snap[id]=Object.assign({}, BLANK, SEED[id]); });
     localStorage.setItem(SEED_KEY, JSON.stringify(snap));
-  }
-  catch(e) {
-    /* Swallow so render() still runs and the click visibly does something, but
-       say so once: tracking that silently fails to persist is worse than a
-       tracker that admits it cannot. */
-    if(!STORAGE_DEAD){
-      STORAGE_DEAD = true;
-      try { toast("Browser storage is blocked, so filmed and ignored marks will not survive a reload"); } catch(_){}
-    }
+  } catch(e) {
+    if(!STORAGE_DEAD){ STORAGE_DEAD = true; toast("Browser storage is blocked, so filmed and ignored marks will not survive a reload"); }
   }
 }
-function t(id){return track[id] || Object.assign({}, BLANK);}
-function bodyOf(x){ const b=t(x.id).body; return (b==null||b==="") ? (x.body||"") : b; }
-function setT(id, patch){track[id] = Object.assign(t(id), patch); save(); render(); if(FILM_ID) syncFilmFoot();}
-function toggleCarousel(id){setT(id,{carousel:!t(id).carousel}); toast(t(id).carousel?"Flagged for a carousel":"Carousel flag removed");}
-function setTab(x){TAB=x; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on", b.dataset.t===x)); render();}
-function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-function closeMenu(){const m=document.getElementById("exportMenu"); if(m) m.removeAttribute("open");}
-document.addEventListener("click",e=>{const m=document.getElementById("exportMenu"); if(m&&m.hasAttribute("open")&&!m.contains(e.target)) m.removeAttribute("open");});
+function t(id){ return track[id] || Object.assign({}, BLANK); }
+function bodyOf(x){ const b=t(x.id).body; return (b==null||b==="") ? (x._copy||x.body||"") : b; }
+function setQuiet(id, patch){ track[id]=Object.assign(t(id), patch); save(); }
+function setT(id, patch){ setQuiet(id, patch); renderAll(); if(FILM) drawFilm(); }
+const isDone = x => ["filmed","posted"].includes(t(x.id).status);
+const isOpen = x => !isDone(x) && t(x.id).status!=="ignored";
 
-let toastTimer=null;
-function toast(msg){
-  const el=document.getElementById("toast"); el.textContent=msg; el.classList.add("show");
-  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove("show"), 2400);
-}
+/* ---------------- small helpers ---------------- */
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+const fmt = n => Number(n||0).toLocaleString("en-US",{maximumFractionDigits:1});
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const ordinal = n => `${n}${n%100>=11&&n%100<=13?"th":({1:"st",2:"nd",3:"rd"})[n%10]||"th"}`;
+const isIso = s => /^\d{4}-\d{2}-\d{2}/.test(String(s||""));
+/* "2026-10-05" -> "October 5th": dates are written the way they are said. */
+const spoken = iso => { if(!isIso(iso)) return String(iso||""); const [,m,d]=String(iso).slice(0,10).split("-").map(Number); return `${MONTHS[m-1]} ${ordinal(d)}`; };
+const plural = (n, one, many) => `${n} ${n===1?one:(many||one+"s")}`;
+const listText = a => a.length<=1 ? a.join("") : a.slice(0,-1).join(", ")+" and "+a[a.length-1];
+const DOW=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+/* Parsed as UTC on purpose: a local parse of a bare ISO date shifts the weekday west of Greenwich. */
+const addDays = (iso, n) => { const d=new Date(String(iso).slice(0,10)+"T00:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
+const dow = iso => isIso(iso) ? DOW[new Date(String(iso).slice(0,10)+"T00:00:00Z").getUTCDay()] : "";
+const daysBetween = (a, b) => Math.round((Date.parse(String(b).slice(0,10)+"T00:00:00Z")-Date.parse(String(a).slice(0,10)+"T00:00:00Z"))/86400000);
+function todayIso(){ const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; }
+const rangeText = (a, b) => { const [ma]=spoken(a).split(" "), [mb, db]=spoken(b).split(" "); return ma===mb ? `${spoken(a)} to ${db}` : `${spoken(a)} to ${mb} ${db}`; };
+const help = (title, text) => `<button class="help" type="button" aria-label="What is this? ${esc(title)}: ${esc(text)}">?<span class="bubble" role="tooltip"><b>${esc(title)}</b>${esc(text)}</span></button>`;
+/* Card header: kicker and a title that states the takeaway on the left, controls on the right. */
+const head = (kick, title, ctl) => `<div class="card-h"><div>${kick?`<div class="kick">${kick}</div>`:""}<h3>${title}</h3></div>${ctl?`<div class="ctl">${ctl}</div>`:""}</div>`;
+let toastTimer=0;
+function toast(msg){ const el=$("toast"); if(!el) return; el.textContent=msg; el.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{el.hidden=true;}, 2600); }
 function copyText(text, msg){
   const done=()=>toast(msg||"Copied");
-  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,()=>fallbackCopy(text,done));}
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done,()=>fallbackCopy(text,done));
   else fallbackCopy(text,done);
 }
-
-function applyTheme(mode){
-  if(mode==="dark") document.documentElement.setAttribute("data-theme","dark");
-  else document.documentElement.removeAttribute("data-theme");
-  const b=document.getElementById("themeBtn"); if(b) b.innerHTML = mode==="dark" ? "&#9728;" : "&#9790;";
-  try{localStorage.setItem("yapcut-theme",mode);}catch(e){}
+function fallbackCopy(text,cb){
+  const ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select();
+  try{document.execCommand("copy");}catch(e){}
+  document.body.removeChild(ta); cb&&cb();
 }
-function toggleTheme(){ applyTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"); }
+async function saveJson(json, fname, okMsg){
+  if(window.showSaveFilePicker){
+    try{
+      const h=await window.showSaveFilePicker({suggestedName:fname, types:[{description:"JSON",accept:{"application/json":[".json"]}}]});
+      const ws=await h.createWritable(); await ws.write(json); await ws.close();
+      alert(okMsg); return true;
+    }catch(e){ if(e.name==="AbortError") return false; }
+  }
+  const blob=new Blob([json],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  alert("Downloaded "+fname+".\n\n"+okMsg); return true;
+}
 
+/* ---------------- LinkedIn-ready text ---------------- */
+/* LinkedIn strips rich formatting on paste, so copy hands over text already styled at the
+   character level. The stored body stays real text: the gates read it. Use bold sparingly and
+   never on a number or the central claim: Unicode bold is unreadable to screen readers and parsers. */
+function liBold(t){
+  return t.replace(/[A-Za-z0-9]/g, c => { const u=c.codePointAt(0);
+    if(u>=65&&u<=90) return String.fromCodePoint(0x1D5D4+u-65);
+    if(u>=97&&u<=122) return String.fromCodePoint(0x1D5EE+u-97);
+    if(u>=48&&u<=57) return String.fromCodePoint(0x1D7EC+u-48);
+    return c; });
+}
+function liItalic(t){
+  return t.replace(/[A-Za-z]/g, c => { const u=c.codePointAt(0);
+    if(u>=65&&u<=90) return String.fromCodePoint(0x1D608+u-65);
+    if(u>=97&&u<=122) return String.fromCodePoint(0x1D622+u-97);
+    return c; });
+}
+function linkedinText(t){
+  return (t||"")
+    .replace(/\*\*([^*\n]+)\*\*/g, (_, x) => liBold(x))
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, (_, p, x) => p + liItalic(x))
+    .split("\n").map(l => l.replace(/^\s*[-*]\s+/, "↳ ")).join("\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+/* ---------------- the week ---------------- */
+let WI = 0;
+const W = () => WEEKS[WI];
+const curWeek = W;
+const isExample = w => String(w&&w.week).toLowerCase()==="example";
 function officeOf(w){ return (w.office&&w.office.length)?w.office:(w.food||[]); }
-/* Every video item in the week, in lane order: the show, the secondary lane, explainers and
-   moments (3.17.0). Everything that counts, finds or exports videos reads this one list. */
+const LANES = [
+  {k:"show", src:w=>w.distribution||[], help:"One news story a week, told as a teardown. The freshest story films first."},
+  {k:"viral", src:officeOf, help:"Insider jokes riding a format that is rising right now. One person, one seat."},
+  {k:"explainers", src:w=>w.explainers||[], label:"Explainers", help:"A how-to you learn first and explain second. It ships with your own step-by-step guide."},
+  {k:"moments", src:w=>w.moments||[], label:"Moments", help:"Filmed, not read. A capture list for a day in the life or a 5-minute break."},
+  {k:"days", src:w=>w.days||[], label:"Five days", help:"One short video a day, Monday to Friday, each in its own format."},
+];
+function laneLabel(L, w){
+  if(L.label) return L.label;
+  if(L.k==="viral") return UI.secondary_label || "Viral videos";
+  return UI.primary_label || ((w.distribution||[])[0]||{}).franchise || "Industry";
+}
+/* Every video item in the week, in lane order. Everything that counts, finds or exports videos reads this. */
 function videosOf(w){ return [].concat(w.distribution||[], officeOf(w), w.explainers||[], w.moments||[], w.days||[]); }
-/* Three sources feed the LinkedIn tab and they are not interchangeable.
-   soloPosts  = linkedin[], written for the feed alone, no video behind them.
-   leaderPosts= gtm_linkedin[], mined from the leaders the creator studies.
-   twins      = a video script's twin, and only when it earned a slot. A twin the
-                selector cut still lives in the week file so the script keeps its
-                LinkedIn draft, but it is not part of this week's feed plan. */
+/* soloPosts = written for the feed alone; leaderPosts = mined from leaders the creator studies;
+   twins = a video's twin, only when it earned a slot (a cut twin still lives in the file). */
 function soloPostsOf(w){ return (w.linkedin||[]).filter(x=>x.banked!==true); }
 function bankedPostsOf(w){ return (w.linkedin||[]).filter(x=>x.banked===true); }
 function leaderPostsOf(w){ return w.gtm_linkedin||[]; }
-function liveTwinsOf(w){
-  return (w.distribution||[]).filter(x=>x.linkedin && x.linkedin.twin_cut!==true
-                                        && t(x.id).status!=="ignored");
+function liveTwinsOf(w){ return (w.distribution||[]).filter(x=>x.linkedin && x.linkedin.twin_cut!==true && t(x.id).status!=="ignored"); }
+function cutTwinsOf(w){ return (w.distribution||[]).filter(x=>x.linkedin && x.linkedin.twin_cut===true && t(x.id).status!=="ignored"); }
+function findItem(id){
+  const w=W();
+  let it = w ? videosOf(w).find(x=>x.id===id) : null;
+  if(!it && w) it=[].concat(w.linkedin||[], leaderPostsOf(w)).find(x=>x.id===id) || (w.distribution||[]).map(x=>x.linkedin).find(x=>x&&x.id===id);
+  if(!it) for(const c of CAMPAIGNS){
+    it=[].concat(c.distribution||[], c.office||[], c.linkedin||[]).find(x=>x.id===id);
+    if(it) break;
+  }
+  return it || null;
 }
-function poolCount(arr){return (arr||[]).filter(x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";}).length;}
-function updateTabCounts(w){
-  if(!w) return;
-  const set=(c,n)=>{const e=document.querySelector('.cnt[data-c="'+c+'"]'); if(e) e.textContent=n?String(n):"";};
-  const office=officeOf(w);
-  const all=videosOf(w);
-  set("dist", poolCount(w.distribution));
-  set("office", poolCount(office));
-  set("explainers", poolCount(w.explainers));
-  set("moments", poolCount(w.moments));
-  set("days", poolCount(w.days));
-  set("filmed", all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length);
-  set("linkedin", liveTwinsOf(w).length + soloPostsOf(w).length + leaderPostsOf(w).length);
-  set("insp", (w.inspiration||[]).length);
-  set("ammo", ammoRounds(w).filter((r,i)=>!isSpent(w,r,i)).length);
-  CAMPAIGNS.forEach((c,i)=>set("camp:"+i,
-    poolCount([].concat(c.distribution||[], c.office||[], c.linkedin||[]))));
+function weekStartOf(w){ if(!w||!isIso(w.week)) return null; const s=String(w.week).slice(0,10); return dow(s)==="Sunday" ? addDays(s,1) : s; }
+function weekLabel(w){
+  if(isExample(w)) return "Example week";
+  const s=weekStartOf(w); if(!s) return String(w.week);
+  const d=daysBetween(s, todayIso());
+  if(d>=0&&d<7) return "This week"; if(d>=7&&d<14) return "Last week"; if(d>=14&&d<21) return "2 weeks ago";
+  return spoken(s);
+}
+const cleanTitle = x => String(x.title||x.text_hook||x.mechanic||"Untitled").replace(/^.*?\bEp\s?\d+:\s*/i,"");
+/* A calendar cell has to say WHICH post, and a solo post carries no title: fall through to the
+   hook, then the body's first line. A format label is never the answer to "which one is this". */
+function postName(x){
+  if(x.title) return x.title;
+  if(x.text_hook) return x.text_hook;
+  const b=bodyOf(x).trim();
+  if(b){ const first=b.split("\n").find(l=>l.trim()); if(first) return first.length>72 ? first.slice(0,69).trimEnd()+"..." : first; }
+  return "Post";
+}
+const statusName = {idea:"To film", filmed:"Filmed", posted:"Posted", ignored:"Ignored", scheduled:"Scheduled"};
+
+/* ---------------- reading a script ---------------- */
+/* One sentence per line, without breaking on decimals ("1.76%") or lowercase abbreviations. */
+function splitSentences(text){
+  if(!text) return [];
+  return String(text).replace(/\s*\n+\s*/g," ").split(/(?<=[.?!…])\s+(?=[A-Z"'‘“£$€0-9])/).map(s=>s.trim()).filter(Boolean);
+}
+/* Move 2: the sentence naming what the viewer already believes, marked in place, because WHERE
+   it sits is the thing worth seeing (a belief below the numbers is the 2026-09-07 failure). */
+function beliefKey(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9 ]/g,"").trim(); }
+function opinionIdeas(x){ const o=x&&x.opinion; return (o&&Array.isArray(o.ideas)) ? o.ideas.filter(v=>typeof v==="string"&&v.trim()).slice(0,3) : []; }
+function opinionLabel(){ return UI.opinion_label || "[YOUR OPINION, IF ANY]"; }
+function readHtml(x){
+  const bk=beliefKey(x.belief);
+  const sec=(label, text, hk)=>{ const lines=splitSentences(text); return lines.length ? `<div class="sec2"><div class="lab">${label}</div>${lines.map(l=>{ const b=bk&&beliefKey(l)===bk; return `<p class="${hk?"hk":""}${b?" belief":""}"${b?' title="Move 2: the belief. Everything after this exists to break it."':""}>${esc(l)}</p>`; }).join("")}</div>` : ""; };
+  const ideas=opinionIdeas(x);
+  let h = sec("Hook", x.spoken_hook, true) + sec("Script", x.script)
+    + (ideas.length ? `<div class="sec2"><div class="lab">${esc(opinionLabel())}, optional</div><p class="note">Off the cuff, your words. Take one, your own, or none and stop on the line above.</p><ul class="ideas">${ideas.map(v=>`<li>${esc(v)}</li>`).join("")}</ul></div>` : "")
+    + sec("CTA, optional", x.cta);
+  /* legacy fallback: pre-QA batches still on the old shape */
+  if(!x.script && (x.hook || typeof x.beats==="string")) h = sec("Hook (legacy)", x.hook, true) + sec("Script (legacy)", typeof x.beats==="string"?x.beats:"") + h;
+  return h;
+}
+/* The spoken read as plain text: hook + script + optional CTA. Skips the hook when the script
+   already opens with it (most weeks duplicate that line). */
+function scriptText(x){
+  const parts=[];
+  const hook=(x.spoken_hook||"").trim(), script=(x.script||"").trim();
+  if(hook && !script.startsWith(hook)) parts.push(hook);
+  if(script) parts.push(script);
+  if(!script){
+    if(!hook && x.hook) parts.push(String(x.hook).trim());
+    if(typeof x.beats==="string") parts.push(x.beats.trim());
+  }
+  if(x.cta) parts.push(String(x.cta).trim());
+  const ideas=opinionIdeas(x);
+  if(ideas.length) parts.push(opinionLabel()+"\nNot script: the take is said off the cuff, or skipped. Ideas: "+ideas.join(" / "));
+  return parts.filter(Boolean).join("\n\n");
+}
+const table = (hd, rows) => `<div class="tablewrap"><table><thead><tr>${hd.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+function srcList(list){
+  if(!list||!list.length) return "";
+  const norm=list.map(s=>(typeof s==="string") ? {url:s, label:s.replace(/^https?:\/\/(www\.)?/,"").split("/")[0]} : s);
+  return `<div><div class="lab">Sources: check before posting</div><div class="srcs">${norm.map(s=>s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.label||s.url)}</a>`:`<span>${esc(s.label||"")}</span>`).join("")}</div></div>`;
+}
+function guideHtml(x){
+  const g=x.guide; if(!g||typeof g!=="object") return "";
+  const ul=a=>`<ul>${a.map(v=>`<li>${esc(v)}</li>`).join("")}</ul>`;
+  return `<div class="guide">
+    ${g.what_it_is?`<p><b>What it is.</b> ${esc(g.what_it_is)}</p>`:""}${g.who_its_for?`<p><b>Explained for.</b> ${esc(g.who_its_for)}</p>`:""}
+    ${(g.you_need||[]).length?`<p><b>You need</b></p>${ul(g.you_need)}`:""}
+    ${(g.steps||[]).length?`<p><b>Step by step</b></p><ol>${g.steps.map(s=>typeof s==="string"?`<li>${esc(s)}</li>`:`<li>${esc(s.do||"")}${s.why?` <small>${esc(s.why)}</small>`:""}${s.url?` <a href="${esc(s.url)}" target="_blank" rel="noopener">docs</a>`:""}</li>`).join("")}</ol>`:""}
+    ${(g.say_it_simply||[]).length?`<p><b>Say it simply</b></p>${ul(g.say_it_simply)}`:""}
+    ${g.watch_out?`<p><b>Watch out.</b> ${esc(g.watch_out)}</p>`:""}${g.try_it_first?`<p><b>Try it yourself first.</b> ${esc(g.try_it_first)}</p>`:""}</div>`;
+}
+function captureLine(x){
+  const c=x.capture; if(!c) return "";
+  if(typeof c==="string") return `capture: ${c}`;
+  const bits=[]; if(c.mode) bits.push("capture: "+c.mode); if(c.fidelity!=null) bits.push("fidelity "+Math.round(c.fidelity*100)+"%"); if(c.source) bits.push(c.source);
+  return bits.join(" · ");
+}
+function detail(x){
+  let h="";
+  const read=readHtml(x); if(read) h+=`<div class="read">${read}</div>`;
+  if(x.guide) h+=`<div><div class="lab">Your guide: learn it before you film it</div>${guideHtml(x)}</div>`;
+  if(Array.isArray(x.clips)&&x.clips.length){
+    h+=`<div><div class="lab">Capture these${x.film_on?` on ${dow(x.film_on)}, ${spoken(x.film_on)}`:""}</div>${table(["Time","Moment","Shot"], x.clips.map(c=>typeof c==="string"?`<tr><td></td><td>${esc(c)}</td><td></td></tr>`:`<tr><td>${esc(c.t||"")}</td><td>${esc(c.moment||"")}</td><td>${esc(c.shot||"")}</td></tr>`))}</div>`;
+    if(Array.isArray(x.vo)&&x.vo.length) h+=`<div><div class="lab">Voiceover, optional</div><ul class="ideas">${x.vo.map(v=>`<li>${esc(v)}</li>`).join("")}</ul></div>`;
+  }
+  if(Array.isArray(x.shot_list)&&x.shot_list.length) h+=`<div><div class="lab">Shot list: the receipts to capture</div>${table(["#","Beat","Shoot this"], x.shot_list.map(s=>`<tr><td>${esc(s.n!=null?s.n:"")}</td><td>${esc(s.beat||"")}</td><td>${esc(s.shoot||s.what||"")}${s.url?` <a href="${esc(s.url)}" target="_blank" rel="noopener">open</a>`:""}</td></tr>`))}</div>`;
+  if(Array.isArray(x.beats)&&x.beats.length){
+    const noVo=x.beats[0].on_screen!==undefined;
+    h+=`<div><div class="lab">${noVo?"Beats: no voiceover, the captions carry it":"Beats: film these, voiceover to picture"}</div>${table(noVo?["Time","On screen","Action"]:["Role","Line","B-roll","Length"], x.beats.map(b=>noVo?`<tr><td>${esc(b.t)}</td><td>${esc(b.on_screen)||"(no caption, face only)"}</td><td>${esc(b.action)}</td></tr>`:`<tr><td>${esc(b.role)}</td><td>${esc(b.text)}</td><td>${esc(b.b_roll)}</td><td>${b.target_dur?esc(String(b.target_dur))+"s":""}</td></tr>`))}</div>`;
+  }
+  const notes=[["Directions, do not read",x.directions],["What they take away",x.story_line?x.value:""],["Edit",x.edit],["Why it works",x.psych],["Note",x.note]].filter(p=>p[1]);
+  if(notes.length) h+=`<div class="two">${notes.map(([k,v])=>`<p class="note"><b>${k}.</b> ${esc(v)}</p>`).join("")}</div>`;
+  const tiny=[captureLine(x), x.source_origin?"origin: "+x.source_origin:""].filter(Boolean);
+  if(tiny.length) h+=`<p class="how">${esc(tiny.join(" · "))}</p>`;
+  h+=srcList(x.sources);
+  return h;
+}
+/* Three states, not two: "Awaiting approval" is a post that cleared the gate and waits on a yes. */
+function qaPill(qa){
+  if(qa==="passed") return `<span class="pill good">QA passed</span>`;
+  if(qa==="pending-approval") return `<span class="pill">Awaiting approval</span>`;
+  return qa ? `<span class="pill warn">Pre-QA</span>` : "";
+}
+/* Three neutral looks, none a verdict: own, reach and public are provenance, not quality. */
+function proofPill(p){
+  if(!p||!p.kind) return "";
+  const k=String(p.kind).toLowerCase();
+  return `<span class="pill${["reach","public"].includes(k)?" proof-"+k:""}" title="${esc(p.ref||"")}">${esc(p.kind)} proof</span>`;
 }
 
-function curWeek(){return WEEKS.find(w=>w.week===document.getElementById("weekSel").value) || WEEKS[0];}
+/* ---------------- Film ---------------- */
+let LANE = "all", SHOW_DONE = false;
+const OPEN = new Set();
+function lanes(){
+  const w=W();
+  const wk=LANES.map(L=>({k:L.k, label:laneLabel(L,w), help:L.help, items:L.src(w)})).filter(L=>L.items.length);
+  const camps=CAMPAIGNS.map((c,i)=>({k:"camp:"+i, camp:true, label:c.label||c.campaign||"Campaign", help:c.positioning||"Runs across weeks.", items:[].concat(c.distribution||[], c.office||[])})).filter(L=>L.items.length);
+  return wk.concat(camps);
+}
+function laneStat(L){
+  const all=L.items.filter(x=>t(x.id).status!=="ignored");
+  const posted=all.filter(x=>t(x.id).status==="posted").length, filmed=all.filter(x=>t(x.id).status==="filmed").length;
+  return Object.assign({}, L, {total:all.length, posted, filmed, done:posted+filmed, left:all.length-posted-filmed});
+}
+const strip = (posted, filmed, total) => `<span class="strip" role="img" aria-label="${posted} posted, ${filmed} filmed, ${total-posted-filmed} to film">${posted?`<span class="p" style="flex:${posted}"></span>`:""}${filmed?`<span class="f" style="flex:${filmed}"></span>`:""}${total-posted-filmed>0?`<span style="flex:${total-posted-filmed}"></span>`:""}</span>`;
+function queue(){
+  const ls=lanes();
+  const pick = LANE==="all" ? ls.filter(L=>!L.camp) : ls.filter(L=>L.k===LANE);
+  return pick.flatMap(L=>L.items.map(x=>({x, L}))).filter(({x})=>SHOW_DONE || isOpen(x));
+}
+function promisesBlock(w){
+  const list=Array.isArray(w.promised)?w.promised.filter(p=>p&&p.text):[];
+  if(!list.length) return "";
+  const open=list.filter(p=>!p.paid_in).length;
+  return `<div class="promises"><div class="lab">Promises: ${open} open</div><ul>${list.map(p=>{ const paid=!!p.paid_in; return `<li class="${paid?"paid":"open"}"><span class="pst">${paid?"Paid "+esc(p.paid_in):"Due "+esc(p.due_week||"open")}</span><span>${esc(p.text)}</span>${p.made_in?`<span class="pmade">made ${esc(p.made_in)}</span>`:""}</li>`; }).join("")}</ul></div>`;
+}
+function hasBrief(w){ return !!(w.positioning||w.method||(w.coined_term&&w.coined_term.term)||(Array.isArray(w.signals)&&w.signals.length)||(w.experiment&&w.experiment.question)||(Array.isArray(w.promised)&&w.promised.length)); }
+function renderFilm(){
+  const w=W(); if(!w){ $("p-film").innerHTML=`<div class="empty">No week data yet. Run the radar to generate your first slate.</div>`; return; }
+  const ls=lanes().map(laneStat);
+  if(LANE!=="all" && !ls.some(L=>L.k===LANE)) LANE="all";
+  const wk=ls.filter(L=>!L.camp), sum=k=>wk.reduce((a,L)=>a+L[k],0);
+  const tiles=[{k:"all", label:"All lanes", help:"Every lane this week.", left:sum("left"), total:sum("total"), posted:sum("posted"), filmed:sum("filmed"), done:sum("done")}].concat(ls);
+  const cur=tiles.find(L=>L.k===LANE)||tiles[0];
+  const inLane=(LANE==="all"?wk:ls.filter(L=>L.k===LANE)).flatMap(L=>L.items);
+  const doneN=inLane.filter(isDone).length, ignN=inLane.filter(x=>t(x.id).status==="ignored").length;
+  const parts=String(w.positioning||"").split(/This week's lens:\s*/i);
+  const lens=parts[1] ? `<b>This week's lens.</b> ${esc(parts[1].charAt(0).toUpperCase()+parts[1].slice(1))}` : (w.positioning?`<b>This week.</b> ${esc(w.positioning)}`:"");
+  const title = LANE==="all" ? (cur.left?`${plural(cur.left,"script")} left to film`:"Everything is filmed")
+    : cur.left ? `${cur.left} left in ${cur.label}` : `${cur.label}: all filmed`;
+  const q=queue();
+  $("p-film").innerHTML=`<section class="sec" aria-labelledby="h-q">
+    ${(lens||hasBrief(w))?`<p class="lensline"><span>${lens}</span>${hasBrief(w)?`<button class="linkbtn" type="button" data-act="brief">Read the brief</button>`:""}</p>`:""}
+    ${promisesBlock(w)}
+    <div class="lanepick" role="group" aria-label="Pick a lane">${tiles.map(L=>`<button type="button" class="lt${LANE===L.k?" on":""}${L.left?"":" clear"}${L.camp?" camp":""}" data-lane="${esc(L.k)}" aria-pressed="${LANE===L.k}" title="${esc(L.help||"")}">
+        <span class="lt-h">${esc(L.label)}</span>
+        <span class="lt-n"><b>${L.left}</b>to film</span>
+        ${strip(L.posted, L.filmed, L.total)}
+        <span class="lt-s">${L.left?`${L.done} of ${L.total} filmed`:"All filmed"}</span></button>`).join("")}</div>
+    <div class="qhead"><h2 id="h-q">${esc(title)}</h2><label class="chk" for="showDone"><input type="checkbox" id="showDone"${SHOW_DONE?" checked":""}>Show filmed (${doneN})${ignN?` and ignored (${ignN})`:""}</label></div>
+    <div class="queue">${q.length ? q.map(({x,L},i)=>scriptCard(x,L,i)).join("") : `<div class="empty">Nothing left to film here. Every script in this lane is filmed, posted or ignored. Tick Show filmed to see them, or pick another lane.</div>`}</div>
+  </section>`;
+}
+function scriptCard(x, L, i){
+  const r=t(x.id), s=r.status, w=W();
+  const isMoment = Array.isArray(x.clips) && x.clips.length;
+  const kick=[esc(L.label), x.episode?`Episode ${esc(x.episode)}`:"", x.company?esc(x.company):"", isIso(x.news_date)?`news from ${spoken(x.news_date)}`:"",
+    isIso(x.film_on)?`film on ${dow(x.film_on)}, ${spoken(x.film_on)}`:"", x.post_day&&!x.film_on?`posts ${esc(String(x.post_day).split(",")[0])}`:"", x.day?esc(x.day):""].filter(Boolean).join(" · ");
+  const alts=Array.isArray(x.text_hook_alts)?x.text_hook_alts.map(a=>`<button type="button" class="alt" data-copy="${esc(a)}" title="Alternate hook for hook testing. Click to copy.">${esc(a)}</button>`).join(""):"";
+  const seg=["idea","filmed","posted"].map(v=>`<button type="button" data-st="${v}" data-id="${esc(x.id)}" aria-pressed="${s===v}">${statusName[v]}</button>`).join("");
+  const side = x.story_line ? ["The story", x.story_line] : (x.borrows||x.carries) ? ["Borrows", [x.borrows, x.carries?"Carries: "+x.carries:""].filter(Boolean).join(". ")] : x.mechanic ? ["Mechanic", x.mechanic] : x.value ? ["What they take away", x.value] : null;
+  const tags=[qaPill(x.qa), ...(x.hook_styles||[]).map(v=>`<span class="pill">${esc(v)}</span>`), proofPill(x.proof), x.length?`<span class="pill">${esc(x.length)}</span>`:"", x.format&&!x.length?`<span class="pill">${esc(x.format)}</span>`:"",
+    x.sensitivity?`<span class="pill warn">${esc(x.sensitivity)}</span>`:"", x.linkedin&&x.linkedin.twin_cut!==true?`<span class="pill on">LinkedIn twin</span>`:"", s==="posted"?`<span class="pill on">Posted</span>`:""].join("");
+  const shots=(x.shot_list||[]).length, srcs=(x.sources||[]).length;
+  const hasDetail = !!(readHtml(x)||x.guide||isMoment||shots||(Array.isArray(x.beats)&&x.beats.length)||x.directions||x.psych||srcs);
+  return `<article class="card scard${isDone(x)?" isdone":""}${s==="ignored"?" ign":""}" id="c-${esc(x.id)}">
+    ${head(`<span class="no">${String(i+1).padStart(2,"0")}</span> ${kick}`, esc(cleanTitle(x)), `<div class="seg" role="group" aria-label="Status">${seg}</div>`)}
+    <div class="hookrow">
+      <div><div class="lab">${isMoment?"On screen":"Text hook"}${help("Text hook","Burned on screen for sound-off viewers. A cold scroller should get what the video is about in one look.")}</div>
+        <p class="burn">${esc(x.text_hook||cleanTitle(x))}</p>${alts?`<div class="alts">${alts}</div>`:""}
+        ${x.visual_hook?`<p class="vis"><b>Show this first.</b> ${esc(x.visual_hook)}</p>`:""}</div>
+      <div class="story">${side?`<div><div class="lab">${side[0]}</div><p>${esc(side[1])}</p></div>`:""}<div class="tags">${tags}</div></div>
+    </div>
+    <div class="foot-row">
+      <div class="btns">
+        ${hasDetail?`<button class="btn" type="button" data-act="film:${esc(x.id)}">${isMoment?"Capture list":"Film mode"}</button>`:""}
+        ${hasDetail?`<button class="btn line" type="button" data-more="${esc(x.id)}" aria-expanded="${OPEN.has(x.id)}">${OPEN.has(x.id)?"Hide full script":"Full script"}</button>`:""}
+        ${scriptText(x)?`<button class="btn line" type="button" data-act="copy:${esc(x.id)}">Copy script</button>`:""}
+        ${x.guide?`<button class="btn line" type="button" data-act="guide:${esc(x.id)}">Your guide</button>`:""}
+        <button class="btn line" type="button" data-act="carousel:${esc(x.id)}" aria-pressed="${!!r.carousel}" title="Flag for a carousel PDF, then Export > Carousel queue">${r.carousel?"Carousel ✓":"Carousel"}</button>
+      </div>
+      <div class="meta">${shots?`<span>${plural(shots,"shot")}</span>`:""}${srcs?`<span>${plural(srcs,"source")}</span>`:""}<button class="linkbtn" type="button" data-st="${s==="ignored"?"idea":"ignored"}" data-id="${esc(x.id)}">${s==="ignored"?"Restore":"Ignore"}</button></div>
+    </div>
+    ${OPEN.has(x.id)?`<div class="detail">${detail(x)}</div>`:""}
+  </article>`;
+}
 
-function humanWeek(s){
-  const d=new Date(s+"T00:00:00");
-  if(isNaN(d)) return s;
-  return d.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+/* Film mode: the read, full screen, one sentence per line. */
+let FILM = null;
+function openFilm(id){
+  const ids=queue().map(q=>q.x.id);
+  if(!ids.includes(id)) ids.unshift(id);
+  FILM={ids, i:ids.indexOf(id)};
+  drawFilm(); $("film").hidden=false; document.body.style.overflow="hidden";
+}
+function drawFilm(){
+  const x=findItem(FILM.ids[FILM.i]); if(!x){ closeFilm(); return; }
+  const L=lanes().find(L=>L.items.includes(x)), s=t(x.id).status;
+  let body="";
+  if(x.text_hook) body+=`<div><div class="lab">Text hook: burned on screen, not spoken</div><p class="burn">${esc(x.text_hook)}</p></div>`;
+  if(x.visual_hook) body+=`<p class="note"><b>Show this first.</b> ${esc(x.visual_hook)}</p>`;
+  if(x.story_line) body+=`<p class="note"><b>The story in one line.</b> ${esc(x.story_line)}</p>`;
+  const read=readHtml(x); if(read) body+=`<div class="read">${read}</div>`;
+  if(Array.isArray(x.clips)&&x.clips.length) body+=detail({clips:x.clips, film_on:x.film_on, vo:x.vo, edit:x.edit});
+  else body+=detail({shot_list:x.shot_list, beats:x.beats, directions:x.directions, value:x.value, story_line:x.story_line});
+  $("film").innerHTML=`<div class="filmbar"><div><div class="kick">Film mode · ${esc(L?L.label:"")} · ${FILM.i+1} of ${FILM.ids.length}</div><h3>${esc(cleanTitle(x))}</h3></div><button class="x" type="button" data-film-close aria-label="Close film mode">×</button></div>
+    <div class="filmbody"><div class="in">${body}</div></div>
+    <div class="filmfoot"><div class="seg" role="group" aria-label="Status">${["idea","filmed","posted"].map(v=>`<button type="button" data-st="${v}" data-id="${esc(x.id)}" aria-pressed="${s===v}">${statusName[v]}</button>`).join("")}</div>
+      <span class="hint">Arrow keys move between scripts. Esc closes.</span>
+      <div class="btns"><button class="btn line sm" type="button" data-film-step="-1"${FILM.i?"":" disabled"}>Previous</button><button class="btn sm" type="button" data-film-step="1"${FILM.i<FILM.ids.length-1?"":" disabled"}>Next script</button></div></div>`;
+  $("film").querySelector(".filmbody").scrollTop=0;
+}
+function closeFilm(){ $("film").hidden=true; document.body.style.overflow=""; FILM=null; }
+
+/* ---------------- Post ---------------- */
+/* Everything with a day this week: LinkedIn posts, live twins, the five daily videos, and the
+   moments' shoot days. Days come from select_linkedin.py; a week without them shows no calendar. */
+function weekItems(w){
+  const s=weekStartOf(w), out=[];
+  const days=s ? [...Array(7)].map((_,i)=>addDays(s,i)) : [];
+  const byName={}; days.forEach(d=>{ byName[dow(d)]=d; });
+  const slot=x=>x.post_slot==null?"":(typeof x.post_slot==="number"?"slot "+x.post_slot:String(x.post_slot));
+  soloPostsOf(w).concat(leaderPostsOf(w)).filter(x=>t(x.id).status!=="ignored").forEach(x=>{ if(isIso(x.post_day)) out.push({x, day:String(x.post_day).slice(0,10), cls:"li", what:["LinkedIn",slot(x),x.post_day_locked?"pinned":""].filter(Boolean).join(" · "), title:postName(x)}); });
+  liveTwinsOf(w).forEach(v=>{ const tw=v.linkedin; if(isIso(tw.post_day)) out.push({x:tw, day:String(tw.post_day).slice(0,10), cls:"li", what:["LinkedIn twin",slot(tw),tw.post_day_locked?"pinned":""].filter(Boolean).join(" · "), title:cleanTitle(v)}); });
+  (w.days||[]).filter(x=>t(x.id).status!=="ignored").forEach(x=>{ const d=isIso(x.post_day)?String(x.post_day).slice(0,10):byName[String(x.post_day||"").split(",")[0]]; if(d) out.push({x, day:d, cls:"vid", what:"Video · "+(x.day||"Five days"), title:cleanTitle(x)}); });
+  (w.moments||[]).filter(x=>t(x.id).status!=="ignored").forEach(x=>{ if(isIso(x.film_on)) out.push({x, day:String(x.film_on).slice(0,10), cls:"shoot", what:"Shoot"+(x.length?" · "+x.length:""), title:cleanTitle(x)}); });
+  const cols=days.length ? days : [...new Set(out.map(e=>e.day))].sort();
+  return {days:cols, items:out.filter(e=>cols.includes(e.day))};
+}
+function calendar(cal){
+  const today=todayIso();
+  return `<div class="cal">${cal.days.map(d=>{
+    const evs=cal.items.filter(e=>e.day===d);
+    return `<div class="day${d===today?" today":d<today?" past":""}"><h5><span>${dow(d).slice(0,3)}${d===today?" · today":""}</span><b>${Number(d.slice(8))}</b></h5>
+      <div class="evs">${evs.length?evs.map(e=>{ const st=t(e.x.id).status, done=e.cls==="shoot"?["filmed","posted"].includes(st):st==="posted";
+        return `<button type="button" class="ev ${e.cls}${done?" done":""}" data-act="${e.cls==="li"?"post:":"film:"}${esc(e.x.id)}"><small>${esc(e.what)}</small><span>${esc(e.title)}</span></button>`; }).join(""):`<span class="emptyday">Nothing planned</span>`}</div></div>`;
+  }).join("")}</div>`;
+}
+const LI_STATES=["idea","scheduled","posted"];
+function visualBlock(v){
+  if(!v||!v.prompt) return "";
+  const meta=[v.format,v.model,v.aspect].filter(Boolean).map(esc).join(" · ");
+  return `<div><div class="lab">Asset${meta?": "+meta:""}</div>${v.why?`<p class="note">${esc(v.why)}</p>`:""}<div class="promptbox">${esc(v.prompt)}</div><div class="btns" style="margin-top:8px"><button class="btn line sm" type="button" data-copy="${esc(v.prompt)}">Copy image prompt</button></div></div>`;
+}
+/* Where the built asset lives on disk. Reads the canonical `assets` written by add_post.py, and the
+   two hand-written shapes week files carried before anything consumed them: a bare `carousel`
+   path and `visual.path`. Relative paths are stored against the workspace root. */
+function assetsPath(x){
+  if(!x) return "";
+  const a=x.assets;
+  if(typeof a==="string"&&a.trim()) return a.trim();
+  if(a&&typeof a==="object"&&a.path) return String(a.path).trim();
+  if(typeof x.carousel==="string"&&x.carousel.trim()) return x.carousel.trim();
+  if(x.visual&&typeof x.visual.path==="string"&&x.visual.path.trim()) return x.visual.path.trim();
+  return "";
+}
+function assetsBlock(x){
+  const rel=assetsPath(x); if(!rel) return "";
+  const root=(UI.workspace||"").replace(/\/+$/,"");
+  const abs=(rel.startsWith("/")||/^[a-zA-Z]:[\\/]/.test(rel)) ? rel : (root?root+"/"+rel:rel);
+  const label=(x.assets&&x.assets.label)||abs.replace(/\/+$/,"").split("/").pop()||abs;
+  /* file:// so the browser opens the folder. Chrome refuses some file:// navigation silently, so
+     the path is copyable too: Cmd+Shift+G in Finder always works. */
+  return `<div><div class="lab">Assets</div><p class="note"><a href="${esc("file://"+encodeURI(abs).replace(/#/g,"%23"))}" target="_blank" rel="noopener">${esc(label)}</a></p><div class="btns" style="margin-top:8px"><button class="btn line sm" type="button" data-copy="${esc(abs)}">Copy path</button></div></div>`;
+}
+/* held[] are the receipts kept OUT of the post for the comments; reply_stance is the one line to
+   hold when the thread pushes back. Read before replying, never copied with the post. */
+function replyBlock(x){
+  const held=Array.isArray(x.held)?x.held.filter(h=>h&&(h.fact||h.source)):[];
+  if(!held.length && !x.reply_stance) return "";
+  return `<div class="ctxbox">${x.reply_stance?`<p class="note"><b>Reply stance.</b> ${esc(x.reply_stance)}</p>`:""}${held.length?`<div><div class="lab">Held receipts: for the comments, not the post</div><ul class="ideas">${held.map(h=>`<li>${esc(h.fact||"")}${h.source?` <a href="${esc(h.source)}" target="_blank" rel="noopener">source</a>`:""}</li>`).join("")}</ul></div>`:""}</div>`;
+}
+function liCard(x, title, opts){
+  opts=opts||{};
+  const r=t(x.id), s=r.status;
+  const slot=x.post_slot==null?"":(typeof x.post_slot==="number"?"slot "+x.post_slot:String(x.post_slot));
+  const when=isIso(x.post_day) ? `${dow(x.post_day)}, ${spoken(x.post_day)}${slot?" · "+slot:""}${x.post_day_locked?" · pinned":""}` : "No day set";
+  const shape=x.shape ? String(x.shape).replace(/^F\d_/,"") : (x.medium||x.type||"");
+  const kick=[when, x.series||x.kind||"", shape, x.job||"", x.twin_cut===true?"not twinned":"", x.banked===true?"banked":""].filter(Boolean).map(esc).join(" · ");
+  const more=visualBlock(x.visual)+assetsBlock(x)+srcList(x.sources)+replyBlock(x);
+  return `<article class="card s6 pcard${s==="posted"?" done":""}${opts.muted?" muted":""}" id="licard-${esc(x.id)}">
+    ${head(kick, esc(title||postName(x)), `<div class="seg" role="group" aria-label="Status">${LI_STATES.map(v=>`<button type="button" data-st="${v}" data-id="${esc(x.id)}" aria-pressed="${s===v}">${v==="idea"?"Draft":statusName[v]}</button>`).join("")}</div>`)}
+    ${opts.twinOf?`<p class="note">Written twin of the video "${esc(opts.twinOf)}".</p>`:""}
+    <div class="body" id="tb-${esc(x.id)}">${esc(linkedinText(bodyOf(x)))}</div>
+    ${r.body!=null&&r.body!==""?`<p class="edited">Edited here, not yet in the week file. Export > Week file saves it.</p>`:""}
+    <div class="foot-row"><div class="btns">
+      <button class="btn" type="button" data-act="copyli:${esc(x.id)}">Copy for LinkedIn</button>
+      <button class="btn line" type="button" data-expand="tb-${esc(x.id)}">Read all</button>
+      <button class="btn line" type="button" data-act="edit:${esc(x.id)}">Edit</button>
+      ${x._notes?`<button class="btn line" type="button" data-act="notes:${esc(x.id)}">Posting notes</button>`:""}
+      ${more?`<button class="btn line" type="button" data-expand="mo-${esc(x.id)}">Details</button>`:""}
+    </div><div class="tags">${qaPill(x.qa)}</div></div>
+    ${more?`<div class="more" id="mo-${esc(x.id)}" hidden>${more}</div>`:""}
+  </article>`;
+}
+/* Edit the post body in place. Textarea, not contenteditable: the body is plain text with hard
+   line breaks, and contenteditable turns pasted text into markup. */
+function editBody(id){
+  const host=$("tb-"+id); if(!host||host.dataset.editing) return;
+  const item=findItem(id)||{id};
+  const ta=document.createElement("textarea"); ta.className="bodyedit"; ta.value=bodyOf(item);
+  host.dataset.editing="1"; host.hidden=true; host.parentNode.insertBefore(ta, host.nextSibling);
+  const bar=document.createElement("div"); bar.className="btns";
+  bar.innerHTML='<button class="btn sm" type="button" data-a="save">Save</button><button class="btn line sm" type="button" data-a="revert">Revert to week file</button><button class="btn line sm" type="button" data-a="cancel">Cancel</button>';
+  ta.parentNode.insertBefore(bar, ta.nextSibling); ta.focus();
+  bar.onclick=e=>{
+    const a=e.target.dataset&&e.target.dataset.a; if(!a) return;
+    e.stopPropagation();
+    if(a==="save"){ const v=ta.value.trim(); setT(id,{body: v===((item._copy||item.body||"").trim())?null:v}); toast("Saved in this browser. Export > Week file puts it on disk."); }
+    else if(a==="revert"){ setT(id,{body:null}); toast("Back to the week file text"); }
+    else { host.dataset.editing=""; host.hidden=false; ta.remove(); bar.remove(); }
+  };
+}
+/* ---------------- ammo ---------------- */
+/* A round is a fact with a number and a source. Spent state lives in localStorage under its own
+   key; a round the week file already marks spent_on starts spent. */
+let AMMO=(function(){ try { return JSON.parse(localStorage.getItem(AMMO_KEY)||"{}")||{}; } catch(e) { return {}; } })();
+function ammoRounds(w){ return Array.isArray(w&&w.ammo)?w.ammo.filter(r=>r&&(r.fact||r.number)):[]; }
+function ammoKey(w,r,i){ return String(w.week)+"|"+(r.id||r.fact||i); }
+function isSpent(w,r,i){ const k=ammoKey(w,r,i); return AMMO[k]!==undefined ? !!AMMO[k] : !!r.spent_on; }
+function toggleSpent(i){
+  const w=W(), r=ammoRounds(w)[i]; if(!w||!r) return;
+  const k=ammoKey(w,r,i); AMMO[k]=!isSpent(w,r,i);
+  try { localStorage.setItem(AMMO_KEY, JSON.stringify(AMMO)); } catch(e) {}
+  renderAll(); toast(AMMO[k]?"Marked spent":"Back in the list");
+}
+function ammoRow(w, r, i){
+  const sp=isSpent(w,r,i), src=String(r.source||"");
+  const lanesP=Array.isArray(r.lanes)?r.lanes.map(l=>`<span class="pill">${esc(l)}</span>`).join(""):"";
+  return `<div class="arow${sp?" spent":""}"><p>${esc(r.fact||"")}${r.number?` <b>${esc(r.number)}</b>`:""}</p>
+    <small>${src.startsWith("http")?`<a href="${esc(src)}" target="_blank" rel="noopener">${esc(src.replace(/^https?:\/\/(www\.)?/,"").split("/")[0])}</a>`:esc(src)}${lanesP}${sp&&r.spent_on&&AMMO[ammoKey(w,r,i)]===undefined?`<span>spent ${esc(r.spent_on)}</span>`:""}</small>
+    <div class="btns"><button class="btn line sm" type="button" data-act="copyammo:${i}">Copy</button><button class="btn ghost sm" type="button" data-act="spend:${i}" aria-pressed="${sp}">${sp?"Spent":"Mark spent"}</button></div></div>`;
+}
+const PLATFORM={linkedin:"LinkedIn", tiktok:"TikTok", instagram:"Instagram", youtube:"YouTube", x:"X"};
+const poss = n => n+(/s$/.test(n)?"'":"'s");
+function multOf(i){ const m=String(i.metric||"").match(/\(([\d.]+)x\)/); return m?Number(m[1]):null; }
+function linkOf(i){ const m=String(i.link||"").match(/https?:\/\/\S+/); return m?m[0]:""; }
+function renderPost(){
+  const w=W(); if(!w){ $("p-post").innerHTML=""; return; }
+  const cal=weekItems(w), solo=soloPostsOf(w).filter(x=>t(x.id).status!=="ignored");
+  const byDay=(a,b)=>String(a.post_day||"9").localeCompare(String(b.post_day||"9"))||((+a.post_slot||99)-(+b.post_slot||99));
+  const vids=videosOf(w), waiting=vids.filter(x=>t(x.id).status==="filmed").length, postedV=vids.filter(x=>t(x.id).status==="posted").length, made=waiting+postedV;
+  const liN=cal.items.filter(e=>e.cls==="li").length, vidN=cal.items.filter(e=>e.cls==="vid").length, shootN=cal.items.filter(e=>e.cls==="shoot").length;
+  const nextLi=cal.items.filter(e=>e.cls==="li"&&t(e.x.id).status!=="posted").sort((a,b)=>a.day.localeCompare(b.day))[0];
+  const postedLi=solo.filter(x=>t(x.id).status==="posted").length;
+  const ammo=ammoRounds(w), insp=w.inspiration||[], best=insp.filter(multOf).sort((a,b)=>multOf(b)-multOf(a))[0];
+  const legend=`<div class="lkey"><span><i style="background:var(--blue)"></i>LinkedIn</span><span><i style="background:var(--b3)"></i>Video</span><span><i style="border:1px dashed var(--mute-line)"></i>Shoot</span></div>`;
+  const section=(id, h, inner)=>inner?`<section class="sec" aria-labelledby="${id}"><div class="sec-h"><h2 id="${id}">${h}</h2></div>${inner}</section>`:"";
+  const grid=cards=>cards.length?`<div class="grid">${cards.join("")}</div>`:"";
+  const campPosts=CAMPAIGNS.map((c,i)=>({c, posts:(c.linkedin||[]).filter(x=>t(x.id).status!=="ignored")})).filter(o=>o.posts.length);
+  $("p-post").innerHTML=`
+    <section class="sec" aria-label="Headline numbers"><div class="grid">
+      <div class="card kpi s6" style="align-content:space-between">
+        <div class="foot-row"><div class="kick" style="margin:0">Videos posted this week</div>${waiting?`<button class="btn" type="button" data-act="fixPost">Fix it</button>`:""}</div>
+        <div class="val${postedV?"":" zero"}">${postedV} <span>of ${made} filmed</span></div>
+        ${strip(postedV, waiting, made||1)}
+        <div class="lkey"><span><i style="background:var(--blue)"></i>Posted ${postedV}</span><span><i style="background:var(--b3)"></i>Filmed, not posted ${waiting}</span></div>
+        <p class="small">${waiting?`${plural(waiting,"video")} ${waiting===1?"is":"are"} filmed and waiting to be cut.`:made?"Everything filmed is posted.":"Nothing filmed yet this week."}</p>
+      </div>
+      <div class="card mids s6">
+        <div class="mid"><div class="kick">On the calendar</div><div class="val">${liN+vidN}</div><p class="small">${plural(liN,"LinkedIn post")}, ${plural(vidN,"daily video")}${shootN?` and ${plural(shootN,"shoot")}`:""}.${nextLi?` Next post: ${esc(nextLi.title)}, ${dow(nextLi.day)}.`:""}</p></div>
+        <div class="mid"><div class="kick">LinkedIn posts out</div><div class="val${postedLi||!solo.length?"":" zero"}">${postedLi}</div><p class="small">Of ${plural(solo.length,"post")} written for this week, twins not counted.</p></div>
+        ${PERF.perf&&PERF.perf.length?`<div class="mid"><div class="kick">Typical LinkedIn post${help("Median","The middle post: half did better, half did worse. One viral post can't drag it up the way it drags an average.")}</div><div class="val">${fmt(PERF.median)}</div><p class="small">Impressions, the median across ${PERF.perf.length} measured posts.</p></div>`
+          :`<div class="mid"><div class="kick">Comment ammo</div><div class="val">${ammo.filter((r,i)=>!isSpent(w,r,i)).length}</div><p class="small">Facts with a source, unused this week.</p></div>`}
+      </div>
+    </div></section>
+    ${cal.days.length?section("h-cal","The week ahead",`<div class="grid"><div class="card s12">${head(rangeText(cal.days[0],cal.days[cal.days.length-1]), `${plural(liN+vidN,"post")} and ${plural(shootN,"shoot")}`, legend)}${calendar(cal)}<p class="how">Days come from <code>select_linkedin.py</code>, in decay order: the item that loses value soonest goes first. Re-run it to reassign, or set <code>"post_day_locked": true</code> on a post to pin it.</p></div></div>`):""}
+    ${section("h-li","Written for LinkedIn", grid(solo.slice().sort(byDay).map(x=>liCard(x, postName(x)))))}
+    ${section("h-tw","Twins of your videos", grid(liveTwinsOf(w).slice().sort((a,b)=>byDay(a.linkedin,b.linkedin)).map(v=>liCard(v.linkedin, v.linkedin.title||cleanTitle(v), {twinOf:cleanTitle(v)}))))}
+    ${section("h-ld", esc(UI.leaders_hdr||"From leaders you study"), grid(leaderPostsOf(w).filter(x=>t(x.id).status!=="ignored").slice().sort(byDay).map(x=>liCard(x, postName(x)))))}
+    ${section("h-cut","Not twinned this week", grid(cutTwinsOf(w).map(v=>liCard(v.linkedin, v.linkedin.title||cleanTitle(v), {twinOf:cleanTitle(v), muted:true}))))}
+    ${section("h-bank","Banked for a future week", grid(bankedPostsOf(w).filter(x=>t(x.id).status!=="ignored").map(x=>liCard(x, postName(x), {muted:true}))))}
+    ${campPosts.map((o,k)=>section("h-camp"+k, esc(o.c.label||o.c.campaign||"Campaign"), (o.c.positioning?`<p class="note">${esc(o.c.positioning)}</p>`:"")+grid(o.posts.map(x=>liCard(x, postName(x)))))).join("")}
+    ${insp.length?section("h-insp","What worked for others",`<div class="grid"><div class="card s12">${head("Posts that beat their creator's median", best?`${esc(poss(best.creator))} top post hit ${multOf(best).toFixed(1)} times the usual`:"Posts worth a look this week")}
+      <div class="rows">${insp.map(i=>{ const m=multOf(i); return `<div class="irow"><div class="x">${m?m.toFixed(1)+"x":"n/a"}<small>${esc(PLATFORM[i.platform]||i.platform||"")}</small></div><div><b>${esc(i.creator||"")}</b><p>${esc(i.metric||"")}${i.metric_confidence?` (${esc(i.metric_confidence)})`:""}</p><p>${esc(i.mechanic||"")}</p></div>${linkOf(i)?`<a class="btn line sm" href="${esc(linkOf(i))}" target="_blank" rel="noopener">Open</a>`:""}</div>`; }).join("")}</div></div></div>`):""}
+    ${ammo.length?section("h-am","Comment ammo",`<div class="grid"><div class="card s12">${head(`Facts with a number and a source${help("Ammo","A fact with a number and a source, ready for your comments. The sentence stays yours.")}`, `${plural(ammo.filter((r,i)=>!isSpent(w,r,i)).length,"fact")} unused out of ${ammo.length}`)}<div class="rows">${ammo.map((r,i)=>ammoRow(w,r,i)).join("")}</div></div></div>`):""}`;
+}
+
+/* ---------------- Results ---------------- */
+let PERF_ALL=false;
+function renderResults(){
+  const w=W(), c=PERF.cadence||[], perf=PERF.perf||[];
+  const filmed=c.reduce((a,r)=>a+r.filmed,0), posted=c.reduce((a,r)=>a+r.posted,0);
+  const top=perf[0];
+  const med=a=>{ if(!a.length) return 0; const s=a.map(p=>p.impressions).sort((x,y)=>x-y), m=s.length>>1; return s.length%2?s[m]:Math.round((s[m-1]+s[m])/2); };
+  const mine=perf.filter(p=>p.radar), own=perf.filter(p=>!p.radar);
+  const done=w?videosOf(w).filter(x=>isDone(x)):[];
+  $("p-results").innerHTML=`
+    <section class="sec" aria-label="Headline numbers"><div class="grid">
+      <div class="card kpi s7">
+        <div class="kick" style="margin:0">${c.length?`Filmed since ${spoken(c[0].week)}`:"Filmed"}</div>
+        <div class="row1"><div class="val">${filmed}</div>${c.length?`<span class="badge${posted<filmed/2?" down":""}">${posted} posted</span>`:""}</div>
+        ${c.length>1?`<div class="chart" id="cadence"></div><div class="legend"><span><i class="ln" style="background:var(--b3)"></i>Filmed</span><span><i class="ln" style="background:var(--blue)"></i>Posted</span></div>`:`<p class="small">The weekly chart starts once two weeks of Filmed and Posted marks are in performance/tracking.jsonl.</p>`}
+      </div>
+      <div class="card mids s5">
+        <div class="mid"><div class="kick">Measured posts</div><div class="val">${perf.length}</div><p class="small">${perf.length?"The latest measurement of each post you logged.":"None yet. log_perf.py logs a post's numbers."}</p></div>
+        ${perf.length?`<div class="mid"><div class="kick">Typical post${help("Median","The middle post: half did better, half did worse. One viral post can't drag it up the way it drags an average.")}</div><div class="val">${fmt(PERF.median)}</div><p class="small">Impressions.${mine.length&&own.length?` From YapCut ${fmt(med(mine))}, your own ${fmt(med(own))}.`:""}</p></div>
+        <div class="mid"><div class="kick">Top post</div><div class="val">${fmt(top.impressions)}</div><p class="small">${esc(top.title)}.</p></div>`:""}
+      </div>
+    </div></section>
+    ${perf.length?`<section class="sec" aria-labelledby="h-perf"><div class="sec-h"><h2 id="h-perf">Every measured post</h2></div>
+      <div class="grid"><div class="card s12" id="perfCard">${head(`Impressions, latest measurement per post${help("Early","Measured less than a week after posting, so the number is still growing.")}`, PERF.median?`Your top post reached ${Math.round(top.impressions/PERF.median)} times the typical one`:"Your measured posts", `<button class="linkbtn" type="button" id="perfTbl" aria-expanded="false">Show table</button>`)}
+        <div class="legend"><span><i style="background:var(--blue)"></i>From YapCut</span><span><i style="background:var(--mute)"></i>Your own</span></div>
+        <div class="bars" id="perfBars"></div>
+        <div class="tablewrap" id="perfTable" hidden>${table(["Post","Impressions","Reactions","Comments","Measured"], perf.map(p=>`<tr><td>${esc(p.title)}</td><td>${fmt(p.impressions)}</td><td>${fmt(p.reactions)}</td><td>${fmt(p.comments)}</td><td>${esc(p.measured?spoken(p.measured):"")}</td></tr>`))}</div>
+        <div class="foot-row"><button class="linkbtn" type="button" id="perfMore">${perf.length>12?`Show all ${perf.length}`:""}</button><span class="how">A log, not a verdict. Early means under a week old.</span></div>
+      </div></div></section>`:""}
+    <section class="sec" aria-labelledby="h-fl"><div class="sec-h"><h2 id="h-fl">This week's filmed videos</h2></div>
+      <div class="grid"><div class="card s12">${head("Log views and the link once a video is live", done.length?`${plural(done.filter(x=>t(x.id).status==="posted").length,"video")} posted out of ${done.length} filmed`:"Nothing filmed this week yet")}
+        ${done.length?`<div><div class="trow hd"><div>Video</div><div>Status</div><div>Views</div><div>Link to the post</div><div>Notes</div></div>${done.map(x=>{ const L=lanes().find(L=>L.items.includes(x)); return `<div class="trow"><div><b>${esc(cleanTitle(x))}</b><small>${esc(L?L.label:"")}</small></div><div><div class="seg" role="group" aria-label="Status">${["filmed","posted"].map(v=>`<button type="button" data-st="${v}" data-id="${esc(x.id)}" aria-pressed="${t(x.id).status===v}">${statusName[v]}</button>`).join("")}</div></div><div><input type="number" inputmode="numeric" placeholder="Views" value="${esc(t(x.id).views)}" data-field="views" data-id="${esc(x.id)}" aria-label="Views"></div><div><input placeholder="Paste the link" value="${esc(t(x.id).link)}" data-field="link" data-id="${esc(x.id)}" aria-label="Link"></div><div><input placeholder="Notes" value="${esc(t(x.id).notes)}" data-field="notes" data-id="${esc(x.id)}" aria-label="Notes"></div></div>`; }).join("")}</div>`:""}
+        <p class="how">Views, links and notes stay in this browser until Export > Performance writes them for <code>log_perf.py --import</code>.</p>
+      </div></div></section>`;
+  drawResults();
+}
+function drawResults(){
+  if($("p-results").hidden) return;
+  const c=PERF.cadence||[];
+  if($("cadence")) lineChart($("cadence"), {dates:c.map(r=>r.week), series:[{name:"Filmed", values:c.map(r=>r.filmed), color:css("--b3")},{name:"Posted", values:c.map(r=>r.posted), color:css("--blue"), you:true}], height:220});
+  if($("perfBars")){
+    const rows=(PERF_ALL?PERF.perf:PERF.perf.slice(0,12)), max=Math.max(1,...PERF.perf.map(p=>p.impressions));
+    $("perfBars").innerHTML=rows.map((p,i)=>`<div class="brow"><span class="r">${i+1}</span><span class="n" title="${esc(p.title)}">${esc(p.title+(p.mature?"":" (early)"))}</span><span class="t"><span style="width:${Math.max(p.impressions>0?2:0,p.impressions/max*100).toFixed(1)}%;background:${p.radar?"var(--blue)":"var(--mute)"}"></span></span><span class="v">${fmt(p.impressions)}</span></div>`).join("");
+    if($("perfMore")&&PERF.perf.length>12) $("perfMore").textContent=PERF_ALL?"Show top 12":`Show all ${PERF.perf.length}`;
+  }
+}
+/* A line chart drawn to one scale, with a hover readout. */
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NS="http://www.w3.org/2000/svg";
+function svgEl(tag, attrs){ const e=document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function niceMax(v){ if(v<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(v))), n=v/p; return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p; }
+const sd = iso => { const [,m,d]=String(iso).slice(0,10).split("-").map(Number); return MONTHS[m-1].slice(0,3)+" "+d; };
+function lineChart(host, {dates, series, height}){
+  if(!host||!host.clientWidth||!dates.length) return;
+  host.innerHTML="";
+  const W=Math.max(280, host.clientWidth), H=height||220, endW=Math.min(130, W*.24), P={l:44, r:endW, t:12, b:28};
+  const iw=W-P.l-P.r, ih=H-P.t-P.b, n=dates.length;
+  const vmax=niceMax(Math.max(...series.flatMap(s=>s.values), 1));
+  const x=i=>P.l+(n===1?iw/2:i/(n-1)*iw), y=v=>P.t+ih-v/vmax*ih;
+  const svg=svgEl("svg",{width:W, height:H, role:"img", "aria-label":series.map(s=>s.name).join(" and ")+" per week"});
+  const ink3=css("--ink-3"), line=css("--line"), font="-apple-system, Helvetica Neue, Arial, sans-serif";
+  [0,.5,1].forEach(f=>{ const yy=y(vmax*f); svg.appendChild(svgEl("line",{x1:P.l, x2:W-P.r+4, y1:yy, y2:yy, stroke:line})); const tx=svgEl("text",{x:P.l-10, y:yy+4, "text-anchor":"end", fill:ink3, "font-size":11, "font-family":font}); tx.textContent=fmt(Math.round(vmax*f)); svg.appendChild(tx); });
+  const xi=n>2?[0,Math.floor((n-1)/2),n-1]:[...Array(n).keys()];
+  xi.forEach((i,k)=>{ const tx=svgEl("text",{x:x(i), y:H-6, "text-anchor":k===0?"start":k===xi.length-1?"end":"middle", fill:ink3, "font-size":11, "font-family":font}); tx.textContent=sd(dates[i]); svg.appendChild(tx); });
+  series.forEach(s=>{
+    const d=s.values.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    svg.appendChild(svgEl("path",{d, fill:"none", stroke:s.color, "stroke-width":s.you?3:2, "stroke-linejoin":"round", "stroke-linecap":"round"}));
+    svg.appendChild(svgEl("circle",{cx:x(n-1), cy:y(s.values[n-1]), r:4.5, fill:s.color, stroke:css("--panel"), "stroke-width":2}));
+  });
+  const labs=series.map(s=>({s, y:y(s.values[n-1])})).sort((a,b)=>a.y-b.y);
+  for(let i=1;i<labs.length;i++) if(labs[i].y-labs[i-1].y<15) labs[i].y=labs[i-1].y+15;
+  labs.forEach(({s,y:yy})=>{ const tx=svgEl("text",{x:W-P.r+12, y:yy+4, fill:s.you?css("--ink"):css("--ink-2"), "font-size":12, "font-weight":s.you?700:500, "font-family":font}); tx.textContent=`${s.name} ${fmt(s.values[n-1])}`; svg.appendChild(tx); });
+  const hit=svgEl("rect",{x:P.l, y:P.t, width:iw, height:ih, fill:"transparent"});
+  hit.addEventListener("mousemove", ev=>{
+    const i=Math.max(0,Math.min(n-1,Math.round((ev.clientX-svg.getBoundingClientRect().left-P.l)/iw*(n-1))));
+    const tip=$("tip"); tip.innerHTML=`<div class="d">Week of ${spoken(dates[i])}</div>${series.map(s=>`<div class="r"><span><i style="background:${s.color}"></i>${esc(s.name)}</span><b>${fmt(s.values[i])}</b></div>`).join("")}`;
+    tip.hidden=false; tip.style.left=Math.min(ev.clientX+14, innerWidth-180)+"px"; tip.style.top=Math.max(8, ev.clientY-80)+"px";
+  });
+  hit.addEventListener("mouseleave", ()=>{ $("tip").hidden=true; });
+  svg.appendChild(hit);
+  host.appendChild(svg);
 }
 
 /* ---------------- exports (payload shapes are load-bearing downstream) ---------------- */
@@ -148,44 +659,27 @@ function exportFilmed(){
     if(x.directions)  out+=`- DIRECTIONS (do this, NOT spoken): ${x.directions}\n`;
     if(x.value)       out+=`- VALUE (the payoff to protect): ${x.value}\n`;
     if(x.cta)         out+=`- CTA (optional, say to end): ${x.cta}\n`;
-    if(x.linkedin)    out+=`- LINKEDIN TWIN (post this version on LinkedIn if the video wins): ${x.linkedin.body.replace(/\n+/g,' ')}\n`;
+    if(x.linkedin)    out+=`- LINKEDIN TWIN (post this version on LinkedIn if the video wins): ${String(x.linkedin.body||"").replace(/\n+/g,' ')}\n`;
     out+=`\n`;
   });
   window.__lastExport=out;
   copyText(out, `Copied ${items.length} filmed script(s). Paste into your editor session.`);
 }
-async function saveJson(json, fname, okMsg){
-  if(window.showSaveFilePicker){
-    try{
-      const h=await window.showSaveFilePicker({suggestedName:fname, types:[{description:"JSON",accept:{"application/json":[".json"]}}]});
-      const ws=await h.createWritable(); await ws.write(json); await ws.close();
-      alert(okMsg); return true;
-    }catch(e){ if(e.name==="AbortError") return false; }
-  }
-  const blob=new Blob([json],{type:"application/json"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  alert("Downloaded "+fname+".\n\n"+okMsg); return true;
-}
 async function exportForBlog(){
   const w=curWeek(); if(!w) return;
-  const all=videosOf(w);
-  const items=all.filter(x=>["filmed","posted"].includes(t(x.id).status))
-                 .map(x=>Object.assign({}, x, {tracking:t(x.id)}));
+  const items=videosOf(w).filter(x=>["filmed","posted"].includes(t(x.id).status)).map(x=>Object.assign({}, x, {tracking:t(x.id)}));
   if(!items.length){alert("Nothing marked Filmed or Posted in this week yet.\n\nMark the scripts you shot, then export.");return;}
   const payload={week:w.week, positioning:w.positioning||"", exported_at:new Date().toISOString(), items};
   await saveJson(JSON.stringify(payload,null,2), `blog-queue-${w.week}.json`,
-    `Saved ${items.length} script(s) for the blog.\n\nKeep it in outlier-radar/blog-queue/ so the weekly routine finds it.`);
+    `Saved ${items.length} script(s) for the blog.\n\nKeep it in blog-queue/ in your workspace so the weekly routine finds it.`);
 }
 async function exportCarousels(){
   const w=curWeek(); if(!w) return;
-  const all=videosOf(w);
-  const items=all.filter(x=>t(x.id).carousel);
+  const items=videosOf(w).filter(x=>t(x.id).carousel);
   if(!items.length){alert("No scripts flagged for a carousel yet.\n\nClick 'Carousel' on any script card, then export.");return;}
   const payload={week:w.week, positioning:w.positioning||"", exported_at:new Date().toISOString(), items};
   await saveJson(JSON.stringify(payload,null,2), `carousel-queue-${w.week}.json`,
-    `Saved ${items.length} script(s) to the carousel queue.\n\nSave it in outlier-radar/carousels/, then run:\n  python3 build_carousels.py\nto render the PDFs.`);
+    `Saved ${items.length} script(s) to the carousel queue.\n\nSave it in carousels/ in your workspace, then run:\n  python3 build_carousels.py\nto render the PDFs.`);
 }
 /* The merged view: what tracking.jsonl seeded plus what changed in this browser.
    Payload shape is load-bearing downstream (log_perf.py --import). */
@@ -194,14 +688,11 @@ async function exportPerformance(){
     if(!x||!x.id) return null;
     const r=t(x.id);
     if(r.status==="idea" && !r.views && !r.notes && !r.link) return null;
-    return {id:x.id, title:x.title||"", lane,
-            mechanic:x.mechanic||x.borrows||"", facet:x.facet||"", intent:x.intent||"",
-            value:x.value||"", qa:x.qa||"", status:r.status, views:r.views||"",
-            link:r.link||"", notes:r.notes||""};
+    return {id:x.id, title:x.title||"", lane, mechanic:x.mechanic||x.borrows||"", facet:x.facet||"", intent:x.intent||"",
+            value:x.value||"", qa:x.qa||"", status:r.status, views:r.views||"", link:r.link||"", notes:r.notes||""};
   };
-  const weeksOut = WEEKS.map(w=>{
-    const office=officeOf(w);
-    const second=[].concat(office, w.moments||[], w.days||[]);
+  const weeksOut=WEEKS.map(w=>{
+    const second=[].concat(officeOf(w), w.moments||[], w.days||[]);
     const vids=videosOf(w).map(x=>row(x, second.includes(x)?"secondary":"primary"));
     const twins=(w.distribution||[]).filter(x=>x.linkedin&&x.linkedin.id).map(x=>x.linkedin);
     const posts=[].concat(w.linkedin||[], leaderPostsOf(w), twins).map(x=>row(x,"linkedin"));
@@ -213,828 +704,152 @@ async function exportPerformance(){
   await saveJson(JSON.stringify(payload,null,2), `performance-${weeksOut[0].week}.json`,
     `Saved the merged tracking for ${weeksOut.length} week(s).\n\nSave the file, then run:\n  python3 log_perf.py --import <file>\nso tracking.jsonl carries it and the next build seeds from it.`);
 }
-function fallbackCopy(text,cb){
-  const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
-  try{document.execCommand("copy");}catch(e){}
-  document.body.removeChild(ta);cb&&cb();
-}
-
-/* ---------------- hero: brief + ring ---------------- */
-function renderBrief(w){
-  const el=document.getElementById("brief");
-  document.getElementById("eyebrowTxt").textContent =
-    String(w.week).toLowerCase()==="example" ? "Example week · sample data" : "Weekly slate · week of "+humanWeek(w.week);
-  let extra="";
-  if(w.method) extra+=`<div class="bx"><div class="lab">Method</div><p>${esc(w.method)}</p></div>`;
-  if(w.coined_term&&w.coined_term.term) extra+=`<div class="bx"><div class="lab">Coined term · ${esc(w.coined_term.status||"")}</div><p><b>${esc(w.coined_term.term)}</b>. ${esc(w.coined_term.definition_beat||"")}</p></div>`;
-  if(Array.isArray(w.signals)&&w.signals.length){
-    extra+=`<div class="bx"><div class="lab">Signals this week</div>`+w.signals.map(s=>`<p><b>${esc(s.call||"")}</b> ${esc(s.shell||"")} ${s.your_version?"Your version: "+esc(s.your_version):""}</p>`).join("")+`</div>`;
-  }
-  el.innerHTML = (w.positioning?`<p class="briefclamp" id="briefTxt">${esc(w.positioning)}</p>`:"")
-    + ((w.positioning||extra)?`<button class="brieftoggle" id="briefBtn" onclick="toggleBrief()">Read the brief</button>`:"")
-    + (extra?`<div class="briefextra" id="briefExtra">${extra}</div>`:"")
-    + experimentLine(w);
-}
-function toggleBrief(){
-  const txt=document.getElementById("briefTxt"), ex=document.getElementById("briefExtra"), b=document.getElementById("briefBtn");
-  const open = txt ? txt.classList.toggle("open") : (ex && !ex.classList.contains("show"));
-  if(ex) ex.classList.toggle("show", !!open);
-  if(b) b.textContent = open ? "Collapse the brief" : "Read the brief";
-}
-function renderRing(w){
-  const all=videosOf(w).filter(x=>t(x.id).status!=="ignored");
-  const done=all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length;
-  const total=all.length||1;
-  const R=44, C=2*Math.PI*R, off=C*(1-done/total);
-  document.getElementById("ring").innerHTML =
-    `<svg width="120" height="120" viewBox="0 0 120 120">
-      <circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--line)" stroke-width="7"/>
-      <circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round"
-        stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 60 60)" style="transition:stroke-dashoffset .5s ease"/>
-      <text x="60" y="60" text-anchor="middle" dominant-baseline="central" class="rn">${done}/${all.length}</text>
-      <text x="60" y="82" text-anchor="middle" class="rl">filmed</text>
-    </svg>`;
-}
-
-/* ---------------- stats ---------------- */
-function statsBar(){
-  const w = curWeek(); if(!w) return;
-  const dist=w.distribution||[], office=officeOf(w);
-  let tofilm=0, filmed=0, posted=0, views=0, ignored=0;
-  videosOf(w).forEach(x=>{
-    const s=t(x.id).status;
-    if(s==="ignored") ignored++;
-    else if(s==="posted"){posted++; views+=parseInt(t(x.id).views||0)||0;}
-    else if(s==="filmed") filmed++;
-    else tofilm++;
-  });
-  const isPool = x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";};
-  const story = dist.filter(x=>isPool(x)&&x.intent==="storytelling").length;
-  const edu   = dist.filter(x=>isPool(x)&&x.intent==="educational").length;
-  const off   = office.filter(isPool).length;
-  const tot   = story+edu+off;
-  const seg=(v,cls)=>`<div class="${cls}" style="flex:${tot?(v||0.0001):1}"></div>`;
-  const bar = `<div class="intentbar">${seg(story,'sga')}${seg(edu,'sgb')}${seg(off,'sgc')}</div>`
-            + `<div class="barcap">story &middot; educational &middot; ${esc(UI.secondary_label||"Viral videos")}</div>`;
-  const cards=[
-    {l:"To film", n:tofilm, extra:bar},
-    {l:"Filmed", n:filmed, sub:"ready to post"},
-    {l:"Posted", n:posted, sub:"live"},
-    {l:"Views logged", n:views.toLocaleString("en-US"), sub:"across posted", accent:true},
-    {l:"Ignored", n:ignored, sub:"skipped this week"},
-  ];
-  document.getElementById("stats").innerHTML = cards.map(c=>
-    `<div class="stat"><div class="lab">${c.l}</div><div class="n${c.accent?' accent':''}">${c.n}</div>${c.extra||""}${c.sub?`<div class="sub">${c.sub}</div>`:""}</div>`).join("");
-  renderRing(w);
-}
-function updateStats(){statsBar();}
-
-/* ---------------- shared card pieces ---------------- */
-function tracker(id, withLink, states){
-  const r=t(id);
-  const seg=(states||["idea","filmed","posted"]).map(s=>`<button data-s="${s}" class="${r.status===s?'on':''}" onclick="setT('${id}',{status:'${s}'})"><span class="sdot"></span>${s[0].toUpperCase()+s.slice(1)}</button>`).join("");
-  return `<div class="track">
-    <span class="seg">${seg}</span>
-    <input class="views" type="number" placeholder="views I got" value="${esc(r.views)}" oninput="track['${id}']=Object.assign(t('${id}'),{views:this.value});save();updateStats()">
-    ${withLink?`<input class="plink" placeholder="link to my posted video" value="${esc(r.link)}" oninput="track['${id}']=Object.assign(t('${id}'),{link:this.value});save()">`:""}
-  </div>
-  <textarea class="notes" placeholder="notes" oninput="track['${id}']=Object.assign(t('${id}'),{notes:this.value});save()">${esc(r.notes)}</textarea>`;
-}
-
-function block(label, val, boxCls){
-  return val?`<div class="block"><div class="lab">${label}</div><div class="${boxCls||''}">${esc(val)}</div></div>`:"";
-}
-
-// split a spoken passage into sentences (one per line), without breaking on
-// decimals ("1.76%") or lowercase abbreviations ("e.g.").
-function splitSentences(text){
-  if(!text) return [];
-  return String(text).replace(/\s*\n+\s*/g," ")
-    .split(/(?<=[.?!…])\s+(?=[A-Z"'‘“£$])/)
-    .map(s=>s.trim()).filter(Boolean);
-}
-// Move 2 of the five moves: the sentence naming what the viewer already
-// believes. It is marked in place rather than shown as its own section,
-// because WHERE it sits is the thing worth seeing. A belief sitting below the
-// numbers is the 2026-09-07 failure, and check_fidelity's order test fails it.
-function beliefKey(t){ return String(t||"").toLowerCase().replace(/[^a-z0-9 ]/g,"").trim(); }
-function readSections(x, sentCls, hookCls, secCls){
-  const bk=beliefKey(x.belief);
-  function section(label, text, opt, bold){
-    const lines=splitSentences(text);
-    if(!lines.length) return "";
-    const lab=`<div class="seclabel">${label}${opt?` <span class="opt">optional</span>`:""}</div>`;
-    const body=lines.map(s=>{
-      const isBelief=bk && beliefKey(s)===bk;
-      return `<p class="${sentCls}${bold?' '+hookCls:''}${isBelief?' belief':''}"`
-        + `${isBelief?' title="Move 2: the belief. Everything after this exists to break it."':''}>`
-        + `${esc(s)}</p>`;
-    }).join("");
-    return `<div class="${secCls}">${lab}${body}</div>`;
-  }
-  return section("Hook", x.spoken_hook, false, true)
-    + section("Script", x.script, false, false)
-    + opinionSection(x, secCls)
-    + section("CTA", x.cta, true, false);
-}
-/* The opinion slot (3.17.0): the script reports the story, then the creator's own take,
-   off the cuff. The ideas are prompts, never lines to read, and the slot is optional. */
-function opinionIdeas(x){
-  const o=x&&x.opinion;
-  return (o&&Array.isArray(o.ideas)) ? o.ideas.filter(v=>typeof v==="string"&&v.trim()).slice(0,3) : [];
-}
-function opinionLabel(){ return UI.opinion_label || "[YOUR OPINION, IF ANY]"; }
-function opinionSection(x, secCls){
-  const ideas=opinionIdeas(x); if(!ideas.length) return "";
-  return `<div class="${secCls} opinion"><div class="seclabel">${esc(opinionLabel())} <span class="opt">optional</span></div>`
-    + `<p class="opnote">Off the cuff, your words. Take one, your own, or none and stop on the line above.</p>`
-    + `<ul class="opideas">${ideas.map(v=>`<li>${esc(v)}</li>`).join("")}</ul></div>`;
-}
-function readScript(x){
-  const html=readSections(x, "sent", "hook", "scriptsec");
-  if(!html.trim()) return "";
-  return `<div class="block"><div class="lab">Read this out loud while recording</div><div class="readbox">${html}</div></div>`;
-}
-
-function shotTable(x){
-  if(!Array.isArray(x.shot_list)||!x.shot_list.length) return "";
-  const rows=x.shot_list.map(s=>`<tr><td class="bn">${esc(String(s.n!=null?s.n:""))}</td><td class="bmut">${esc(s.beat||"")}</td><td>${esc(s.what||s.shoot||"")}${s.url?` <a href="${esc(s.url)}" target="_blank">open &rarr;</a>`:""}</td></tr>`).join("");
-  return `<div class="block"><div class="lab">Shot list · receipts to capture</div><div class="tblwrap"><table class="tbl"><thead><tr><th>#</th><th>Beat</th><th>Shoot this</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-// beats[] comes in two schemas:
-//  - day-in-life-vo (Mode B): {role, text, b_roll, target_dur}
-//  - no-VO format scripts: {t, on_screen, action} - captions carry the video
-function beatsTable(x){
-  if(!Array.isArray(x.beats)||!x.beats.length) return "";
-  if(x.beats[0].on_screen!==undefined){
-    const rows=x.beats.map(b=>`<tr><td class="bn">${esc(b.t)}</td><td>${esc(b.on_screen)||"<span class='bmut'>(no caption, face only)</span>"}</td><td class="bmut">${esc(b.action)}</td></tr>`).join("");
-    return `<div class="block"><div class="lab">Beats · no-VO format, captions carry it</div><div class="tblwrap"><table class="tbl"><thead><tr><th>Time</th><th>On screen</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-  }
-  const rows=x.beats.map(b=>`<tr><td class="bn">${esc(b.role)}</td><td>${esc(b.text)}</td><td class="bmut">${esc(b.b_roll)}</td><td class="bmut">${b.target_dur?esc(String(b.target_dur))+"s":""}</td></tr>`).join("");
-  return `<div class="block"><div class="lab">Beats · film these, VO to picture (editor Mode B)</div><div class="tblwrap"><table class="tbl"><thead><tr><th>Role</th><th>VO line</th><th>B-roll</th><th>Dur</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-function srcs(list){
-  if(!list||!list.length) return "";
-  const norm=list.map(s=> (typeof s==="string") ? {url:s, label:s.replace(/^https?:\/\/(www\.)?/,"").split("/")[0]} : s);
-  const items=norm.map(s=> s.url?`<a href="${esc(s.url)}" target="_blank">${esc(s.label||s.url)}</a>`:esc(s.label)).join(`<span class="sep">&middot;</span>`);
-  return `<div class="block"><div class="lab">Sources · check before posting</div><div class="srcs">${items}</div></div>`;
-}
-
-function captureLine(x){
-  const c=x.capture; if(!c) return "";
-  if(typeof c==="string") return `<p class="tinyline">capture: ${esc(c)}</p>`;
-  const bits=[];
-  if(c.mode) bits.push("capture: "+c.mode);
-  if(c.fidelity!=null) bits.push("fidelity "+Math.round(c.fidelity*100)+"%");
-  if(c.source) bits.push(c.source);
-  return bits.length?`<p class="tinyline">${esc(bits.join(" · "))}</p>`:"";
-}
-
-/* An explainer carries the creator's own guide: learn it before explaining it (3.17.0). */
-function guideBlock(x){
-  const g=x.guide; if(!g||typeof g!=="object") return "";
-  const ul=a=>`<ul>${a.map(v=>`<li>${esc(v)}</li>`).join("")}</ul>`;
-  let h=`<div class="block"><div class="lab">Your guide · learn it before you film it</div><div class="guide">`;
-  if(g.what_it_is) h+=`<p><b>What it is.</b> ${esc(g.what_it_is)}</p>`;
-  if(g.who_its_for) h+=`<p><b>Explained for.</b> ${esc(g.who_its_for)}</p>`;
-  if(Array.isArray(g.you_need)&&g.you_need.length) h+=`<p><b>You need.</b></p>`+ul(g.you_need);
-  if(Array.isArray(g.steps)&&g.steps.length) h+=`<p><b>Step by step.</b></p><ol>${g.steps.map(st=>typeof st==="string"?`<li>${esc(st)}</li>`
-      :`<li>${esc(st.do||"")}${st.why?` <span class="bmut">${esc(st.why)}</span>`:""}${st.url?` <a href="${esc(st.url)}" target="_blank">docs &rarr;</a>`:""}</li>`).join("")}</ol>`;
-  if(Array.isArray(g.say_it_simply)&&g.say_it_simply.length) h+=`<p><b>Say it simply.</b></p>`+ul(g.say_it_simply);
-  if(g.watch_out) h+=`<p><b>Watch out.</b> ${esc(g.watch_out)}</p>`;
-  if(g.try_it_first) h+=`<p><b>Try it yourself first.</b> ${esc(g.try_it_first)}</p>`;
-  return h+`</div></div>`;
-}
-/* A moment (day in the life, a Pomodoro break) is filmed, not read: a capture list. */
-function captureBlock(x){
-  if(!Array.isArray(x.clips)||!x.clips.length) return "";
-  const rows=x.clips.map(c=>typeof c==="string"?`<tr><td class="bn"></td><td>${esc(c)}</td><td></td></tr>`
-    :`<tr><td class="bn">${esc(c.t||"")}</td><td>${esc(c.moment||"")}</td><td class="bmut">${esc(c.shot||"")}</td></tr>`).join("");
-  let h=`<div class="block"><div class="lab">Capture these${x.film_on?` · film on ${esc(x.film_on)}`:""}</div><div class="tblwrap"><table class="tbl"><thead><tr><th>Time</th><th>Moment</th><th>Shot</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-  if(Array.isArray(x.vo)&&x.vo.length) h+=`<div class="block"><div class="lab">Voiceover, optional</div><ul class="opideas">${x.vo.map(v=>`<li>${esc(v)}</li>`).join("")}</ul></div>`;
-  return h + block("Edit · how the editor cuts it", x.edit, "dirbox");
-}
-
-function detailBlocks(x){
-  let out = readScript(x)
-    + guideBlock(x)
-    + captureBlock(x)
-    + shotTable(x)
-    + beatsTable(x)
-    + block("Directions · do this, do not read it", x.directions, "dirbox")
-    + block("Value · what the viewer takes away", x.value, "valbox");
-  // legacy fallback (pre-QA batches still on the old shape)
-  if(!x.script && (x.hook || (x.beats&&!Array.isArray(x.beats)))){
-    out = block("Hook (legacy)", x.hook, "readbox")
-      + block("Script / beats (legacy, needs QA upgrade)", typeof x.beats==="string"?x.beats:x.script, "readbox")
-      + out;
-  }
-  if(x.psych) out += `<div class="block"><div class="lab">Why this works</div><p class="psy">${esc(x.psych)}</p></div>`;
-  if(x.note) out += `<div class="block"><div class="lab">Note</div><p class="psy">${esc(x.note)}</p></div>`;
-  out += captureLine(x);
-  if(x.source_origin) out += `<p class="tinyline">origin: ${esc(x.source_origin)}</p>`;
-  out += srcs(x.sources);
-  return out;
-}
-
-/* Three states, not two. The chip used to be binary on qa==="passed", so a post
-   that had cleared the gate and was only waiting on the creator's yes rendered as
-   "Pre-QA", indistinguishable from one nothing had ever read. "Pre-QA" now fires
-   only on a qa value the engine does not define, which is a bug worth seeing. */
-function qaChip(qa){
-  if(qa==="passed") return `<span class="chip qa">QA passed</span>`;
-  if(qa==="pending-approval") return `<span class="chip draft">Awaiting approval</span>`;
-  return qa ? `<span class="chip draft">Pre-QA</span>` : "";
-}
-
-function chipRow(x, r){
-  const chips=[];
-  chips.push(qaChip(x.qa) || `<span class="chip draft">Pre-QA</span>`);
-  if(r.status==="posted") chips.push(`<span class="chip posted">Posted</span>`);
-  if(x.post_type) chips.push(`<span class="chip">${esc(x.post_type)}</span>`);
-  if(x.hook_family) chips.push(`<span class="chip">${esc(String(x.hook_family).replace(/^\d+\s*-\s*/,"").split("/")[0].trim())}</span>`);
-  if(x.intent) chips.push(`<span class="chip">${esc(x.intent)}</span>`);
-  if(x.script_class) chips.push(`<span class="chip">${esc(x.script_class)}</span>`);
-  if(x.proof && x.proof.kind) chips.push(proofChip(x.proof));
-  if(x.format) chips.push(`<span class="chip">${esc(x.format)}</span>`);
-  if(x.sensitivity) chips.push(`<span class="chip sens">${esc(x.sensitivity)}</span>`);
-  if(Array.isArray(x.hook_styles)) x.hook_styles.forEach(s=>chips.push(`<span class="chip">${esc(s)}</span>`));
-  return chips.join("");
-}
-
-function scriptCard(x, isSecondLane, i){
-  const r=t(x.id); const done=r.status==="posted";
-  const title = x.title || x.mechanic || x.text_hook || "Untitled";
-  const story = x.story_line ? `<p class="premise"><b>The story</b> ${esc(x.story_line)}</p>` : "";
-  const premise = story + ((x.borrows||x.carries)
-    ? `<p class="premise">${x.borrows?`<b>Borrows</b> ${esc(x.borrows)}`:""}${x.borrows&&x.carries?"<br>":""}${x.carries?`<b>Carries</b> ${esc(x.carries)}`:""}</p>`
-    : (x.mechanic?`<p class="premise"><b>Mechanic</b> ${esc(x.mechanic)}</p>`:""));
-  const alts = Array.isArray(x.text_hook_alts)&&x.text_hook_alts.length
-    ? `<div class="alts">${x.text_hook_alts.map(a=>`<button class="alt" onclick="copyText(${JSON.stringify(a).replace(/"/g,'&quot;')},'Alt hook copied')" title="Alternate hook for hook testing. Click to copy.">${esc(a)}</button>`).join("")}</div>`:"";
-  const hooks = (x.text_hook||x.visual_hook)?`<div class="hookgrid">
-      ${x.text_hook?`<div class="hookcell"><div class="lab">Text hook · burn on screen</div><div class="burn">${esc(x.text_hook)}</div>${alts}</div>`:""}
-      ${x.visual_hook?`<div class="hookcell"><div class="lab">Visual hook · show this</div><p>${esc(x.visual_hook)}</p></div>`:""}
-    </div>`:"";
-  const detail = detailBlocks(x);
-  const hasDetail = detail.trim().length>0;
-  const twin = (!isSecondLane && x.linkedin) ? `
-    <div class="twin">
-      <button class="btn ghost" onclick="const b=this.parentElement.querySelector('.twinwrap');b.classList.toggle('show');this.firstChild.textContent=b.classList.contains('show')?'Hide LinkedIn twin':'Show LinkedIn twin'"><span>Show LinkedIn twin</span></button>
-      <div class="twinwrap collapse">
-        <div class="twinbody">${esc(linkedinText(x.linkedin.body))}</div>
-        <div class="twinmeta">
-          <button class="btn" onclick="copyText(linkedinText(this.closest('.twin').querySelector('.twinbody').innerText),'LinkedIn twin copied, formatted for paste')">Copy twin</button>
-          ${visualBlock(x.linkedin.visual)}
-        </div>
-      </div>
-    </div>`:"";
-  return `<div class="card ${done?'done':''}">
-    <div class="cardtop">
-      <span class="idx">${String(i+1).padStart(2,"0")}</span>
-      <div class="cardtitle">
-        <h3 class="ttl">${esc(title)}</h3>
-        <div class="chips">${chipRow(x,r)}</div>
-      </div>
-      <div class="cardops">
-        <button class="btn ghost ${r.carousel?'on':''}" onclick="toggleCarousel('${x.id}')" title="Flag for a LinkedIn carousel PDF, then use Export &gt; Carousel queue">${r.carousel?'Carousel &#10003;':'Carousel'}</button>
-        <button class="btn ghost" onclick="setT('${x.id}',{status:'${r.status==='ignored'?'idea':'ignored'}'})">${r.status==='ignored'?'Restore':'Ignore'}</button>
-      </div>
-    </div>
-    ${premise}
-    ${hooks}
-    <div class="cardactions">
-      ${hasDetail?`<button class="btn primary" onclick="openFilm('${x.id}')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Film mode</button>`:""}
-      ${hasDetail?`<button class="btn" onclick="const c=this.closest('.card').querySelector('.detail');c.classList.toggle('show');this.lastChild.textContent=c.classList.contains('show')?'Hide full script':'Full script'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>Full script</span></button>`:""}
-      ${scriptText(x)?`<button class="btn" onclick="copyScript('${x.id}')" title="Copy the spoken read: hook + script + CTA"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy script</button>`:""}
-    </div>
-    ${hasDetail?`<div class="detail collapse">${detail}</div>`:""}
-    ${twin}
-    ${tracker(x.id, true)}
-  </div>`;
-}
-
-function visualBlock(v){
-  if(!v) return "";
-  const meta=[v.format,v.model,v.aspect].filter(Boolean).map(esc).join(" · ");
-  return `<div class="block" style="margin-top:14px"><div class="lab">Asset · ${meta}</div>${v.why?`<p class="psy">${esc(v.why)}</p>`:""}<div class="promptbox">${esc(v.prompt||"")}</div><button class="btn" style="margin-top:8px" onclick="copyText(this.previousElementSibling.innerText,'Higgsfield prompt copied')">Copy Higgsfield prompt</button></div>`;
-}
-/* Where the built asset actually lives on disk. The dashboard is where the creator decides
-   what to post, so a deck they cannot open from here is a deck they go hunting for.
-
-   Reads the canonical `assets` written by add_post.py, and two shapes that were hand-written
-   into week files for a month before anything consumed them: a bare `carousel` path string
-   and `visual.path`. Those are read rather than migrated because the files already exist and
-   the creator wrote them expecting exactly this. */
-function assetsPath(x){
-  if(!x) return "";
-  const a=x.assets;
-  if(typeof a==="string" && a.trim()) return a.trim();
-  if(a && typeof a==="object" && a.path) return String(a.path).trim();
-  if(typeof x.carousel==="string" && x.carousel.trim()) return x.carousel.trim();
-  if(x.visual && typeof x.visual.path==="string" && x.visual.path.trim()) return x.visual.path.trim();
-  return "";
-}
-/* Relative paths are stored against the workspace root so a week file survives the
-   workspace moving; the page gets that root from ui-config to rebuild an openable URL. */
-function assetsAbs(p){
-  if(!p) return "";
-  if(p.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(p)) return p;
-  const root=(UI.workspace||"").replace(/\/+$/,"");
-  return root ? root+"/"+p : p;
-}
-function assetsBlock(x){
-  const rel=assetsPath(x); if(!rel) return "";
-  const abs=assetsAbs(rel);
-  const label=(x.assets && x.assets.label) || abs.replace(/\/+$/,"").split("/").pop() || abs;
-  /* file:// so the browser opens the folder. Chrome refuses file:// navigation from some
-     contexts and says nothing, which is why the path is also copyable: Cmd+Shift+G in
-     Finder always works. */
-  const href="file://"+encodeURI(abs).replace(/#/g,"%23");
-  return `<div class="block" style="margin-top:14px"><div class="lab">Assets</div>`
-       + `<p class="psy"><a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a></p>`
-       + `<button class="btn" style="margin-top:8px" data-path="${esc(abs)}" `
-       + `onclick="copyText(this.dataset.path,'Asset path copied')">Copy path</button></div>`;
-}
-const LI_STATES=["idea","scheduled","posted"];
-/* A calendar cell has to say WHICH post, and a solo LinkedIn post carries no title, so the
-   old fallback chain ended at x.type and printed "text" or "single-image" in the slot. A
-   format label is never the answer to "which one is this": the whole week reads as a column
-   of "text, single image, text". Fall through to the hook, then the opening line of the
-   body, and only ever say "Post" when the item is genuinely empty. */
-function postName(x){
-  if(x.title) return x.title;
-  if(x.text_hook) return x.text_hook;
-  const b=(x.body||"").trim();
-  if(b){
-    const first=b.split("\n").find(l=>l.trim());
-    if(first) return first.length>72 ? first.slice(0,69).trimEnd()+"..." : first;
-  }
-  return "Post";
-}
-
-/* ---------- LinkedIn-ready text ---------- */
-/* LinkedIn strips every kind of rich formatting on paste, so "copy" has to hand over text
-   that is ALREADY styled at the character level. Markers in the body are converted here
-   rather than stored converted, because the stored body has to stay real text: the gates
-   read it, spoken_lint reads it, and a body full of Mathematical Sans-Serif Bold would
-   defeat all of them.
-
-   USE BOLD SPARINGLY, and never on a number or the central claim. Unicode bold is not
-   text. Screen readers announce it as gibberish or skip it, and parsers handle it badly,
-   which for a creator whose subject is AI search visibility is an own goal: the sentence
-   you most want quoted is the one you just made unreadable to the thing quoting it. */
-function liBold(t){
-  return t.replace(/[A-Za-z0-9]/g, c => {
-    const u = c.codePointAt(0);
-    if (u >= 65 && u <= 90)  return String.fromCodePoint(0x1D5D4 + u - 65);
-    if (u >= 97 && u <= 122) return String.fromCodePoint(0x1D5EE + u - 97);
-    if (u >= 48 && u <= 57)  return String.fromCodePoint(0x1D7EC + u - 48);
-    return c;
-  });
-}
-function liItalic(t){
-  return t.replace(/[A-Za-z]/g, c => {
-    const u = c.codePointAt(0);
-    if (u >= 65 && u <= 90)  return String.fromCodePoint(0x1D608 + u - 65);
-    if (u >= 97 && u <= 122) return String.fromCodePoint(0x1D622 + u - 97);
-    return c;
-  });
-}
-/* Markers: **bold**, *italic*, and a leading "- " or "* " becomes the arrow bullet the
-   creator already uses in his published posts. Numbered lists keep their numerals, per the
-   numeral law. */
-function linkedinText(t){
-  return (t || "")
-    .replace(/\*\*([^*\n]+)\*\*/g, (_, x) => liBold(x))
-    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, (_, p, x) => p + liItalic(x))
-    .split("\n")
-    .map(l => l.replace(/^\s*[-*]\s+/, "↳ "))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n");
-}
-
-/* ---------- posting calendar ---------- */
-const CAL_DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const CAL_MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-function isoParts(iso){
-  const p=String(iso||"").split("-");
-  return (p.length===3 && p.every(v=>v.length && !isNaN(+v))) ? p.map(Number) : null;
-}
-/* Parsed as UTC on purpose: a local-time parse of a bare ISO date shifts the weekday
-   by one west of Greenwich, which would print the wrong day name. */
-function fmtDay(iso){
-  const p=isoParts(iso); if(!p) return "";
-  return CAL_DOW[new Date(Date.UTC(p[0],p[1]-1,p[2])).getUTCDay()]+" "+p[2]+" "+CAL_MON[p[1]-1];
-}
-function todayIso(){
-  const n=new Date();
-  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`;
-}
-
-/* Renders whatever select_linkedin.py assigned. No day in the week file means no
-   calendar, so older weeks degrade to the plain card list instead of showing a fake week. */
-function calendarBlock(w){
-  const rows=[];
-  liveTwinsOf(w).forEach(x=>{
-    if(x.linkedin.post_day) rows.push({p:x.linkedin, title:x.title||x.linkedin.title||"Post"});
-  });
-  soloPostsOf(w).concat(leaderPostsOf(w)).forEach(x=>{
-    if(x.post_day && t(x.id).status!=="ignored") rows.push({p:x, title:postName(x)});
-  });
-  if(!rows.length) return "";
-
-  const used=[...new Set(rows.map(r=>r.p.post_day))].sort();
-  const first=isoParts(used[0]);
-  const week=[];
-  if(first){
-    let d=new Date(Date.UTC(first[0],first[1]-1,first[2]));
-    while(week.length<5){
-      if(d.getUTCDay()>=1 && d.getUTCDay()<=5) week.push(d.toISOString().slice(0,10));
-      d=new Date(d.getTime()+86400000);
-    }
-  }
-  const today=todayIso();
-  const cols=[...new Set(week.concat(used))].sort().map(iso=>{
-    const mine=rows.filter(r=>r.p.post_day===iso)
-                   .sort((a,b)=>(a.p.post_slot||99)-(b.p.post_slot||99));
-    const cells = mine.length ? mine.map(r=>{
-      const posted=t(r.p.id).status==="posted";
-      return `<button class="calslot ${posted?'posted':''}" onclick="jumpToPost('${r.p.id}')">
-        <span class="n">${String(r.p.post_slot||"").padStart(2,"0")} &middot; 9am${posted?" &middot; posted":""}</span>
-        <span class="h">${esc(r.title)}</span>
-        ${r.p.post_day_locked?'<span class="chip">Pinned</span>':""}
-        <span class="why">${esc(r.p.post_why||"")}</span>
-      </button>`;
-    }).join("") : `<div class="calempty">open</div>`;
-    const isToday = iso===today;
-    return `<div class="calday">
-      <div class="caldate ${isToday?'today':''}">${fmtDay(iso)}${isToday?" &middot; today":""}</div>
-      ${cells}</div>`;
-  }).join("");
-
-  return `<div class="sechdr">Posting week &middot; ordered by urgency</div>
-    <div class="cal">${cols}</div>
-    <p class="calnote">Order is decay order, not quality order: the item that loses value
-    soonest goes first, score only breaks a tie. Re-run
-    <code>scripts/select_linkedin.py</code> to reassign, or set
-    <code>"post_day_locked": true</code> on a twin to pin it.</p>`;
-}
-
-function jumpToPost(id){
-  const el=document.getElementById("licard-"+id);
-  if(!el) return;
-  el.scrollIntoView({behavior:"smooth", block:"center"});
-  el.style.borderColor="var(--accent)";
-  setTimeout(()=>{ el.style.borderColor=""; }, 1400);
-}
-
-function liCard(x, srcTitle, i){
-  const r=t(x.id); const done=r.status==="posted";
-  const title = srcTitle || x.title || x.type || "Post";
-  /* The FEED shape, assigned by select_linkedin.py from the substance and persisted to
-     `shape`. Never read linkedin_format here: that key is the human override the selector
-     reads as an instruction, so echoing it back would be circular. Falls back to x.type
-     only for weeks built before the selector existed, where that field still held whatever
-     the video happened to be. */
-  const shape = x.shape ? x.shape.replace(/^F\d_/,"") : x.type;
-  const typeChip = shape ? `<span class="chip">${esc(shape)}</span>` : "";
-  const jobChip = x.job ? `<span class="chip">${esc(x.job)}</span>` : "";
-  const cutChip = x.twin_cut===true ? `<span class="chip">not twinned</span>`
-                : x.banked===true ? `<span class="chip">banked</span>` : "";
-  const dayChip = x.post_day ? `<span class="chip">${fmtDay(x.post_day)} 9am</span>` : "";
-  return `<div class="card ${done?'done':''}" id="licard-${x.id}">
-    <div class="cardtop">
-      <span class="idx">${String(i+1).padStart(2,"0")}</span>
-      <div class="cardtitle">
-        <h3 class="ttl">${esc(title)}</h3>
-        <div class="chips">${dayChip}${qaChip(x.qa)}${done?'<span class="chip posted">Posted</span>':''}${r.status==="scheduled"?'<span class="chip">Scheduled</span>':''}${cutChip}${typeChip}${jobChip}${x.hook_arch?`<span class="chip">${esc(x.hook_arch)}</span>`:""}</div>
-      </div>
-      <div class="cardops"><button class="btn" onclick="editBody('${x.id}')">Edit</button><button class="btn" onclick="copyText(linkedinText(this.closest('.card').querySelector('.twinbody').innerText),'Post copied, formatted for paste')">Copy post</button></div>
-    </div>
-    ${srcTitle?`<p class="premise"><b>Written twin of this week's video</b></p>`:""}
-    <div class="twinbody" id="tb-${x.id}" style="margin:14px 0 0 42px">${esc(linkedinText(bodyOf(x)))}</div>
-    ${t(x.id).body!=null?`<div class="lab" style="margin:8px 0 0 42px;color:var(--accent)">Edited here &middot; not yet in the week file</div>`:""}
-    <div style="margin-left:42px">${visualBlock(x.visual)}${assetsBlock(x)}${srcs(x.sources)?`<div style="margin-top:14px">${srcs(x.sources)}</div>`:""}</div>
-    ${replyBlock(x)}
-    ${tracker(x.id, true, LI_STATES)}
-  </div>`;
-}
-
-/* Edit the post body in place. Textarea rather than contenteditable: the body is plain
-   text with hard line breaks and contenteditable turns pasted text into markup. */
-function editBody(id){
-  const card=document.getElementById("licard-"+id); if(!card) return;
-  const host=card.querySelector(".twinbody"); if(!host || host.dataset.editing) return;
-  const item=findItem(id) || {id:id};
-  const ta=document.createElement("textarea");
-  ta.className="bodyedit"; ta.value=bodyOf(item);
-  ta.style.cssText="width:calc(100% - 42px);margin:14px 0 0 42px;min-height:280px;"
-    +"font:inherit;line-height:1.55;padding:14px;border-radius:8px;"
-    +"background:var(--wash,#1b1b1a);color:inherit;border:1px solid var(--accent);resize:vertical";
-  host.dataset.editing="1"; host.style.display="none";
-  host.parentNode.insertBefore(ta, host.nextSibling);
-  const bar=document.createElement("div");
-  bar.style.cssText="margin:8px 0 0 42px;display:flex;gap:8px;align-items:center";
-  bar.innerHTML='<button class="btn" data-a="save">Save</button>'
-    +'<button class="btn" data-a="revert">Revert to week file</button>'
-    +'<button class="btn" data-a="cancel">Cancel</button>';
-  ta.parentNode.insertBefore(bar, ta.nextSibling);
-  ta.focus();
-  bar.onclick=e=>{
-    const a=e.target.dataset && e.target.dataset.a; if(!a) return;
-    if(a==="save"){ const v=ta.value.trim(); setT(id,{body: v===((item.body||"").trim())?null:v});
-      toast("Post body saved in this browser. Use Save week file to put it on disk."); }
-    else if(a==="revert"){ setT(id,{body:null}); toast("Reverted to the week file text"); }
-    else { host.dataset.editing=""; host.style.display=""; ta.remove(); bar.remove(); }
-  };
-}
-
-/* Write the edited bodies back into the week file. The page is a file:// document with no
-   server, so this is the only honest route: rebuild the week JSON with the overrides
-   applied and hand it to the filesystem. showSaveFilePicker writes in place on Chromium;
-   everywhere else it falls back to a download the creator drops over weeks/<week>.json.
-   Either way the next build_dashboard.py run inherits the text rather than reverting it. */
+/* Write the edited bodies back into the week file. The page is a file:// document with no server,
+   so this hands the filesystem a rebuilt week JSON. Fields the build added for display (they start
+   with "_", like the carousel copy pulled in from post.md) are stripped first. */
 async function saveWeekFile(){
   const w=curWeek(); if(!w) return;
   const out=JSON.parse(JSON.stringify(w));
+  const strip_=o=>{ if(o&&typeof o==="object") Object.keys(o).forEach(k=>{ if(k.startsWith("_")&&k!=="_comment") delete o[k]; }); };
   let n=0;
   ["linkedin","gtm_linkedin","distribution","office","food"].forEach(lane=>{
     (out[lane]||[]).forEach(item=>{
-      const b=track[item.id] && track[item.id].body;
-      if(b!=null && b!==""){ item.body=b; n++; }
+      strip_(item);
+      const b=track[item.id]&&track[item.id].body;
+      if(b!=null&&b!==""){ item.body=b; n++; }
       const tw=item.linkedin;
-      if(tw && tw.id){ const tb=track[tw.id] && track[tw.id].body;
-        if(tb!=null && tb!==""){ tw.body=tb; n++; } }
+      if(tw&&tw.id){ strip_(tw); const tb=track[tw.id]&&track[tw.id].body; if(tb!=null&&tb!==""){ tw.body=tb; n++; } }
     });
   });
-  if(!n){ alert("No edited bodies in this week yet.\n\nClick Edit on a post, change it, then Save."); return; }
+  if(!n){alert("No edited post text in this week yet.\n\nClick Edit on a post, change it, then Save.");return;}
   await saveJson(JSON.stringify(out,null,2)+"\n", w.week+".json",
     n+" edited post(s) written. Put this file at weeks/"+w.week+".json, then rerun build_dashboard.py.");
 }
 
-function inspCard(x){
-  return `<div class="insp">
-    <div class="who">${esc(x.creator)}</div>
-    <div class="met">${esc(x.metric)}${x.metric_confidence?` <span class="chip" style="vertical-align:1px">${esc(x.metric_confidence)}</span>`:""}</div>
-    <div class="mech">${esc(x.mechanic)}</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px"><span class="chip">${esc(x.platform)}</span><a href="${esc(x.link)}" target="_blank">Open &rarr;</a></div>
-  </div>`;
+/* ---------------- drawers ---------------- */
+let lastFocus=null;
+function openDrawer(html){ lastFocus=document.activeElement; const d=$("drawer"); d.innerHTML=html; d.hidden=false; $("dbg").hidden=false; d.scrollTop=0; document.body.style.overflow="hidden"; const x=d.querySelector(".x"); if(x) x.focus(); }
+function closeDrawer(){ const d=$("drawer"); if(d.hidden) return; d.hidden=true; $("dbg").hidden=true; document.body.style.overflow=""; if(lastFocus&&lastFocus.focus) lastFocus.focus(); }
+const drawerHead=(h,p)=>`<div class="drawer-h"><div><h3>${h}</h3>${p?`<p>${p}</p>`:""}</div><button class="x" type="button" aria-label="Close">×</button></div>`;
+function exportDrawer(){
+  const rows=[
+    ["Filmed scripts","Copies every script marked Filmed, with its edit spec, for the editor session.","exportFilmed","Copy"],
+    ["Week for blog","Saves Filmed and Posted scripts to a file the weekly routine turns into an AEO post.","exportForBlog","Save"],
+    ["Carousel queue","Saves the scripts flagged Carousel, for build_carousels.py.","exportCarousels","Save"],
+    ["Performance","Saves your tracking (the seed plus your edits here) for log_perf.py --import.","exportPerformance","Save"],
+    ["Week file","Writes post text you edited here back into weeks/<week>.json, so the next build keeps it.","saveWeekFile","Save"],
+  ];
+  openDrawer(drawerHead("Export","Everything that leaves this page, in one place.")+`<div class="wq">${rows.map(([h,p,a,b])=>`<div class="act split"><div><b>${h}</b><p>${esc(p)}</p></div><button class="btn sm" type="button" data-act="${a}">${b}</button></div>`).join("")}</div>`);
+}
+function fixPostDrawer(){
+  const w=W(), f=videosOf(w).filter(x=>t(x.id).status==="filmed");
+  openDrawer(drawerHead(`${plural(f.length,"video")} filmed, not posted`, "Three steps get them live.")
+    +`<div class="wq"><div class="act"><span class="no">1</span><p>Copy the filmed scripts with their edit specs. <button class="btn sm" type="button" data-act="exportFilmed" style="margin-left:8px">Copy</button></p></div>
+      <div class="act"><span class="no">2</span><p>Open an editor session, paste them and drop the clips. tiktok-yap-editor cuts each one to the words you said.</p></div>
+      <div class="act"><span class="no">3</span><p>When a video is live, mark it Posted and paste the link under Results, then Export > Performance.</p></div></div>
+      <div class="ctxbox"><h4>Waiting to be cut</h4>${f.map(x=>{ const L=lanes().find(L=>L.items.includes(x)); return `<p class="note"><b>${esc(cleanTitle(x))}</b> · ${esc(L?L.label:"")}</p>`; }).join("")}</div>`);
+}
+function briefDrawer(){
+  const w=W(); let h="";
+  if(w.positioning) h+=`<div class="ctxbox"><h4>Positioning</h4><p class="note">${esc(w.positioning)}</p></div>`;
+  if(w.method) h+=`<div class="ctxbox"><h4>Method</h4><p class="note">${esc(w.method)}</p></div>`;
+  if(w.coined_term&&w.coined_term.term) h+=`<div class="ctxbox"><h4>Coined term${w.coined_term.status?", "+esc(w.coined_term.status):""}</h4><p class="note"><b>${esc(w.coined_term.term)}.</b> ${esc(w.coined_term.definition_beat||"")}</p></div>`;
+  if(Array.isArray(w.signals)&&w.signals.length) h+=`<div class="ctxbox"><h4>Signals this week</h4>${w.signals.map(s=>`<p class="note"><b>${esc(s.call||"")}</b> ${esc(s.shell||"")}${s.your_version?" Your version: "+esc(s.your_version):""}</p>`).join("")}</div>`;
+  const e=w.experiment;
+  if(e&&e.question){ const arms=e.arms||{}, n=k=>Array.isArray(arms[k])?arms[k].length:0; h+=`<div class="ctxbox"><h4>This week's question</h4><p class="note">${esc(e.question)} (${esc(e.dim||"dim")}: A ${n("a")} vs B ${n("b")})</p></div>`; }
+  h+=promisesBlock(w);
+  openDrawer(drawerHead("The brief", isExample(w)?"Example week":"Week of "+spoken(weekStartOf(w)||w.week))+h);
 }
 
-function emptyState(msg){
-  return `<div class="empty"><div class="lab">Nothing here</div><p>${msg}</p></div>`;
+/* ---------------- wiring ---------------- */
+function act(a){
+  const i=a.indexOf(":"), k=i<0?a:a.slice(0,i), v=i<0?"":a.slice(i+1);
+  if(k==="film") return openFilm(v);
+  if(k==="copy"){ const x=findItem(v); return x&&copyText(scriptText(x),"Script copied"); }
+  if(k==="guide"){ const x=findItem(v); return x&&openDrawer(drawerHead("Your guide", esc(cleanTitle(x)))+`<div class="ctxbox">${guideHtml(x)}</div>`); }
+  if(k==="carousel"){ setT(v,{carousel:!t(v).carousel}); return toast(t(v).carousel?"Flagged for a carousel":"Carousel flag removed"); }
+  if(k==="copyli"){ const x=findItem(v); return x&&copyText(linkedinText(bodyOf(x)),"Copied, formatted for LinkedIn"); }
+  if(k==="edit") return editBody(v);
+  if(k==="notes"){ const x=findItem(v); return x&&openDrawer(drawerHead("Posting notes", esc(postName(x)))+`<div class="ctxbox"><p class="note" style="white-space:pre-wrap">${esc(x._notes)}</p>${x._copy_from?`<p class="how">From ${esc(x._copy_from)}</p>`:""}</div>`); }
+  if(k==="post"){ showTab("tab-post"); const el=$("licard-"+v); if(el){ el.scrollIntoView({behavior:"smooth", block:"center"}); el.style.borderColor="var(--blue)"; setTimeout(()=>{el.style.borderColor="";},1400); } return; }
+  if(k==="copyammo"){ const r=ammoRounds(W())[+v]; return r&&copyText([r.fact, r.number?`(${r.number})`:"", r.source||""].filter(Boolean).join(" "),"Fact and source copied"); }
+  if(k==="spend") return toggleSpent(+v);
+  if(k==="brief") return briefDrawer();
+  if(k==="fixPost") return fixPostDrawer();
+  const fns={exportFilmed, exportForBlog, exportCarousels, exportPerformance, saveWeekFile};
+  if(fns[k]) return fns[k]();
 }
+document.addEventListener("click", e=>{
+  const b=e.target.closest("button, a"); if(!b) return;
+  if(b.closest(".x")&&b.closest("#drawer")) return closeDrawer();
+  if(b.dataset.w!==undefined){ WI=+b.dataset.w; OPEN.clear(); renderAll(); return; }
+  if(b.dataset.lane){ LANE=b.dataset.lane; renderFilm(); return; }
+  if(b.id==="exportBtn") return exportDrawer();
+  if(b.id==="theme") return applyTheme(document.documentElement.dataset.mode==="dark"?"light":"dark");
+  if(b.id==="perfMore"){ PERF_ALL=!PERF_ALL; drawResults(); return; }
+  if(b.id==="perfTbl"){ const tb=$("perfTable"); tb.hidden=!tb.hidden; b.textContent=tb.hidden?"Show table":"Hide table"; b.setAttribute("aria-expanded",String(!tb.hidden)); return; }
+  if(b.dataset.st){ setT(b.dataset.id,{status:b.dataset.st}); toast("Marked "+statusName[b.dataset.st].toLowerCase()); return; }
+  if(b.dataset.more){ const id=b.dataset.more; OPEN.has(id)?OPEN.delete(id):OPEN.add(id); renderFilm(); return; }
+  if(b.dataset.expand){ const el=$(b.dataset.expand); if(!el) return; if(el.classList.contains("body")){ el.classList.toggle("open"); b.textContent=el.classList.contains("open")?"Collapse":"Read all"; } else { el.hidden=!el.hidden; b.textContent=el.hidden?"Details":"Hide details"; } return; }
+  if(b.dataset.copy) return copyText(b.dataset.copy, "Copied");
+  if(b.dataset.filmClose!==undefined) return closeFilm();
+  if(b.dataset.filmStep){ FILM.i=Math.max(0,Math.min(FILM.ids.length-1, FILM.i+(+b.dataset.filmStep))); drawFilm(); return; }
+  if(b.dataset.act){ const k=b.dataset.act.split(":")[0]; if(!["spend","copyammo","exportFilmed","copy"].includes(k)) closeDrawer(); act(b.dataset.act); }
+});
+document.addEventListener("change", e=>{
+  if(e.target.id==="showDone"){ SHOW_DONE=e.target.checked; renderFilm(); }
+  if(e.target.id==="olderSel"&&e.target.value!==""){ WI=+e.target.value; OPEN.clear(); renderAll(); }
+});
+document.addEventListener("input", e=>{ const i=e.target; if(i.dataset&&i.dataset.field) setQuiet(i.dataset.id, {[i.dataset.field]:i.value}); });
+$("dbg").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e=>{
+  if(e.key==="Escape"){ if(FILM) closeFilm(); else closeDrawer(); return; }
+  if(!FILM) return;
+  if(e.key==="ArrowRight"&&FILM.i<FILM.ids.length-1){ FILM.i++; drawFilm(); }
+  if(e.key==="ArrowLeft"&&FILM.i>0){ FILM.i--; drawFilm(); }
+});
 
-/* ---------------- film mode ---------------- */
-function findItem(id){
-  const w=curWeek();
-  let it = w ? videosOf(w).find(x=>x.id===id) : null;
-  if(!it) for(const c of CAMPAIGNS){
-    it=[].concat(c.distribution||[], c.office||[], c.linkedin||[]).find(x=>x.id===id);
-    if(it) break;
+/* ---------------- tabs, theme, week control ---------------- */
+const HELLO={"tab-film":"Pick a lane and start filming.", "tab-post":"Here's what's ready to post.", "tab-results":"Here's what you filmed and how it landed."};
+function showTab(id, remember){
+  document.querySelectorAll('.tabs [role="tab"]').forEach(tb=>{ const on=tb.id===id; tb.setAttribute("aria-selected",String(on)); const p=$(tb.getAttribute("aria-controls")); if(p) p.hidden=!on; });
+  $("hello2").textContent=HELLO[id]||HELLO["tab-film"];
+  if(remember!==false){ try{ localStorage.setItem(TAB_KEY,id); }catch(e){} }
+  if(id==="tab-results") drawResults();
+}
+document.querySelectorAll('.tabs [role="tab"]').forEach(tb=>tb.addEventListener("click", ()=>{ showTab(tb.id); window.scrollTo({top:0}); }));
+function applyTheme(mode){
+  document.documentElement.dataset.mode=mode;
+  const b=$("theme"); if(b){ b.textContent=mode==="dark"?"Light mode":"Dark mode"; b.setAttribute("aria-pressed",String(mode==="dark")); }
+  try{ localStorage.setItem(THEME_KEY,mode); }catch(e){}
+  drawResults();
+}
+function renderWeekCtl(){
+  const w=W(); if(!w) return;
+  $("weekSeg").innerHTML=WEEKS.slice(0,3).map((wk,i)=>`<button type="button" data-w="${i}" aria-pressed="${i===WI}">${esc(weekLabel(wk))}</button>`).join("");
+  const older=$("olderSel");
+  if(WEEKS.length>3){
+    older.hidden=false;
+    older.innerHTML=`<option value="">Older weeks</option>`+WEEKS.slice(3).map((wk,j)=>`<option value="${j+3}"${WI===j+3?" selected":""}>${esc(isIso(wk.week)?"Week of "+spoken(wk.week):String(wk.week))}</option>`).join("");
   }
-  return it || null;
+  const s=weekStartOf(w);
+  $("range").textContent = isExample(w) ? "Example week, sample data" : s ? "Week of "+rangeText(s, addDays(s,6)) : "Week "+w.week;
 }
-// the spoken read as plain text: hook + script + optional CTA. Skips the hook
-// when the script already opens with it (most weeks duplicate that line).
-function scriptText(x){
-  const parts=[];
-  const hook=(x.spoken_hook||"").trim(), script=(x.script||"").trim();
-  if(hook && !script.startsWith(hook)) parts.push(hook);
-  if(script) parts.push(script);
-  if(!script){
-    if(!hook && x.hook) parts.push(String(x.hook).trim());
-    if(typeof x.beats==="string") parts.push(x.beats.trim());
-  }
-  if(x.cta) parts.push(String(x.cta).trim());
-  const ideas=opinionIdeas(x);
-  if(ideas.length) parts.push(opinionLabel()+"\nNot script: the take is said off the cuff, or skipped. Ideas: "+ideas.join(" / "));
-  return parts.filter(Boolean).join("\n\n");
-}
-function copyScript(id){
-  const x=findItem(id); if(!x) return;
-  const txt=scriptText(x); if(!txt){toast("No script text on this one");return;}
-  copyText(txt, "Script copied");
-}
-function openFilm(id){
-  const x=findItem(id); if(!x) return;
-  FILM_ID=id;
-  document.getElementById("filmTitle").textContent = x.title || x.mechanic || x.text_hook || "Untitled";
-  let body="";
-  if(x.text_hook) body+=`<div class="filmburn">${esc(x.text_hook)}</div><p class="filmburncap">Burned on screen · not spoken</p>`;
-  if(x.story_line) body+=block("The story in one line", x.story_line, "dirbox");
-  const read=readSections(x, "fsent", "fhook", "fsec");
-  body+= read || "";
-  let extra = captureBlock(x) + shotTable(x) + beatsTable(x)
-    + block("Directions · do this, do not read it", x.directions, "dirbox")
-    + block("Value · the payoff to protect", x.value, "valbox");
-  if(extra.trim()) body+=`<div class="fextra">${extra}</div>`;
-  document.getElementById("filmBody").innerHTML=body;
-  syncFilmFoot();
-  document.getElementById("film").classList.add("show");
-  document.body.style.overflow="hidden";
-  document.querySelector(".filmbody").scrollTop=0;
-}
-function syncFilmFoot(){
-  if(!FILM_ID) return;
-  const s=t(FILM_ID).status;
-  document.getElementById("filmFoot").innerHTML =
-    s==="posted" ? `<button class="btn" disabled>Posted &#10003;</button>`
-    : s==="filmed"
-      ? `<button class="btn accent" onclick="setT('${FILM_ID}',{status:'posted'});toast('Marked posted')">Mark as posted</button><button class="btn" onclick="setT('${FILM_ID}',{status:'idea'})">Back to idea</button>`
-      : `<button class="btn primary" onclick="setT('${FILM_ID}',{status:'filmed'});toast('Marked filmed')">Mark as filmed</button>`;
-}
-function closeFilm(){
-  FILM_ID=null;
-  document.getElementById("film").classList.remove("show");
-  document.body.style.overflow="";
-}
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&FILM_ID) closeFilm(); });
-
-/* ---------------- proof chip ---------------- */
-/* Three neutral looks (solid, outlined, dashed), none of them a verdict: own,
-   reach and public are provenance, not quality. */
-function proofChip(p){
-  const kind=String(p.kind||"").toLowerCase();
-  const cls=["own","reach","public"].includes(kind)?"proof-"+kind:"";
-  return `<span class="chip proof ${cls}" title="${esc(p.ref||"")}">proof &middot; ${esc(p.kind)}</span>`;
-}
-
-/* ---------------- reply block (LinkedIn) ---------------- */
-/* held[] are the receipts kept OUT of the post for the comments; reply_stance is
-   the one line to hold when the thread pushes back. Collapsed by default: the
-   post is what gets copied, the block is what gets read before replying. */
-function replyBlock(x){
-  const held=Array.isArray(x.held)?x.held.filter(h=>h&&(h.fact||h.source)):[];
-  if(!held.length && !x.reply_stance) return "";
-  const rows=held.map(h=>`<li>${esc(h.fact||"")}${h.source?` <a href="${esc(h.source)}" target="_blank" rel="noopener">source &rarr;</a>`:""}</li>`).join("");
-  return `<div class="reply">
-    <button class="btn ghost" onclick="const b=this.parentElement.querySelector('.replywrap');b.classList.toggle('show');this.firstChild.textContent=b.classList.contains('show')?'Hide reply block':'Reply block'"><span>Reply block</span>${held.length?`<span class="chip">${held.length} held</span>`:""}</button>
-    <div class="replywrap collapse">
-      ${x.reply_stance?`<div class="block"><div class="lab">Reply stance</div><p class="psy">${esc(x.reply_stance)}</p></div>`:""}
-      ${rows?`<div class="block"><div class="lab">Held receipts &middot; for the comments, not the post</div><ul class="held">${rows}</ul></div>`:""}
-    </div>
-  </div>`;
-}
-
-/* ---------------- experiment line ---------------- */
-function experimentLine(w){
-  const e=w.experiment; if(!e || !e.question) return "";
-  const arms=e.arms||{}; const n=k=>Array.isArray(arms[k])?arms[k].length:0;
-  return `<p class="expline"><b>This week's question:</b> ${esc(e.question)} <span class="expdim">(${esc(e.dim||"dim")}: A ${n("a")} vs B ${n("b")})</span></p>`;
-}
-
-/* ---------------- promises ---------------- */
-function promisesBlock(w){
-  const list=Array.isArray(w.promised)?w.promised.filter(p=>p&&p.text):[];
-  if(!list.length) return "";
-  const open=list.filter(p=>!p.paid_in).length;
-  const rows=list.map(p=>{
-    const paid=!!p.paid_in;
-    return `<li class="${paid?'paid':'open'}"><span class="pst">${paid?'&#10003; paid '+esc(p.paid_in):'due '+esc(p.due_week||"open")}</span><span class="ptx">${esc(p.text)}</span>${p.made_in?`<span class="pmade">made ${esc(p.made_in)}</span>`:""}</li>`;
-  }).join("");
-  return `<div class="promises"><div class="lab">Promises &middot; ${open} open</div><ul>${rows}</ul></div>`;
-}
-
-/* ---------------- ammo ---------------- */
-/* A round is a fact with a number and a source. Spent state lives in localStorage
-   under its own key; a round the week file already marks spent_on starts spent. */
-let AMMO = (function(){ try { return JSON.parse(localStorage.getItem(AMMO_KEY) || "{}") || {}; } catch(e) { return {}; } })();
-function ammoRounds(w){ return Array.isArray(w&&w.ammo)?w.ammo.filter(r=>r&&(r.fact||r.number)):[]; }
-function ammoKey(w,r,i){ return String(w.week)+"|"+(r.id||r.fact||i); }
-function isSpent(w,r,i){ const k=ammoKey(w,r,i); return AMMO[k]!==undefined ? !!AMMO[k] : !!r.spent_on; }
-function toggleSpent(i){
-  const w=curWeek(); const r=ammoRounds(w)[i]; if(!w||!r) return;
-  const k=ammoKey(w,r,i); AMMO[k]=!isSpent(w,r,i);
-  try { localStorage.setItem(AMMO_KEY, JSON.stringify(AMMO)); } catch(e) {}
-  render(); toast(AMMO[k]?"Round marked spent":"Round back in the clip");
-}
-function copyAmmo(i){
-  const w=curWeek(); const r=ammoRounds(w)[i]; if(!r) return;
-  copyText([r.fact, r.number?`(${r.number})`:"", r.source||""].filter(Boolean).join(" "), "Round copied");
-}
-function ammoCard(w, r, i){
-  const spent=isSpent(w,r,i);
-  const lanes=Array.isArray(r.lanes)?r.lanes.map(l=>`<span class="chip">${esc(l)}</span>`).join(""):"";
-  const src=r.source?`<a href="${esc(r.source)}" target="_blank" rel="noopener">${esc(String(r.source).replace(/^https?:\/\/(www\.)?/,"").split("/")[0])} &rarr;</a>`:"";
-  const fileSpent = spent && r.spent_on && AMMO[ammoKey(w,r,i)]===undefined;
-  return `<div class="card ammo ${spent?'done':''}">
-    <div class="cardtop">
-      <span class="idx">${String(i+1).padStart(2,"0")}</span>
-      <div class="cardtitle">
-        <h3 class="ttl">${esc(r.fact||"")}</h3>
-        <div class="chips">${spent?`<span class="chip posted">Spent${fileSpent?' &middot; '+esc(r.spent_on):''}</span>`:""}${lanes}</div>
-      </div>
-      <div class="cardops">
-        <button class="btn ghost ${spent?'on':''}" onclick="toggleSpent(${i})">${spent?'Spent &#10003;':'Spent'}</button>
-        <button class="btn" onclick="copyAmmo(${i})" title="Copy fact, number and source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button>
-      </div>
-    </div>
-    <div class="ammobody">${r.number?`<span class="ammonum">${esc(r.number)}</span>`:""}${src}</div>
-  </div>`;
-}
-
-/* ---------------- main render ---------------- */
-function render(){
-  const w=curWeek(); if(!w){document.getElementById("view").innerHTML=emptyState("No week data yet. Run the radar to generate your first slate.");return;}
-  renderBrief(w);
-  statsBar();
-  updateTabCounts(w);
-  const showIgn = document.getElementById("showIgnored") && document.getElementById("showIgnored").checked;
-  document.getElementById("ignrow").style.display = ["dist","office","explainers","moments","days"].includes(TAB)?"block":"none";
-  const pool = arr => showIgn
-    ? arr.filter(x=>t(x.id).status==="ignored")
-    : arr.filter(x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";});
-  const office = officeOf(w);
-  let html="", empty="Nothing here this week.";
-  if(TAB==="dist"){
-    const cards=pool(w.distribution||[]).map((x,i)=>scriptCard(x,false,i)).join("");
-    empty=showIgn?"No ignored scripts.":"Nothing left to film in this lane. Everything is filmed, posted, or ignored.";
-    html = promisesBlock(w) + (cards || emptyState(empty));
-  }
-  else if(TAB==="office"){ html=pool(office).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored scripts.":"Nothing left to film in this lane. Everything is filmed, posted, or ignored."; }
-  else if(TAB==="explainers"){ html=pool(w.explainers||[]).map((x,i)=>scriptCard(x,false,i)).join(""); empty=showIgn?"No ignored explainers.":"No explainer to film this week."; }
-  else if(TAB==="days"){ html=pool(w.days||[]).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored posts.":"No five-day posts this week."; }
-  else if(TAB==="moments"){ html=pool(w.moments||[]).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored moments.":"No day-in-the-life or break clips this week."; }
-  else if(TAB==="filmed"){ const items=videosOf(w).filter(x=>["filmed","posted"].includes(t(x.id).status)); html=items.map((x,i)=>scriptCard(x, office.includes(x), i)).join(""); empty="Nothing filmed yet. Mark a script Filmed and it lands here for metric tracking."; }
-  else if(TAB==="linkedin"){
-    /* Cards follow the selector's posting order so the list agrees with the calendar
-       above it. Anything without an assigned slot keeps its file order, at the end. */
-    const bySlot=(a,b)=>((a.post_slot||99)-(b.post_slot||99));
-    const solo = soloPostsOf(w).filter(x=>t(x.id).status!=="ignored")
-                            .slice().sort(bySlot).map((x,i)=>liCard(x, "", i));
-    const gtm = leaderPostsOf(w).filter(x=>t(x.id).status!=="ignored")
-                            .slice().sort(bySlot).map((x,i)=>liCard(x, "", i));
-    const twins = liveTwinsOf(w).slice().sort((a,b)=>bySlot(a.linkedin,b.linkedin))
-                            .map((x,i)=>liCard(x.linkedin, x.title, i));
-    /* Cut twins render last and muted. They are still worth reading (the script films
-       and ships elsewhere), but they are not part of this week's five. */
-    const cutSrc = (w.distribution||[]).filter(x=>x.linkedin && x.linkedin.twin_cut===true
-                                                  && t(x.id).status!=="ignored");
-    const cuts = cutSrc.map((x,i)=>liCard(x.linkedin, x.title, i));
-    const banked = bankedPostsOf(w).filter(x=>t(x.id).status!=="ignored")
-                            .map((x,i)=>liCard(x, "", i));
-    html = calendarBlock(w)
-         + (solo.length?`<div class="sechdr">Written for LinkedIn only</div>`+solo.join(""):"")
-         + (twins.length?`<div class="sechdr">Twins of this week's videos</div>`+twins.join(""):"")
-         + (gtm.length?`<div class="sechdr">${esc(UI.leaders_hdr||"From leaders you study")}</div>`+gtm.join(""):"")
-         + (cuts.length?`<div class="sechdr">Not twinned this week &middot; films and ships on other platforms</div>`
-             +`<div style="opacity:.55">`+cuts.join("")+`</div>`:"")
-         + (banked.length?`<div class="sechdr">Banked &middot; written and holding for a future week</div>`
-             +`<div style="opacity:.55">`+banked.join("")+`</div>`:"");
-    empty="No LinkedIn posts this week.";
-  }
-  else if(TAB==="insp"){ const cards=(w.inspiration||[]).map(inspCard).join(""); html=cards?`<div class="inspgrid">${cards}</div>`:""; empty="No viral inspiration logged this week."; }
-  else if(TAB==="ammo"){ html=ammoRounds(w).map((r,i)=>ammoCard(w,r,i)).join(""); empty="No comment ammo this week. A round is one fact with a number and a source; the sentence stays yours."; }
-  else if(TAB.startsWith("camp:")){
-    /* A campaign tab renders its own items regardless of the selected week.
-       Video pieces reuse scriptCard (film mode, tracker, twins all work);
-       written pieces and assets reuse liCard. Tracking stays keyed by id in
-       the same localStorage, so campaign items are logged like week items. */
-    const c=CAMPAIGNS[+TAB.slice(5)];
-    if(c){
-      const alive=arr=>(arr||[]).filter(x=>t(x.id).status!=="ignored");
-      const vids=alive([].concat(c.distribution||[], c.office||[]));
-      const posts=alive(c.linkedin||[]);
-      html = (c.positioning?`<p class="calnote" style="margin:0 0 18px">${esc(c.positioning)}</p>`:"")
-        + (vids.length?`<div class="sechdr">To film</div>`+vids.map((x,i)=>scriptCard(x,false,i)).join(""):"")
-        + (posts.length?`<div class="sechdr">Posts &amp; assets</div>`+posts.map((x,i)=>liCard(x,"",i)).join(""):"");
-    }
-    empty="This campaign is empty.";
-  }
-  document.getElementById("view").innerHTML = html || emptyState(empty);
+function renderAll(){
+  renderWeekCtl(); renderFilm(); renderPost(); renderResults();
+  $("foot").innerHTML=`<p><b>Sources.</b> Weeks from weeks/, Filmed and Posted marks from performance/tracking.jsonl${(PERF.perf||[]).length?", LinkedIn numbers from performance/performance.jsonl":""}. Built ${esc(spoken(UI.built||""))}.</p><p>Marks you change here live in this browser until Export > Performance writes them to disk.</p>`;
 }
 
 (function init(){
-  let savedTheme=null; try{savedTheme=localStorage.getItem("yapcut-theme");}catch(e){}
-  if(!savedTheme) savedTheme=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark";
-  applyTheme(savedTheme);
-  const sel=document.getElementById("weekSel");
-  sel.innerHTML = WEEKS.map(w=>`<option value="${w.week}">${String(w.week).toLowerCase()==="example"?"Example week (sample data)":"Week of "+w.week}</option>`).join("");
-  const tabsRow=document.querySelector(".tabs");
-  if(WEEKS.some(w=>ammoRounds(w).length)){
-    const b=document.createElement("button");
-    b.className="tab"; b.dataset.t="ammo"; b.onclick=()=>setTab("ammo");
-    b.innerHTML=`<svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Ammo <span class="cnt" data-c="ammo"></span>`;
-    tabsRow.appendChild(b);
-  }
+  let saved=null; try{ saved=localStorage.getItem(THEME_KEY); }catch(e){}
+  applyTheme(saved==="dark"?"dark":"light");
   /* The mark's bytes are inlined once, on #logo-mark; the tab icon points at that. */
-  const mark=document.getElementById("logo-mark");
-  if(mark && mark.tagName==="IMG" && mark.getAttribute("src")){
-    const l=document.createElement("link"); l.rel="icon"; l.href=mark.getAttribute("src"); document.head.appendChild(l);
-  }
-  CAMPAIGNS.forEach((c,i)=>{
-    const b=document.createElement("button");
-    b.className="tab"; b.dataset.t="camp:"+i; b.onclick=()=>setTab("camp:"+i);
-    b.innerHTML=`<svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>${esc(c.label||c.campaign||"Campaign")} <span class="cnt" data-c="camp:${i}"></span>`;
-    tabsRow.appendChild(b);
-  });
-  const tb=document.getElementById("toolbar"), mh=document.querySelector(".masthead");
-  if(tb&&mh&&"IntersectionObserver" in window){
-    new IntersectionObserver(es=>tb.classList.toggle("scrolled",!es[0].isIntersecting),{threshold:0}).observe(mh);
-  }
-  render();
+  const mark=$("logo-mark");
+  if(mark&&mark.tagName==="IMG"&&mark.getAttribute("src")){ const l=document.createElement("link"); l.rel="icon"; l.href=mark.getAttribute("src"); document.head.appendChild(l); }
+  renderAll();
+  let start=null; const hash=location.hash.slice(1);
+  if(hash&&$("tab-"+hash)) start="tab-"+hash;
+  if(!start){ try{ const s=localStorage.getItem(TAB_KEY); if(s&&$(s)) start=s; }catch(e){} }
+  showTab(start||"tab-film", false);
+  let rt=0; addEventListener("resize", ()=>{ clearTimeout(rt); rt=setTimeout(drawResults,150); });
 })();

@@ -4,6 +4,18 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.20.0: the dashboard opens on your scripts
+
+**What's new.** The dashboard has three tabs instead of ten. Film is where it opens: pick a
+lane, see how many scripts are left in it, and the scripts are right there. Post shows what is
+filmed but not posted yet, your week's calendar, your LinkedIn posts and comment ammo. Results
+shows what you filmed and posted each week, and how your posts did. Export lives in one place,
+top right. Everything you marked before is still marked.
+
+**To get it.** Rebuild the dashboard (`python3 build_dashboard.py --open`). To change the colour,
+set `dashboard.accent` in `radar-config.json`; it uses your brand accent otherwise. Add a photo
+as `avatar.png` in your workspace to see it beside the welcome line.
+
 ## 3.19.0: a Five days tab
 
 **What's new.** The week can carry five short posts on top of the episodes, one per weekday, each

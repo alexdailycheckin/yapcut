@@ -22,7 +22,7 @@ week files carry history; fields marked FAIL stop the batch.
 | `gtm_linkedin[]` | posts | the leaders-scan posts (legacy key, still read). |
 | `inspiration[]` | `{creator, platform, metric, metric_confidence, mechanic, link}` | the outliers found. |
 | `experiment` | `{dim, arms: {a: [ids], b: [ids]}, metric, question}` | optional, validated when present, asked for by no gate since 3.11.0. `log_perf.py --report` answers it at n=4. |
-| `ammo[]` | `[{fact (or round), number, source (or url), lanes[], spent_on}]` | optional: 10 to 15 receipt-bearing rounds for the daily comment block, a by-product of the research sweep. The dashboard renders an Ammo tab. |
+| `ammo[]` | `[{fact (or round), number, source (or url), lanes[], spent_on}]` | optional: 10 to 15 receipt-bearing rounds for the daily comment block, a by-product of the research sweep. The dashboard lists them under Comment ammo on the Post tab. |
 | `promised[]` | `[{text, made_in, due_week, paid_in}]` | optional: promises the show made to its audience. `radar_gate.py` warns on a due promise neither paid nor retracted. |
 | anything else | | WARN "unknown top-level key". Legacy files carry `method`, `distribution_pass`, `receipts`, `sweep_note` and more; they are not errors. |
 
@@ -34,7 +34,7 @@ Required: `id`, `title`, `script_class` (`testimony`, `format`, `research`), `te
 
 `research` items carry **`news_date`** (YYYY-MM-DD, the day the thing happened, never the day an article about it ran). `check_fidelity.py` FAILS an item whose `news_date` is more than `show.max_news_age_days` (rules default 14) before the week, and WARNS when it is missing.
 
-**`days[]`** (3.19.0) holds the five-day posts: one short talking-head post per weekday, each in its own format (Spicy, Deep Dive, Quick Win, Proof, Fun). Ids `w-<date>-<n>`, `script_class: day`, plus `day` (the format's name), `post_day`, `spoken_hook`, `script`, `text_hook`, `story_line` and `cta` (the ask at the end, for example what to comment and what the creator sends back by DM). The pack prints them under "Five days" and the dashboard gives them their own tab. Until Anima reads the lane, the phone gets them at the end of the secondary lane, titled with their day.
+**`days[]`** (3.19.0) holds the five-day posts: one short talking-head post per weekday, each in its own format (Spicy, Deep Dive, Quick Win, Proof, Fun). Ids `w-<date>-<n>`, `script_class: day`, plus `day` (the format's name), `post_day`, `spoken_hook`, `script`, `text_hook`, `story_line` and `cta` (the ask at the end, for example what to comment and what the creator sends back by DM). The pack prints them under "Five days" and the dashboard gives them their own lane on the Film tab and puts each on its day in the Post calendar. Until Anima reads the lane, the phone gets them at the end of the secondary lane, titled with their day.
 
 `research` items should carry **`story_line`**: the story in one line, what happened, then what happened, then why it matters. `build_pack.py` and the dashboard print it above the script. Write it before the script; an item whose story will not fit in one line is not ready to write.
 

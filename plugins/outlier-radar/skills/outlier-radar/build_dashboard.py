@@ -64,7 +64,7 @@ _MIME = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
          ".jpeg": "image/jpeg", ".gif": "image/gif"}
 
 # With no logo file anywhere the original rings mark renders, so a bare install
-# still has a masthead. __C_ACCENT__ is filled by the token pass.
+# still has a brand. __C_ACCENT__ is filled by the token pass.
 RINGS_MARK = """<svg class="mark" viewBox="0 0 34 34" fill="none" aria-hidden="true">
       <circle cx="17" cy="17" r="15.5" stroke="currentColor" stroke-opacity=".25" stroke-width="1.5"/>
       <circle cx="17" cy="17" r="9.5" stroke="currentColor" stroke-opacity=".35" stroke-width="1.5"/>
@@ -73,11 +73,11 @@ RINGS_MARK = """<svg class="mark" viewBox="0 0 34 34" fill="none" aria-hidden="t
       <circle cx="17" cy="17" r="1.8" fill="currentColor"/>
     </svg>"""
 
-# The partner pill: mark, name, link, and the one-line tagline beneath it.
-# LOCKED, not a config surface (the creator's call, 2026-08-13): the pill is the price
-# of the free tool. Outlier Radar is built by alexmuresan.com in partnership
-# with Reach, and every install renders that credit. The source is open, so a
-# fork can strip it; the config deliberately cannot, and no key is read here.
+# The partner credit: "In collaboration with Reach", top right of the band, the tagline on hover.
+# LOCKED, not a config surface (the creator's call, 2026-08-13): the credit is the price of the
+# free tool. Outlier Radar is built by alexmuresan.com in partnership with Reach, and every install
+# renders that credit. The source is open, so a fork can strip it; the config deliberately cannot,
+# and no key is read here. Moved from a pill under the masthead to the band in 3.20.
 REACH_MARK = ('<svg class="pmark" width="16" height="16" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">'
               '<rect width="32" height="32" rx="8" fill="#0F0F0F"></rect>'
               '<rect x="1" y="1" width="30" height="30" rx="7" stroke="white" stroke-opacity="0.12" stroke-width="2"></rect>'
@@ -91,10 +91,13 @@ PARTNER = "Reach"
 PARTNER_URL = "https://usereach.ai"
 PARTNER_TAGLINE = ("Get recommended on AI when your customer "
                    "is looking for options")
-PARTNER_HTML = (f'<div class="partnerwrap">'
-                f'<a class="partner" href="{PARTNER_URL}" target="_blank" '
-                f'rel="noopener">with {REACH_MARK}<b>{PARTNER}</b></a>'
-                f'<div class="ptag">{PARTNER_TAGLINE}</div></div>')
+PARTNER_HTML = (f'<a class="partner" href="{PARTNER_URL}" target="_blank" rel="noopener" '
+                f'title="{PARTNER_TAGLINE}">In collaboration with <b>{REACH_MARK}{PARTNER}</b></a>')
+
+# The free serif for titles. A licensed face can be inlined instead with dashboard.serif_file.
+SERIF_FALLBACK = '"Newsreader", "Iowan Old Style", Georgia, serif'
+FONT_LINK = ("https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400..600"
+             "&family=Space+Grotesk:wght@500;600;700&display=swap")
 
 
 def warn(msg):
@@ -150,42 +153,75 @@ def _luma(rgb):
     return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255.0
 
 
-def brand_tokens(cfg):
-    """Colours and fonts from radar-config.json, with NEUTRAL fallbacks: a fresh
-    install belongs to whoever installed it. The accent derivatives (headline
-    emphasis, soft wash) are computed from the accent so a non-warm accent never
-    drags the author's palette along."""
+def dash_tokens(ws, cfg):
+    """The dashboard's own look since 3.20: light canvas, white cards, one accent. The accent is
+    dashboard.accent, else brand.colors.accent, else a neutral blue; its tints for both themes are
+    derived here so any accent works. brand.colors.bg/ink and brand.fonts no longer touch the
+    dashboard (they still drive the carousels and the phone app)."""
+    dash = cfg.get("dashboard") or {}
     brand = cfg.get("brand") or {}
-    bc = brand.get("colors") or {}
-    bf = brand.get("fonts") or {}
-    c_bg = bc.get("bg") or "#FFFFFF"
-    c_ink = bc.get("ink") or "#17191C"
-    c_accent = bc.get("accent") or "#0F766E"
-    # The card surfaces belong to the dashboard's own light/dark theme, not to the
-    # brand block, so a dark brand bg paints a dark page under light cards and
-    # near-white ink vanishes on them. Accept a light bg, refuse a dark one and say why.
-    if _luma(_hex_rgb(c_bg)) < 0.5:
-        print("radar-config brand.colors.bg is dark: ignoring bg/ink and using the "
-              "dashboard's own theme (use the header toggle for dark mode). "
-              "brand.colors.accent and brand.fonts still apply.")
-        c_bg, c_ink = "#FFFFFF", "#17191C"
-    ar = _hex_rgb(c_accent)
+    accent = dash.get("accent") or (brand.get("colors") or {}).get("accent") or "#1A56E7"
+    a = _hex_rgb(accent)
+    white, black, night = (255, 255, 255), (0, 0, 0), (14, 14, 16)
+    serif_face, serif_stack = "", SERIF_FALLBACK
+    sf = dash.get("serif_file")
+    if sf:
+        p = os.path.expanduser(sf if os.path.isabs(os.path.expanduser(sf)) else os.path.join(ws, sf))
+        try:
+            with open(p, "rb") as fh:
+                b64 = base64.b64encode(fh.read()).decode("ascii")
+            fmt = {".woff2": "woff2", ".woff": "woff", ".ttf": "truetype", ".otf": "opentype"}.get(
+                os.path.splitext(p)[1].lower(), "woff2")
+            serif_face = (f'@font-face {{ font-family: "DashSerif"; src: url(data:font/{fmt};base64,{b64}) '
+                          f'format("{fmt}"); font-weight: 400 700; font-style: normal; font-display: swap; }}')
+            serif_stack = '"DashSerif", ' + SERIF_FALLBACK
+        except OSError as e:
+            warn(f"dashboard.serif_file unreadable, using the free serif: {e}")
     return {
-        "__C_BG__": c_bg,
-        "__C_INK__": c_ink,
-        "__C_ACCENT__": c_accent,
-        "__ACCENT_RGB__": ",".join(str(c) for c in ar),
-        # light mode: toward black so it reads as text, not a button fill
-        "__ACCENT_TEXT__": bc.get("accent_text") or _hex(_mix(ar, (0, 0, 0), 0.18)),
-        # dark mode: toward white so it clears a dark surface
-        "__ACCENT_TEXT_DARK__": bc.get("accent_text_dark") or _hex(_mix(ar, (255, 255, 255), 0.35)),
-        "__F_DISPLAY__": bf.get("display") or "Inter",
-        "__F_BODY__": bf.get("body") or "Inter",
-        "__F_MONO__": bf.get("mono") or "Space Mono",
-        "__FONT_IMPORT__": bf.get("google_import") or (
-            "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800"
-            "&family=Space+Mono:wght@400;700&display=swap"),
+        "__SERIF_FACE__": serif_face,
+        "__SERIF_STACK__": serif_stack,
+        "__FONT_LINK__": FONT_LINK,
+        "__C_ACCENT__": _hex(a),
+        "__ACCENT__": _hex(a),
+        "__ACCENT_HI__": _hex(_mix(a, black, 0.15)),
+        "__TINT__": _hex(_mix(a, white, 0.45)),
+        "__PANEL_TINT__": _hex(_mix(a, white, 0.95)),
+        "__LINE_TINT__": _hex(_mix(a, white, 0.85)),
+        "__ACCENT_NUM__": _hex(_mix(a, black, 0.05)),
+        "__MARK_LIGHT__": _hex(_mix(a, white, 0.5)),
+        "__D_BAND__": _hex(_mix(a, night, 0.82)),
+        "__D_BAND_LINE__": _hex(_mix(a, night, 0.62)),
+        "__D_ACCENT_HI__": _hex(_mix(a, white, 0.12)),
+        "__D_TINT__": _hex(_mix(a, white, 0.22)),
+        "__D_PANEL_TINT__": _hex(_mix(a, night, 0.84)),
+        "__D_LINE_TINT__": _hex(_mix(a, night, 0.62)),
+        "__D_ACCENT_NUM__": _hex(_mix(a, white, 0.55)),
     }
+
+
+def avatar_html(ws, cfg):
+    """Optional round photo beside the welcome line: dashboard.avatar, else avatar.(png|jpg) in the
+    workspace. No photo, no img."""
+    dash = cfg.get("dashboard") or {}
+    cands = [dash.get("avatar")] if dash.get("avatar") else [
+        os.path.join(ws, "avatar" + e) for e in (".png", ".jpg", ".jpeg", ".webp")]
+    for c in cands:
+        p = os.path.expanduser(c if os.path.isabs(os.path.expanduser(c)) else os.path.join(ws, c))
+        ext = os.path.splitext(p)[1].lower()
+        if os.path.exists(p) and ext in _MIME:
+            with open(p, "rb") as fh:
+                b64 = base64.b64encode(fh.read()).decode("ascii")
+            return f'<img class="avatar" src="data:{_MIME[ext]};base64,{b64}" alt="" width="52" height="52">'
+    return ""
+
+
+def hello_name(cfg):
+    dash = cfg.get("dashboard") or {}
+    name = dash.get("name") or (cfg.get("brand") or {}).get("name") or cfg.get("creator") or ""
+    name = str(name).strip()
+    if not name or name.lower().startswith("your name"):
+        return "Welcome."
+    return f"Welcome, {name.split()[0]}."
 
 
 # ---------------------------------------------------------------- logos
@@ -383,7 +419,7 @@ def load_tracking(ws):
 def load_campaigns(ws):
     """Optional cross-week collections (campaigns/*.json), each {campaign, label,
     positioning, distribution[], office[], linkedin[]} in the week item schemas,
-    rendered as its own tab. No campaigns/ dir means no extra tabs."""
+    rendered as its own lane tile on Film and its own section on Post. No campaigns/ dir, no extras."""
     out = []
     for f in sorted(glob.glob(os.path.join(ws, "campaigns", "*.json"))):
         try:
@@ -395,6 +431,113 @@ def load_campaigns(ws):
 
 
 # ---------------------------------------------------------------- page
+
+def _monday(iso):
+    d = datetime.strptime(iso[:10], "%Y-%m-%d")
+    return datetime.fromordinal(d.toordinal() - d.weekday()).strftime("%Y-%m-%d")
+
+
+def load_perf(ws, weeks):
+    """The Results tab. cadence: ids first marked filmed and posted, per Monday-start week, from
+    tracking.jsonl. perf: the latest measurement of each post in performance.jsonl, titled from the
+    week files, then performance/post-meta.json (title, then its first alias). A log, not a verdict:
+    the page ranks nothing beyond sorting by impressions."""
+    first = {}
+    tp = os.path.join(ws, "performance", "tracking.jsonl")
+    if os.path.exists(tp):
+        with open(tp, encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                at = str(e.get("at") or "")[:10]
+                if isinstance(e, dict) and e.get("event") in ("filmed", "posted") and e.get("id") and _parse_iso(at):
+                    k = (e["id"], e["event"])
+                    first[k] = min(first.get(k, at), at)
+    buckets = {}
+    for (_i, ev), at in first.items():
+        buckets.setdefault(_monday(at), {"filmed": 0, "posted": 0})[ev] += 1
+    cadence = []
+    if buckets:
+        d = datetime.strptime(min(buckets), "%Y-%m-%d")
+        end = datetime.strptime(_monday(datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d")
+        while d <= end:
+            k = d.strftime("%Y-%m-%d")
+            cadence.append({"week": k, **buckets.get(k, {"filmed": 0, "posted": 0})})
+            d = datetime.fromordinal(d.toordinal() + 7)
+
+    items = {}
+    for w in reversed(weeks):
+        for v in w.values():
+            for x in v if isinstance(v, list) else []:
+                if isinstance(x, dict) and x.get("id"):
+                    items[x["id"]] = x
+                    tw = x.get("linkedin")
+                    if isinstance(tw, dict) and tw.get("id"):
+                        items[tw["id"]] = tw
+    meta, alias = {}, {}
+    mp = os.path.join(ws, "performance", "post-meta.json")
+    if os.path.exists(mp):
+        try:
+            with open(mp, encoding="utf-8") as fh:
+                meta = json.load(fh) or {}
+        except ValueError:
+            meta = {}
+        for k, v in (meta.get("_aliases") or {}).items():
+            alias.setdefault(v, k)
+    latest = {}
+    pp = os.path.join(ws, "performance", "performance.jsonl")
+    if os.path.exists(pp):
+        with open(pp, encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(r, dict) or not r.get("id") or r.get("impressions") is None:
+                    continue
+                if r["id"] not in latest or str(r.get("measured")) >= str(latest[r["id"]].get("measured")):
+                    latest[r["id"]] = r
+
+    def title_of(i):
+        m = meta.get(i) if isinstance(meta.get(i), dict) else {}
+        t = (items.get(i) or {}).get("title") or m.get("title") or alias.get(i) or i
+        return t[:1].upper() + t[1:]
+
+    perf = sorted(({"id": i, "title": title_of(i), "impressions": r.get("impressions") or 0,
+                    "reactions": r.get("reactions") or 0, "comments": r.get("comments") or 0,
+                    "measured": r.get("measured"), "mature": bool(r.get("mature")),
+                    "radar": i in items or (meta.get(i) or {}).get("origin") == "radar"}
+                   for i, r in latest.items()), key=lambda p: -p["impressions"])
+    vals = sorted(p["impressions"] for p in perf)
+    n = len(vals)
+    median = (vals[n // 2] if n % 2 else round((vals[n // 2 - 1] + vals[n // 2]) / 2)) if n else 0
+    return {"cadence": cadence, "perf": perf, "median": median}
+
+
+def inline_post_copy(ws, weeks):
+    """A carousel post often carries a pointer instead of its text ("Copy lives in carousels/.../
+    post.md"). Pull the file in so Copy hands over the post, not the path. The posting notes above
+    the file's --- rule go to _notes. Fields starting with _ are display-only: the page strips them
+    before Export > Week file writes the week back."""
+    for w in weeks:
+        for x in (w.get("linkedin") or []) + (w.get("gtm_linkedin") or []):
+            m = re.search(r"Copy lives in (\S+?\.md)", str(x.get("body") or ""))
+            if not m:
+                continue
+            p = os.path.join(ws, m.group(1))
+            if not os.path.exists(p):
+                continue
+            with open(p, encoding="utf-8") as fh:
+                text = fh.read().strip()
+            notes, sep, body = text.partition("\n---\n")
+            x["_copy"] = (body if sep else text).strip()
+            x["_copy_from"] = m.group(1)
+            if sep:
+                x["_notes"] = re.sub(r"^#.*\n+", "", notes).strip()
+    return weeks
+
 
 def read_part(name):
     p = os.path.join(TPL_DIR, name)
@@ -414,41 +557,39 @@ def json_for_script(obj):
 
 
 def render(ws, cfg, weeks, campaigns, seed):
-    tokens = brand_tokens(cfg)
+    tokens = dash_tokens(ws, cfg)
     byline = cfg.get("byline")
     if byline is None:
         byline = "by alexmuresan.com"
-    primary = lane_label(cfg, "primary_lane", "Industry")
+    pl = cfg.get("primary_lane")
+    primary = (pl.get("label") if isinstance(pl, dict) else pl) or ""
     secondary = lane_label(cfg, "secondary_lane", "Viral videos")
     leaders = cfg.get("leaders_header") or "From leaders you study"
 
-    # The masthead prefers the full lockup; a mark-only install still gets a masthead
-    # by falling back to the mark, then to the rings. The mark is inlined ONCE, on the
-    # toolbar img with id="logo-mark"; app.js builds the favicon from that element.
-    logo_mark = load_logo(ws, "logo-mark", "minimark", attrs=' id="logo-mark"')
-    lockup = load_logo(ws, "logo", "lockup",
-                       fallback=load_logo(ws, "logo-mark", "lockup", RINGS_MARK))
-    if logo_mark is None:
-        logo_mark = load_logo(ws, "logo", "minimark", RINGS_MARK, attrs=' id="logo-mark"')
+    # The mark is inlined ONCE, on the band img with id="logo-mark"; app.js builds the favicon from
+    # that element. No mark file means the rings, so a bare install still has a brand.
+    logo_mark = load_logo(ws, "logo-mark", "minimark", attrs=' id="logo-mark"') or \
+        load_logo(ws, "logo", "minimark", RINGS_MARK, attrs=' id="logo-mark"')
 
     tokens.update({
-        "__LOGOMARK__": lockup,
         "__LOGOMINI__": logo_mark,
-        "__PRIMARY_LABEL__": primary,
-        "__SECONDARY_LABEL__": secondary,
-        "__LEADERS_HDR__": leaders,
-        "__BYLINE__": byline,
+        "__BYLINE__": f"<small>{byline}</small>" if byline else "",
         "__PARTNER__": PARTNER_HTML,
+        "__AVATAR__": avatar_html(ws, cfg),
+        "__HELLO__": hello_name(cfg),
     })
+    weeks = inline_post_copy(ws, json.loads(json.dumps(weeks)))
     data = {
         "__WEEKS_JSON__": json_for_script(weeks),
         "__CAMPAIGNS_JSON__": json_for_script(campaigns),
         "__TRACKING_JSON__": json_for_script(seed),
-        # workspace: assets paths in a week file are stored relative to it, so the page
-        # needs the absolute root to build a file:// link the browser can follow.
+        "__PERF_JSON__": json_for_script(load_perf(ws, weeks)),
+        # workspace: asset paths in a week file are stored relative to it, so the page needs the
+        # absolute root to build a file:// link the browser can follow.
         "__UI_JSON__": json_for_script({
             "primary_label": primary, "secondary_label": secondary, "leaders_hdr": leaders,
-            "opinion_label": rules.opinion_label(cfg), "workspace": os.path.abspath(ws)}),
+            "opinion_label": rules.opinion_label(cfg), "workspace": os.path.abspath(ws),
+            "built": datetime.now().strftime("%Y-%m-%d")}),
     }
 
     html = (read_part("template.html")[:-1]
