@@ -2,6 +2,19 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.0 (tiktok-yap-editor)
+
+**A two-sided chart that builds as it is said.** A creator filmed a video of paired lines ("If
+you want strangers to answer your first email, you need one line about them...") and asked for
+a chart with two sides where each row appears as he says it. The kit had a one-column checklist
+and nothing with two sides. `ep.pairs(heads, rows, t0, t1, kicker=None)` draws one: two column
+heads, then a row per pair whose left cell lands on "if you want" and right cell on "you need".
+The newest right cell shows in the accent and the one before it settles to ink. A row said
+before the card lands is drawn with the card. Every cell is one line: after fonts load the whole
+chart scales its type down together if any cell would wrap, so the rows stay level. It sits in
+the band above the head on a tighter card. `tests/editor_units.py` pins the build, the lit
+cell and the fit.
+
 ## What's new in 3.19.0 (outlier-radar)
 
 **The five-day posts get their own lane and tab.** A creator asked for a weekly set of five

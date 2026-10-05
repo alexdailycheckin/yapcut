@@ -82,6 +82,15 @@
       .litem { display: flex; align-items: center; gap: 22px; margin-top: 22px; }
       .lmark { width: 52px; height: 52px; flex: 0 0 auto; }
       .lmark path { fill: none; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; }
+      .tight { padding: 22px 28px !important; }
+      .pairs { font-size: 26px; }
+      .prow { display: grid; grid-template-columns: 1fr 1.3em 1fr; align-items: center; column-gap: 0.45em; margin-top: 10px; }
+      .prow .arrow { width: 1.3em; height: 0.75em; }
+      .phead { margin-top: 2px; font-size: 0.8em; }
+      .pcell { display: block; min-width: 0; white-space: nowrap; overflow: visible; line-height: 1.15; }
+      .pl { border-radius: 14px; padding: 0.32em 0.6em; }
+      .pr { position: relative; padding: 0.32em 0; }
+      .prhot { position: absolute; left: 0; top: 0.32em; }
       .tline { position: relative; display: flex; justify-content: space-around; margin-top: 30px; }
       .trule { position: absolute; left: 6%; right: 6%; top: 17px; height: 6px; border-radius: 3px; transform-origin: left center; }
       .tick { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; transform-origin: 50% 20%; }
@@ -119,6 +128,14 @@
           var need = kids.reduce(function (w, k) { return w + k.getBoundingClientRect().width; }, 0) + gap * (kids.length - 1);
           var room = row.clientWidth - 24;
           if (need > room) row.style.fontSize = (parseFloat(cs.fontSize) * room / need).toFixed(2) + "px";
+        });
+        document.querySelectorAll(".pairs").forEach(function (chart) {
+          var worst = 1;
+          chart.querySelectorAll(".pcell").forEach(function (c) {
+            var inner = c.querySelector(".prink") || c, room = c.clientWidth - (c.classList.contains("pl") ? 0 : 2);
+            if (room > 0 && inner.scrollWidth > room) worst = Math.max(worst, inner.scrollWidth / room);
+          });
+          if (worst > 1) chart.style.fontSize = (parseFloat(getComputedStyle(chart).fontSize) / worst * 0.96).toFixed(2) + "px";
         });
         document.querySelectorAll(".hl, .stat, .ltitle, .title").forEach(function (el) {
           if (el.scrollWidth > el.clientWidth + 1)

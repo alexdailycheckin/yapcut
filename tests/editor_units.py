@@ -145,6 +145,16 @@ with tempfile.TemporaryDirectory() as t:
     th = from_brand({"accent_hex": "#1570EF", "ink_hex": "#101010", "handle": "YOU.COM", "contact_lines": ["you@you.com"]})
     check("#1570EF" in th["css"] and th["contact"] == ["YOU.COM", "you@you.com"], "the theme reads accent, ink and contact from brand-config")
     check(theme_build("#E8232F")["css"] == theme_build("#E8232F")["css"], "the theme build is deterministic")
+    # the two-sided chart (3.7.0): rows build as they are said, the newest right cell is lit, cells stay one line
+    ep2 = hk.Episode("pairs", words=os.path.join(t, "w.json"), footage=clip, voice=clip, project_root=os.path.join(t, "p2"),
+                     library=os.path.join(lib, "library.json"))
+    ep2.pairs(("If you want", "You need"), [dict(left="Replies", right="One line about them", at=0.2, right_at=0.4),
+                                            dict(left="Referrals", right="Ask the same day", at=3.0, right_at=3.6)], 1.0, 7.0)
+    h2 = open(os.path.join(ep2.build(), "index.html")).read()
+    check('class="pairs"' in h2 and "If you want" in h2 and h2.count('class="prow"') == 2, "pairs draws a head and one row per item")
+    check('tl.fromTo("#pr1r1"' in h2 and 'tl.fromTo("#pr1r0"' not in h2, "a row said before the card lands is drawn with it; a later row builds on its line")
+    check('tl.set("#pr1h0", {opacity: 0}, 3.6)' in h2 and 'tl.set("#pr1h1", {opacity: 1}, 3.6)' in h2, "the newest right cell lights as the one before it settles")
+    check('document.querySelectorAll(".pairs")' in h2, "the chart scales its type together so every cell stays on one line")
 
 
 # --- what's new: shown once per version, the minor line on a first run, never crashes ---

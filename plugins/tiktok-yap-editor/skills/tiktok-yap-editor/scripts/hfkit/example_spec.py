@@ -22,6 +22,7 @@ The card vocabulary, one line each (all take t0, t1 = on and off, in the cut's s
     converge(kicker, box, inside, mover, t0, t1, move_at)  the thing moves into where the person already is
     route(kicker, source, targets, t0, t1, at)             one source, several targets, the hot one gets the line
     list(title, items, t0, t1, mark="tick"|"cross")        a checklist that builds as it is said
+    pairs(heads, rows, t0, t1, kicker)                     a two-sided chart ("If you want" | "You need") whose rows build as they are said
     timeline(kicker, ticks, t0, t1)                        dated steps on a rule
     push(t0, t1, scale)                                    a slow camera push-in on a line that carries the belief
 Every figure and quote on a card is verbatim from the source named in its pill.

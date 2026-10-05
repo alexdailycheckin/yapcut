@@ -70,6 +70,9 @@ CSS = """
       .ltitle.red { color: RED; }
       .litem { font-weight: 700; font-size: 44px; line-height: 1.12; letter-spacing: -0.01em; }
       .lmark.tick rect { fill: INK; } .lmark.cross rect { fill: RED; } .lmark path { stroke: #FFFFFF; }
+      .phead .pcell { font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: MUTED; }
+      .pl { background: SAND; color: INK; font-weight: 700; }
+      .pr { color: INK; font-weight: 800; } .prhot { color: RED; }
       .trule { background: INK; }
       .tdot { background: RED; border: 7px solid #FFFFFF; box-shadow: 0 0 0 3px INK; }
       .tlabel { font-weight: 800; font-size: 44px; letter-spacing: -0.02em; }

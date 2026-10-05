@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.0: a two-sided chart for "if you want, you need" videos
+
+**What's new.** `ep.pairs(("If you want", "You need"), rows, t0, t1)` in a HyperFrames spec
+draws a two-column chart above your head. Each row appears as you say it: the left side on "if
+you want", the right side on "you need", the newest one in your accent colour.
+
+**To get it.** Nothing to do. Use it in the spec of any video built from paired lines.
+
 ## 3.6.0: your take stays whole, brand objects, time stamps
 
 **What's new.**

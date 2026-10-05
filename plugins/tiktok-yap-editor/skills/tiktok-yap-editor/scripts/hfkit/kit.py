@@ -392,6 +392,44 @@ class Episode:
             self.js.append(f'tl.fromTo("#{cid}t", {{scale: 1.25}}, {{scale: 1, duration: 0.3, ease: "power4.out", immediateRender: false}}, {t0});')
             self.sound("slam", t0)
 
+    def pairs(self, heads, rows, t0, t1, kicker=None, src=None, date=None):
+        """A two-sided chart that builds row by row as it is said (3.7.0): heads ("If you want",
+        "You need") over two columns, rows [dict(left, right, at, right_at)]. A row's left cell
+        lands on `at` (the start of "if you want..."), its right cell on `right_at` (the start of
+        "you need...", default at + 0.6). The newest right cell shows in the accent and the one
+        before it settles to ink. A row said before the card lands is drawn with the card. Cells
+        are one line each; the whole chart scales its type down together if any cell would wrap,
+        so the rows stay level. Sized for the band above the head: keep each cell under about
+        26 characters, five rows at most."""
+        cid = self._id("pr")
+        head = (f'<div class="prow phead"><span class="pcell">{esc(heads[0])}</span><span></span>'
+                f'<span class="pcell">{esc(heads[1])}</span></div>')
+        cells, prev = [], None
+        for j, r in enumerate(rows):
+            rid, xid, hid = f"{cid}r{j}", f"{cid}x{j}", f"{cid}h{j}"
+            cells.append(f'<div class="prow" id="{rid}"><span class="pcell pl">{esc(r["left"])}</span>'
+                         f'{ARROW.format(id=f"{cid}a{j}")}'
+                         f'<span class="pcell pr" id="{xid}"><span class="prink">{esc(r["right"])}</span>'
+                         f'<span class="prhot" id="{hid}">{esc(r["right"])}</span></span></div>')
+            at = round(r["at"], 2)
+            rat = round(r.get("right_at", at + 0.6), 2)
+            if at > t0 + 0.05:
+                self.js.append(f'gsap.set("#{rid}", {{opacity: 0}}); tl.fromTo("#{rid}", {{opacity: 0, x: -24}}, '
+                               f'{{opacity: 1, x: 0, duration: 0.35, ease: "power3.out", immediateRender: false}}, {at});')
+                self.sound("pop_small", at)
+            if rat > t0 + 0.05:
+                self.js.append(f'gsap.set("#{xid}", {{opacity: 0}}); tl.fromTo("#{xid}", {{opacity: 0, x: 24}}, '
+                               f'{{opacity: 1, x: 0, duration: 0.35, ease: "power3.out", immediateRender: false}}, {rat});')
+                self.sound("tick", rat)
+            on = max(rat, t0)
+            self.js.append(f'gsap.set("#{hid}", {{opacity: 0}}); tl.set("#{hid}", {{opacity: 1}}, {on});')
+            if prev is not None:
+                self.js.append(f'tl.set("#{prev}", {{opacity: 0}}, {on});')
+            prev = hid
+        kick = f'<div class="kicker">{esc(kicker)}</div>' if kicker else ""
+        self._card(cid, t0, t1, f'{kick}<div class="pairs">{head}{"".join(cells)}</div>{self._foot(src, date)}',
+                   cls="card top w940 tight")
+
     def timeline(self, kicker, ticks, t0, t1, src=None, date=None):
         """Dated steps on a rule: ticks [dict(label, sub, at)]."""
         cid = self._id("tm")
