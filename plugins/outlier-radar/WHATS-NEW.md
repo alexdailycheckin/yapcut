@@ -4,6 +4,20 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.18.0: explainers and moments on your phone
+
+**What's new.** This one is for the Anima app on your iPhone.
+
+- **Explainers have their own section.** Each one shows your step-by-step guide above the
+  script, so you learn the thing before you film it.
+- **Moments are a checklist.** A day in the life or a Pomodoro break shows the clips to capture
+  with their times. Tick each one off as you film it; the ticks stay put.
+- **Your take is its own card.** The opinion slot sits after the script's last line as a
+  separate card with its ideas, instead of trailing the script as more lines to read.
+
+**To get it.** Update Anima on your iPhone. An older Anima keeps working and shows one card at
+the top of the week saying what it can't show until you update. Nothing to change on the Mac.
+
 ## 3.17.1: fresh news only, and a first line that hooks
 
 **What's new.**

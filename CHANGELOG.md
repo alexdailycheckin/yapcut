@@ -2,6 +2,23 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.18.0 (outlier-radar)
+
+**The week reaches the phone as written, and Anima shows the new lanes itself.** 3.17.0 folded
+the two new lanes into the two the Anima app knew: explainers rode in the primary lane titled
+"Explainer:", moments in the secondary one with their clips turned into a script, and the
+opinion slot was appended to the end of every script. Anima now reads all four lanes: an
+explainer shows the creator's guide above the script, a moment is a capture checklist, and the
+opinion slot is its own card after the script's last line. `anima_link.phone_week()` stops
+folding. The phone gets the week file untouched, plus `opinion_label` (the slot's label with the
+creator's name, the one the dashboard already gets) and, when the week holds anything an Anima
+from before this release cannot show, one card at the top of the primary lane that says what is
+missing and asks for the update; newer builds drop it by its `anima_notice` key. The relay keeps
+one week per creator for every phone, so the Mac cannot hand an older phone its own shape: the
+card is how that phone hears about it instead. A week with no new lane and no opinion slot goes
+byte for byte. `tests/run.sh` stage 2c pins each of these. Prevents: an older phone losing the
+explainer and the moments without a word, and a newer one showing the creator's take twice.
+
 ## What's new in 3.17.1 (outlier-radar)
 
 **Old news fails, and the first line is a hook.** A creator rejected a whole batch as "very, very

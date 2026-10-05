@@ -16,7 +16,7 @@ What the phone can do, each call but /pair carrying `Authorization: Bearer <toke
 
     POST /pair                 {"code", "device"} -> {"token", "workspace_id", "workspace_name", "mac_name", "sync_code"}
     GET  /status               who the Mac is, the newest week and when it was written
-    GET  /week                 the newest weeks/<date>.json
+    GET  /week                 the newest weeks/<date>.json, as the phone reads it (phone_week)
     GET  /brand                brand-config.json
     POST /inbox                one event (a pick, a kill with its reason, a posted link...)
     PUT  /output/<week>/<name> a cut or its edit record
@@ -91,17 +91,46 @@ def newest_week(ws):
     return weeks[-1] if weeks else None
 
 
-# The phone's view of the week (3.17.0). Anima parses a week with its own bundled copy of the
-# rulebook, which knows two video lanes and reads the prompter from `script`. Until the app
-# ships the new lanes, the week travels folded: explainers ride in the primary lane and moments
-# in the secondary, titled so they read as what they are, and the opinion slot lands at the end
-# of the script as the prompter's last lines. The week file on the Mac is never changed.
-PHONE_LANES = ("distribution", "office")
-MOMENT_TITLES = {"day-in-the-life": "Day in the life", "pomodoro-break": "Pomodoro break"}
+# The phone's view of the week (3.18.0). Anima reads all four video lanes itself, so the week
+# travels as it was written, plus two things only the Mac can supply. `opinion_label` is the
+# opinion slot's label with the creator's name, the one the dashboard gets too. And an Anima from
+# before 3.18.0 reads only the two older lanes, so when the week has anything it would miss, one
+# card at the top of the primary lane says what and asks for the update; newer builds drop it by
+# its `anima_notice` key. The relay keeps one week per creator for every phone, so the Mac cannot
+# send an older phone its own shape: the card is how that phone hears about it instead of losing
+# it in silence. 3.17.0 folded the new lanes into the two older ones; the app still reads a week
+# kept from then. The week file on the Mac is never changed.
+OLDER_APP_LANES = ("distribution", "office")  # all an Anima from before 3.18.0 reads; the card goes first in the first
+
+
+def older_app_notice(d):
+    """The card an Anima from before 3.18.0 shows in place of what it cannot read, or None when
+    the week has nothing it would miss."""
+    def count(n, one, many):
+        return f"{n} {one if n == 1 else many}"
+    explainers = sum(isinstance(i, dict) for i in d.get("explainers") or [])
+    moments = sum(isinstance(i, dict) for i in d.get("moments") or [])
+    takes = sum(1 for lane in OLDER_APP_LANES for i in d.get(lane) or [] if rules.opinion_ideas(i))
+    missing = ([count(explainers, "explainer", "explainers")] if explainers else []) \
+        + ([count(moments, "moment to film", "moments to film")] if moments else []) \
+        + ([f"a slot for your own take after {takes} of the scripts below"] if takes else [])
+    if not missing:
+        return None
+    listed = missing[0] if len(missing) == 1 else ", ".join(missing[:-1]) + " and " + missing[-1]
+    return {
+        "id": "anima-update",
+        "anima_notice": "update",
+        "title": "Update Anima to see the whole week",
+        "text_hook": "Update Anima to see the whole week",
+        "script": f"This week also has {listed}. This version of Anima can't show them. "
+                  "Update Anima and they show up here.",
+    }
 
 
 def phone_week(path, ws=None):
-    """The newest week as bytes for the phone. Anything that does not parse goes as it is."""
+    """The newest week as bytes for the phone: the week as written, plus the opinion label and the
+    older-app card when the week needs them. A week that needs neither, or does not parse, goes as
+    it is."""
     raw = pathlib.Path(path).read_bytes()
     try:
         d = json.loads(raw)
@@ -109,38 +138,19 @@ def phone_week(path, ws=None):
         return raw
     if not isinstance(d, dict):
         return raw
-    try:
-        cfg = json.loads((pathlib.Path(ws or os.path.dirname(os.path.dirname(path))) / "radar-config.json").read_text())
-    except (OSError, ValueError):
-        cfg = {}
-    label = rules.opinion_label(cfg)
-    folded = False
-    for lane in rules.video_lanes():
-        for it in d.get(lane) or []:
-            ideas = rules.opinion_ideas(it)
-            if isinstance(it, dict) and ideas and it.get("script"):
-                it["script"] = (it["script"].rstrip() + "\n\n" + label + "\n\n"
-                                + "\n\n".join(f"Idea: {i}" for i in ideas))
-                folded = True
-    for it in d.get("explainers") or []:
-        if isinstance(it, dict):
-            d.setdefault("distribution", []).append(dict(it, title=f"Explainer: {it.get('title') or it.get('id')}"))
-            folded = True
-    for it in d.get("moments") or []:
-        if not isinstance(it, dict):
-            continue
-        cap = [c for c in it.get("clips") or [] if c]
-        lines = [f"{c.get('t') or ''} {c.get('moment') or ''}".strip() + "." if isinstance(c, dict) else f"{c}." for c in cap]
-        kind = MOMENT_TITLES.get(it.get("format"), "Moments")
-        d.setdefault("office", []).append(dict(it, title=f"{kind}: {it.get('title') or it.get('id')}",
-                                               spoken_hook=it.get("spoken_hook") or "Film these moments.",
-                                               script="\n\n".join(lines) or it.get("script") or ""))
-        folded = True
-    if not folded:
+    notice = older_app_notice(d)
+    takes = any(rules.opinion_ideas(i) for lane in rules.video_lanes() for i in d.get(lane) or [])
+    if not notice and not takes:
         return raw
-    for lane in rules.video_lanes():
-        if lane not in PHONE_LANES:
-            d.pop(lane, None)
+    if takes:
+        try:
+            cfg = json.loads((pathlib.Path(ws or os.path.dirname(os.path.dirname(path))) / "radar-config.json").read_text())
+        except (OSError, ValueError):
+            cfg = {}
+        d["opinion_label"] = rules.opinion_label(cfg)
+    if notice:
+        first = d.get(OLDER_APP_LANES[0])
+        d[OLDER_APP_LANES[0]] = [notice] + (first if isinstance(first, list) else [])
     return json.dumps(d, ensure_ascii=False, indent=1).encode()
 
 

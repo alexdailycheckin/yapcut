@@ -196,12 +196,24 @@ assert err is None and "week" in sent and sent[-1] == "status", (sent, err)
 enc, mac, box = s.keys(r["code"])
 status = json.loads(s.open_sealed(store[(box, "status")], enc, mac))
 assert status["week"] == "2026-01-05.json" and status["workspace_id"], status
-# the phone gets the week folded for its two-lane rulebook (3.17.0): new lanes ride in the two it knows
+# the phone gets the week as written (3.18.0): Anima reads explainers and moments in their own lanes
+# and shows the opinion slot from the data, so no script carries it; the Mac adds the slot's label,
+# and one card at the top that tells an Anima from before 3.18.0 what it cannot show
 from anima_link import phone_week
+src = json.load(open(os.path.join(ws, "weeks", "2026-01-05.json")))
 sent_week = json.loads(s.open_sealed(store[(box, "week")], enc, mac))
 assert sent_week == json.loads(phone_week(os.path.join(ws, "weeks", "2026-01-05.json"), ws))
-assert "explainers" not in sent_week and any(i["id"] == "x-example-1" for i in sent_week["distribution"])
-assert "[" in sent_week["distribution"][0]["script"] and "OPINION, IF ANY]" in sent_week["distribution"][0]["script"]
+assert sent_week["explainers"] == src["explainers"] and sent_week["moments"] == src["moments"]
+card, *rest = sent_week["distribution"]
+assert rest == src["distribution"] and sent_week["office"] == src["office"], "every script travels untouched"
+assert card.get("anima_notice") == "update" and "qa" not in card, card
+assert "1 explainer, 1 moment to film and a slot for your own take after 1 of" in card["script"], card["script"]
+assert sent_week["opinion_label"] == "[YOUR OPINION, IF ANY]", sent_week.get("opinion_label")
+plain = os.path.join(ws, "plain.json")
+json.dump(dict(src, explainers=[], moments=[], **{lane: [{k: v for k, v in i.items() if k != "opinion"} for i in src[lane]]
+                                                   for lane in ("distribution", "office")}), open(plain, "w"))
+assert phone_week(plain, ws) == open(plain, "rb").read(), "a week with nothing new goes byte for byte"
+os.remove(plain)
 assert s.push(ws, r) == ([], None), "an unchanged week is not pushed again"
 other = dict(r, write_secret="x" * 43, pushed={})
 assert "403" in (s.push(ws, other)[1] or ""), "another Mac cannot overwrite the box"
