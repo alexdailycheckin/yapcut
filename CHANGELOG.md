@@ -2,6 +2,25 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.3 (tiktok-yap-editor)
+
+**A soft word next to a pause stays in the cut.** On 2026-10-05 three words had to be saved by
+splitting their clause rows by hand: "If" was cut off "If this was helpful", "from" off "shout
+out from?", and "who to buy from" kept only "fr-". Each sat between the -42 dB speech gate and
+-55 dB. `yapcut.py` measured each boundary against the take's floor plus 6 dB, and that floor
+(the take's 20th percentile, skipping values under -70 dB as padding) landed at -52 to -59 dB,
+inside the decay of words, because a phone mic drops to -65 to -85 dB between words. The walk
+was also capped at 0.10 s at a word's start and 0.37 s at its end. Every boundary now walks out
+until the sound falls below -55 dB (`cut.edge.word_db`), with no cap. On a noisy take the level
+is 6 dB over the room tone of the take's own pauses, so the walk never follows room tone across
+a pause. The same walk recovers words that batch shipped without: "customer list" had played as
+"customers", "the people to do it" as "the people", "so be careful" as "so", and "Kind of a
+bummer" as "Another bummer". On its ten videos, 136 of 213 cuts moved outward, none inward, four
+cuts of 0.33 to 0.56 s merged away, and each video got 0.05 to 3.2 s longer.
+`tests/editor_units.py` pins it on synthetic takes. `tail_extra_s`, the old cap, stays in
+`rules.json` only because the phone rejects a rulebook with a key missing; it goes when the
+phone's cutter does the same walk.
+
 ## What's new in 3.7.2 (tiktok-yap-editor)
 
 **Logo chips are the brand's logo again.** Three chips in one batch (Yahoo, ChatGPT, Safari)

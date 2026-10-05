@@ -18,8 +18,11 @@ Cut-placement rules (v2 "perfect cuts" pass, 2026-07-09):
   threshold and splits it into sub-min-gap chunks, hiding real dead air from
   the cutter (found on the Jun 29/Jul 5 batch: a 2s on-screen gap survived).
 - The level gate marks "silence" while trailing consonants are still decaying
-  below the threshold, so pads are decay-aware: --padr 0.12 / --padl 0.10
-  (the old 0.04/0.08 shaved word edges at every cut).
+  below the threshold, so every boundary is measured: it moves out from the gate
+  crossing until the sound has fallen below --word-db (-55), however long that
+  takes (2026-10-05: a softly spoken word next to a pause, "If", "from", "list",
+  sat between -42 and -55 dB and was cut as silence). --padr 0.12 stays a floor
+  under every measured tail.
 - No transcript-based snapping: whisper -ml 1 -sow DTW tokens tile the whole
   timeline (a token's span runs to the next token's start), so "don't cut
   inside a word" degenerates to "pad every cut". Level-based boundaries with
@@ -88,13 +91,23 @@ def estimate_floor(dbs):
     # Room-tone / pause floor of a take: a low percentile of the envelope,
     # ignoring digital-silence padding. Used by --auto-floor (on a noisy take the
     # floor sits ABOVE the fixed -42dB gate, so nothing ever reads as silence and
-    # no beat gets cut) and by audible_edge() as the "still audible" reference.
+    # no beat gets cut) and by --head-trim.
     F=C["floor"]
     vals=sorted(db for db in dbs if db>F["ignore_below_db"])
     if not vals: return F["fallback_db"]
     return vals[int(F["percentile"]*len(vals))]   # 20th percentile ~ the pause floor
 
-def audible_edge(dbs, t, direction, thr, max_travel, stop_at=None, gap_tol=C["edge"]["gap_tolerance_s"]):
+def room_tone(dbs, sil):
+    # The floor of the take's own pauses: the same percentile as estimate_floor(),
+    # read only inside the silences and counting everything above digital zero.
+    # estimate_floor() reads the whole take and skips values below -70dB as padding,
+    # but a phone mic gates to -65..-85dB between words, so on the 2026-10-05 takes
+    # it read -52..-59dB, inside the decay of words; the pauses sat at -73..-80dB.
+    vals=sorted(dbs[j] for s,e in sil for j in range(int(round(s/HOP)),min(len(dbs),int(round(e/HOP))))
+                if dbs[j]>C["envelope"]["zero_db"])
+    return vals[int(C["floor"]["percentile"]*len(vals))] if vals else None
+
+def audible_edge(dbs, t, direction, thr, stop_at=None, gap_tol=C["edge"]["gap_tolerance_s"]):
     """Walk the envelope from `t` in `direction` (+1 forward, -1 back) and return
     where the sound genuinely stops or starts, tolerating a stop consonant's
     silent closure on the way.
@@ -109,10 +122,20 @@ def audible_edge(dbs, t, direction, thr, max_travel, stop_at=None, gap_tol=C["ed
     looked random. A fixed trailing pad cannot fix it, because the pad a word
     needs depends on how its own last phoneme decays, so measure it per boundary.
 
-    `thr` sits near the take's floor, well BELOW the speech gate, so the walk
-    follows the decay itself instead of the gate crossing. `max_travel` caps it
-    so it can never re-include dead air, and `stop_at` keeps it out of the
-    neighbouring speech run.
+    `thr` sits well BELOW the speech gate, so the walk follows the decay itself
+    instead of the gate crossing. `stop_at` keeps it out of the neighbouring
+    speech run or the clause edge.
+
+    The walk has no travel cap (2026-10-05). It used to stop after 0.10s at a
+    word's start and 0.37s at its end, against a threshold 6dB over the take's
+    floor that sat at -46..-53dB. A softly spoken word next to a pause sat
+    under that threshold or past that cap, so "If" lost its start ("If this was
+    helpful"), "from" its end ("shout out from?", "who to buy fr-"), and the same
+    batch had silently shipped "customer list" as "customers" and "the people to
+    do it" as "the people". At -55dB the walk ends where the sound does: across
+    all 333 edges of that batch an uncapped walk went past 0.37s six times, each
+    time still inside soft speech ("list", "to do it", "so be careful", "it's
+    the"), never a breath or room tone.
 
     `gap_tol` is what makes this work on the words that actually broke. A stop
     consonant is a SILENT CLOSURE followed by a release burst, so "landlord",
@@ -120,8 +143,7 @@ def audible_edge(dbs, t, direction, thr, max_travel, stop_at=None, gap_tol=C["ed
     at the first sub-threshold sample stops inside the closure and still clips
     the release, which is why the first pass at this fix moved nothing on the
     CBRE joins. Bridging up to ~90ms of silence (a typical closure) reaches the
-    burst. It cannot run into the next word: runs are already merged at
-    --min-gap 0.55s, so the nearest speech is further away than max_travel.
+    burst.
     """
     n=len(dbs)
     if n==0: return t
@@ -130,7 +152,7 @@ def audible_edge(dbs, t, direction, thr, max_travel, stop_at=None, gap_tol=C["ed
     limit=None if stop_at is None else int(round(stop_at/HOP))
     tol=max(1,int(gap_tol/HOP))
     last_good=j; quiet=0; k=j
-    for _ in range(max(0,int(max_travel/HOP))):
+    while True:
         k+=direction
         if k<0 or k>=n: break
         if limit is not None and ((direction>0 and k>=limit) or (direction<0 and k<=limit)):
@@ -166,14 +188,17 @@ def speech_in(sil, cs, ce):
     if cur<ce: sp.append((cur,ce))
     return sp
 
-def main():
+def parse_args(argv=None):
     ap=argparse.ArgumentParser()
     ap.add_argument("--clauses",required=True)
     ap.add_argument("--workdir",default=".yap_build")
     ap.add_argument("--out",required=True)
     ap.add_argument("--silence-db",type=float,default=C["silence_db"])
-    ap.add_argument("--padl",type=float,default=C["pad_left_s"])
-    ap.add_argument("--padr",type=float,default=C["pad_right_s"])
+    ap.add_argument("--padl",type=float,default=C["pad_left_s"],
+        help="lead-in kept before a keep_whole clause (or one with no speech), and "
+             "the furthest the first word may reach back after --head-trim")
+    ap.add_argument("--padr",type=float,default=C["pad_right_s"],
+        help="the least kept after a run's gate crossing, under the measured tail")
     ap.add_argument("--min-gap",type=float,default=C["min_gap_s"])
     ap.add_argument("--min-seg",type=float,default=C["min_seg_s"])
     ap.add_argument("--bridge-max",type=float,default=C["bridge_max_s"])
@@ -194,14 +219,14 @@ def main():
              "genuinely quick start; needs the floor (implies auto-floor's estimate).")
     ap.add_argument("--head-margin",type=float,default=C["head_trim"]["margin_db"],
         help="dB above the measured floor that counts as confident speech for --head-trim")
+    ap.add_argument("--word-db",type=float,default=C["edge"]["word_db"],
+        help="a boundary moves out from the gate crossing until the sound falls "
+             "below this level: a soft word next to a pause sits between it and "
+             "the gate, and a word's own decay ends under it.")
     ap.add_argument("--edge-margin",type=float,default=C["edge"]["margin_db"],
-        help="dB above the measured floor that still counts as AUDIBLE when "
-             "placing a boundary. Sits well below the speech gate on purpose: it "
-             "tracks a word's decay, not the gate crossing, so a tail ending in "
-             "an unvoiced stop or nasal is not cut off mid-phoneme.")
-    ap.add_argument("--tail-extra",type=float,default=C["edge"]["tail_extra_s"],
-        help="how far past --padr the decay search may travel to find a word's "
-             "real end (cap; it also stops at the next speech run)")
+        help="on a noisy take, the boundary level sits this many dB over the room "
+             "tone of the take's pauses when that is above --word-db, so the walk "
+             "never follows room tone across a pause.")
     ap.add_argument("--grade",default="",
         help="ffmpeg filter string applied INSIDE the segment pass, e.g. "
              "'eq=brightness=0.05:contrast=1.1:saturation=1.06'. Use this rather "
@@ -212,29 +237,23 @@ def main():
         help="silence kept outside a measured boundary. Small on purpose: the "
              "onset is measured, so the old fixed 0.10s lead-in was audible as "
              "the next word coming in late at every join.")
-    a=ap.parse_args()
+    return ap.parse_args(argv)
 
-    wd=a.workdir; os.makedirs(f"{wd}/audio",exist_ok=True)
-    outbase=os.path.splitext(os.path.basename(a.out))[0]   # parallel-safe scratch
-    segdir=f"{wd}/segs_{outbase}"; os.makedirs(segdir,exist_ok=True)
-    clauses=json.load(open(a.clauses))
-    srcs={c["src"] for c in clauses}
-
-    SIL={}; FLOOR={}; WAVP={}; ENV={}
-    for src in srcs:
-        wav=f"{wd}/audio/{os.path.splitext(os.path.basename(src))[0]}.wav"
-        if not os.path.exists(wav):
-            subprocess.run(["ffmpeg","-nostdin","-y","-i",src,"-ar","16000","-ac","1",
-                wav,"-hide_banner","-loglevel","error"],check=True)
-        WAVP[src]=wav
-        ENV[src]=envelope(wav)
-        fl=estimate_floor(ENV[src])
+def plan(clauses, ENV, a):
+    """The cut points, [(src, a, b, gain_db)], from the clause plan and each source's
+    envelope (ENV: {src: envelope()}). No ffmpeg and no files, so
+    tests/editor_units.py runs it on a synthetic take."""
+    SIL={}; FLOOR={}; EDGE={}
+    for src,env in ENV.items():
+        fl=estimate_floor(env)
         FLOOR[src]=fl
         thr=a.silence_db
         if a.auto_floor:
             thr=min(C["floor"]["ceiling_db"], max(a.silence_db, fl+a.floor_margin))   # never below default, capped so it can't eat speech
             print(f"auto-floor: {os.path.basename(src)} floor ~{fl:.1f}dB -> silence gate {thr:.1f}dB")
-        SIL[src]=silences(ENV[src],thr,a.d)
+        SIL[src]=silences(env,thr,a.d)
+        room=room_tone(env,SIL[src])
+        EDGE[src]=a.word_db if room is None else max(a.word_db, room+a.edge_margin)
 
     keeps=[]   # (src, a, b, gain_db)
     for ci,c in enumerate(clauses):
@@ -254,12 +273,13 @@ def main():
         runs.append((s0,e0))
         # head-trim: on the very first clause, drop a settling/room-tone lead-in
         # that sits above the silence gate but before the first real word.
-        if a.head_trim and ci==0 and runs and FLOOR.get(src) is not None:
+        lo=cs   # how far back the first run's start may be measured
+        if a.head_trim and ci==0 and runs:
             onset=head_onset(ENV[src], runs[0][0], runs[0][1], FLOOR[src]+a.head_margin)
             drop=onset-runs[0][0]
             if C["head_trim"]["min_drop_s"]<drop<C["head_trim"]["max_drop_s"]:
                 print(f"head-trim: dropped {drop:.2f}s settling lead-in before first word")
-                runs[0]=(onset,runs[0][1])
+                runs[0]=(onset,runs[0][1]); lo=onset-a.padl   # the lead-in is above the gate: never walk back into it
         # bridge glitch-length runs into the nearer neighbour (gap kept):
         # a < min-seg segment between two jump cuts reads as a flash frame.
         changed=True
@@ -283,22 +303,23 @@ def main():
         #    "them", "it", "entertainment", "headcount");
         #  - crisp onsets don't need padl at all, and pasting a fixed 0.10s of
         #    room tone in front of every run is the late-sounding next word.
-        # So: measure each edge against a threshold near the floor, and keep the
-        # pads as CAPS on how far that search may travel. e+padr stays a floor on
-        # the tail, so this can never trim tighter than the old behaviour did.
-        env=ENV[src]; fl=FLOOR.get(src)
-        edge_thr=(fl+a.edge_margin) if fl is not None else (a.silence_db-6.0)
+        # So: measure each edge, walking out until the sound falls below the edge
+        # level (2026-10-05: --word-db, not the take's floor + 6dB, which sat in
+        # the decay of words), bounded only by the neighbouring run and the clause
+        # edges. e+padr stays a floor on the tail, so this can never trim tighter
+        # than the old behaviour did. A start never walks back past the previous
+        # run's measured end: when sound fills a whole pause the two keeps meet and
+        # merge below, where two uncapped walks would cross and play it twice.
+        env=ENV[src]; thr=EDGE[src]; back=lo
         for i,(s,e) in enumerate(runs):
-            prev_end=runs[i-1][1] if i>0 else None
-            next_start=runs[i+1][0] if i<len(runs)-1 else None
-            onset=audible_edge(env,s,-1,edge_thr,a.padl,stop_at=prev_end)
+            last=(i==len(runs)-1)
+            onset=audible_edge(env,s,-1,thr,stop_at=back)
             A=max(cs, onset-a.lead)
-            last = (i==len(runs)-1)
             if last and protect:
                 B=ce                          # keep quiet trailing word
             else:
-                tail=audible_edge(env,e,+1,edge_thr,a.padr+a.tail_extra,stop_at=next_start)
-                B=min(ce, max(e+a.padr, tail+a.lead))
+                back=audible_edge(env,e,+1,thr,stop_at=ce if last else runs[i+1][0])
+                B=min(ce, max(e+a.padr, back+a.lead))
             keeps.append((src,A,B,g))
     # a cut that removes < min-cut is not worth its visual jump: merge that
     # join away (the tiny gap stays). Forward-adjacent only (prevB-A <= 1.0),
@@ -310,7 +331,22 @@ def main():
             if B>merged[-1][2]: merged[-1]=(src,merged[-1][1],B,g)
             continue
         merged.append((src,A,B,g))
-    keeps=[(s,A,B,g) for s,A,B,g in merged if B-A>=a.min_keep]
+    return [(s,A,B,g) for s,A,B,g in merged if B-A>=a.min_keep]
+
+def main():
+    a=parse_args()
+    wd=a.workdir; os.makedirs(f"{wd}/audio",exist_ok=True)
+    outbase=os.path.splitext(os.path.basename(a.out))[0]   # parallel-safe scratch
+    segdir=f"{wd}/segs_{outbase}"; os.makedirs(segdir,exist_ok=True)
+    clauses=json.load(open(a.clauses))
+    ENV={}
+    for src in {c["src"] for c in clauses}:
+        wav=f"{wd}/audio/{os.path.splitext(os.path.basename(src))[0]}.wav"
+        if not os.path.exists(wav):
+            subprocess.run(["ffmpeg","-nostdin","-y","-i",src,"-ar","16000","-ac","1",
+                wav,"-hide_banner","-loglevel","error"],check=True)
+        ENV[src]=envelope(wav)
+    keeps=plan(clauses,ENV,a)
     with open(f"{wd}/keeps_{outbase}.json","w") as f:   # QA: real cut points
         json.dump([{"src":s,"a":round(A,3),"b":round(B,3)} for s,A,B,g in keeps],f,indent=1)
 

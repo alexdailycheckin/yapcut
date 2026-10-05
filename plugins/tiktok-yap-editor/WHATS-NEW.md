@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.3: soft words stay in the cut
+
+**What's new.** The cutter keeps a softly spoken word next to a pause, like a quiet "If" before
+a line or a fading "from" at the end of one, instead of cutting it as silence. Cuts come out a
+fraction of a second longer.
+
+**To get it.** Nothing to do. A video already cut keeps its old cut until you run yapfull on it
+again.
+
 ## 3.7.2: logo chips show the real logo
 
 **What's new.** `logo_fetch.py --page` reads the logo the Wikipedia article itself shows, so a

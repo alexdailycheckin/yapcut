@@ -235,6 +235,57 @@ check(logo_fetch.pick_logo_file("ChatGPT") == "File:OpenAI logo 2025 (symbol).sv
 check(logo_fetch.pick_logo_file("Acme") == "File:Acme logo 2020.svg",
       "with no infobox logo the guess skips Wikipedia's icons and prefers a logo file")
 
+# --- cutter (3.7.3): a soft word at the edge of a pause is a word, not silence ----------------
+# 2026-10-05: inside protect_tail rows the pause trim cut "If" off "If this was helpful", "from"
+# off "shout out from?" and the "m" off "who to buy from". Each soft word sat between the -42dB
+# gate and -55dB. A synthetic take: a loud word trailing into a soft one, a 1.5s pause on a
+# gated mic's -75dB floor, then a soft word leading into a loud one.
+import math, random, wave  # noqa: E402
+import yapcut  # noqa: E402
+
+
+def take(path, parts, seed=7):
+    """parts: (seconds, dB RMS, "voice" | "room"). A voice is a 140Hz harmonic stack, a room is noise."""
+    rng, out, n = random.Random(seed), [], 0
+    for dur, db, kind in parts:
+        amp = 32768 * 10 ** (db / 20)
+        for _ in range(int(dur * 16000)):
+            t = n / 16000; n += 1
+            if kind == "voice":
+                out.append(amp / 0.8803 * sum(math.sin(2 * math.pi * 140 * k * t) / k for k in range(1, 11)))
+            else:
+                out.append(rng.gauss(0, amp))
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
+        w.writeframes(b"".join(int(max(-32768, min(32767, round(x)))).to_bytes(2, "little", signed=True) for x in out))
+
+
+def cut(path, end):
+    a = yapcut.parse_args(["--clauses", "-", "--out", "unit.mp4"])
+    with contextlib.redirect_stdout(io.StringIO()):
+        return [(A, B) for _, A, B, _ in yapcut.plan([{"src": path, "start": 0.0, "end": end, "protect_tail": True}],
+                                                     {path: yapcut.envelope(path)}, a)]
+
+
+with tempfile.TemporaryDirectory() as t:
+    p = os.path.join(t, "soft.wav")
+    take(p, [(0.3, -75, "room"), (0.6, -26, "voice"), (0.3, -48, "voice"), (1.5, -75, "room"),
+             (0.2, -50, "voice"), (0.6, -26, "voice"), (0.3, -75, "room")])
+    k = cut(p, 3.8)
+    check(len(k) == 2 and k[0][1] >= 1.2, f"a soft word after a loud one, before a pause, is kept to its end: {k}")
+    check(len(k) == 2 and k[1][0] <= 2.7, f"a soft word after a pause, before a loud one, is kept from its start: {k}")
+    check(len(k) == 2 and k[1][0] - k[0][1] >= 1.2, f"the pause between them is still cut: {k}")
+    p = os.path.join(t, "noisy.wav")
+    take(p, [(0.3, -47, "room"), (0.6, -26, "voice"), (1.5, -47, "room"), (0.6, -26, "voice"), (0.3, -47, "room")])
+    k = cut(p, 3.3)
+    check(len(k) == 2 and k[1][0] - k[0][1] >= 1.0,
+          f"room tone above -55dB is not a word: a noisy take's pause is still cut: {k}")
+    p = os.path.join(t, "mumble.wav")
+    take(p, [(0.3, -75, "room"), (0.6, -26, "voice"), (1.2, -50, "voice"), (0.6, -26, "voice"), (0.3, -75, "room")])
+    k = cut(p, 3.0)
+    check(len(k) == 1 and k[0][0] <= 0.3 and k[0][1] >= 2.7,
+          f"a soft voice filling a whole pause is kept once, never as two keeps that overlap: {k}")
+
 
 if fails:
     print(f"{len(fails)} failure(s)")

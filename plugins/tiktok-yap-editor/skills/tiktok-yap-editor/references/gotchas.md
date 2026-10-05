@@ -86,13 +86,15 @@ are failures that actually happened and cost real time; each fix is proven.
   sit around -19 to -25 dB, use `--silence-db -19` (the default). If trimming
   does nothing, the threshold is too low (too negative); raise it toward -16. If
   it eats real words, lower it.
-- **Quiet words overlap pause energy.** A softly-spoken word (a trailing
-  "period", a fading "time") can measure quieter than the ambient pauses around
-  it, so any energy threshold will mistake it for silence and clip it. Two
-  defenses, both in `cut.py`: the last speech run of every clause is force-
-  extended to the clause end, and clauses with no detected speech are kept
-  whole. If a specific quiet word still gets clipped, give it its own narrow
-  clause in `clauses.json`.
+- **Quiet words overlap pause energy.** A softly spoken word (a fading "from"
+  at the end of a line, a quiet "If" before a loud one) sits under the speech
+  gate, so the gate alone calls it silence. Since 3.7.3 `yapcut.py` walks every
+  boundary out from the gate crossing until the sound falls below -55 dB
+  (`cut.edge.word_db`), so a soft word next to a pause stays in the cut.
+  `protect_tail` still keeps a clause's last tail up to the clause end, and a
+  clause with no detected speech is kept whole. A word quieter than -55 dB, or
+  one parted from its line by more than ~90 ms of silence, can still be cut:
+  give it its own narrow clause in `clauses.json`.
 - **Diagnosing a specific word.** When unsure where a word actually is, scan RMS
   in small windows rather than trusting whisper:
   ```bash
