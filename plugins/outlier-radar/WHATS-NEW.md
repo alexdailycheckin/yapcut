@@ -4,6 +4,17 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.19.0: a Five days tab
+
+**What's new.** The week can carry five short posts on top of the episodes, one per weekday, each
+in its own format: Spicy, Deep Dive, Quick Win, Proof and Fun. They have their own tab on the
+dashboard and their own section in the filming pack. A script that ends with an ask ("comment
+GUIDE and I'll send it to you") shows it, so you don't forget to say it. On your phone the five
+days sit at the end of the viral videos for now.
+
+**To get it.** Set `quantity.days` to 5 in `radar-config.json` if you want the weekly run to write
+them. Nothing else to do.
+
 ## 3.18.2: every episode starts with the story in one line
 
 **What's new.** Each episode now carries the story in one line: what happened, then what happened,

@@ -2,6 +2,18 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.19.0 (outlier-radar)
+
+**The five-day posts get their own lane and tab.** A creator asked for a weekly set of five
+posts on top of the episodes, one per weekday, each in a fixed format: a spicy take, a deep dive
+("is it possible to get X without Y?"), a quick win, a client proof story and a fun quiz. The week
+file now carries `days[]` (ids `w-<date>-<n>`, `script_class: day`, with `day`, `post_day` and
+`cta`). The dashboard has a Five days tab. The filming pack prints a Five days section. Any item
+with a `cta` (the ask at the end, such as "comment GUIDE and I'll send it to you") prints it
+before the opinion slot, explainers included. No Anima build reads the lane yet, so
+`anima_link.phone_week()` appends the five-day posts to the secondary lane on the phone, titled
+with their day. `tests/run.sh` stage 2 pins the pack section, the schema and the phone handoff.
+
 ## What's new in 3.18.2 (outlier-radar)
 
 **Every episode starts from the story in one line.** A creator read a batch that passed every gate

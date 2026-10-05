@@ -122,6 +122,27 @@ STORY
 YAPCUT_HOME="$WS" python3 "$RADAR/build_pack.py" --week "$WS/weeks/0000-00-00-story.json" --out /tmp/yapcut-story-pack.md >/dev/null 2>&1
 grep -q "The story in one line:\*\* zzq happened" /tmp/yapcut-story-pack.md && ok "story_line prints above the script in the pack" || bad "story_line missing from the pack"
 rm -f "$WS/weeks/0000-00-00-story.json" /tmp/yapcut-story-pack.md
+# the five-day lane (3.19.0): days[] renders as its own pack section with its ask, passes the
+# schema, and reaches the phone inside the secondary lane until Anima reads the lane itself.
+python3 - "$WS" <<'DAYS'
+import json, sys, os
+ws = sys.argv[1]; d = json.load(open(os.path.join(ws, "weeks", "0000-00-00-example.json")))
+d["days"] = [{"id": "w-00000000-1", "lane": "days", "script_class": "day", "qa": "pending-approval",
+              "day": "Spicy", "post_day": "Monday", "title": "zzq spicy post", "text_hook": "zzq hook",
+              "spoken_hook": "zzq opens here.", "script": "zzq says the rest.", "cta": "Comment zzq."}]
+json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-days.json"), "w"))
+DAYS
+YAPCUT_HOME="$WS" python3 "$RADAR/build_pack.py" --week "$WS/weeks/0000-00-00-days.json" --out /tmp/yapcut-days-pack.md >/dev/null 2>&1
+grep -q "^## Five days" /tmp/yapcut-days-pack.md && grep -q "Ask at the end:\*\* Comment zzq." /tmp/yapcut-days-pack.md && ok "days[] renders in the pack with its ask" || bad "days[] missing from the pack"
+python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-days.json" --schema-only >/tmp/yapcut-days-fid.log 2>&1
+[ $? -le 1 ] && ok "days[] passes the schema" || { bad "days[] fails the schema"; tail -5 /tmp/yapcut-days-fid.log; }
+python3 - "$RADAR" "$WS" <<'FOLD' && ok "the phone gets days[] inside its secondary lane" || bad "days[] did not reach the phone"
+import json, sys, os
+sys.path.insert(0, sys.argv[1]); import anima_link
+d = json.loads(anima_link.phone_week(os.path.join(sys.argv[2], "weeks", "0000-00-00-days.json"), sys.argv[2]))
+assert any(i.get("id") == "w-00000000-1" and i.get("title", "").startswith("Five days: Spicy") for i in d["office"]), d.get("office")
+FOLD
+rm -f "$WS/weeks/0000-00-00-days.json" /tmp/yapcut-days-pack.md
 # no workspace: exit 2, never the skill folder
 ( cd /tmp && env -u YAPCUT_HOME -u OUTLIER_RADAR_HOME -u LEAD_MAGNET_HOME HOME=/tmp/yapcut-nohome python3 "$RADAR/yapcut_home.py" >/dev/null 2>&1 ); [ $? = 2 ] && ok "no workspace exits 2" || bad "no workspace did not exit 2"
 

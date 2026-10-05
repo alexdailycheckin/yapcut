@@ -140,8 +140,15 @@ def phone_week(path, ws=None):
         return raw
     notice = older_app_notice(d)
     takes = any(rules.opinion_ideas(i) for lane in rules.video_lanes() for i in d.get(lane) or [])
-    if not notice and not takes:
+    days = [i for i in d.get("days") or [] if isinstance(i, dict)]
+    if not notice and not takes and not days:
         return raw
+    if days:
+        # No Anima build reads the five-day lane yet (3.19.0), so the phone gets those posts at the
+        # end of the secondary lane, titled with their day, where every build shows a script.
+        office = d.get("office") if isinstance(d.get("office"), list) else []
+        d["office"] = office + [dict(i, title=f"Five days: {i.get('day') or ''} · {i.get('title') or ''}".strip())
+                                for i in days]
     if takes:
         try:
             cfg = json.loads((pathlib.Path(ws or os.path.dirname(os.path.dirname(path))) / "radar-config.json").read_text())

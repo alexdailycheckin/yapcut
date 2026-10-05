@@ -53,7 +53,7 @@ TPL_DIR = os.path.join(HERE, "dashboard")
 # (method, coined_term, signals, food).
 WEEK_KEYS = {
     "schema_version", "week", "positioning", "supersedes",
-    "distribution", "office", "explainers", "moments", "linkedin", "gtm_linkedin",
+    "distribution", "office", "explainers", "moments", "days", "linkedin", "gtm_linkedin",
     "inspiration", "experiment", "ammo", "promised",
 }
 

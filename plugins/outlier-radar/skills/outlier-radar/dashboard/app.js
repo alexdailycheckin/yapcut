@@ -91,7 +91,7 @@ function toggleTheme(){ applyTheme(document.documentElement.getAttribute("data-t
 function officeOf(w){ return (w.office&&w.office.length)?w.office:(w.food||[]); }
 /* Every video item in the week, in lane order: the show, the secondary lane, explainers and
    moments (3.17.0). Everything that counts, finds or exports videos reads this one list. */
-function videosOf(w){ return [].concat(w.distribution||[], officeOf(w), w.explainers||[], w.moments||[]); }
+function videosOf(w){ return [].concat(w.distribution||[], officeOf(w), w.explainers||[], w.moments||[], w.days||[]); }
 /* Three sources feed the LinkedIn tab and they are not interchangeable.
    soloPosts  = linkedin[], written for the feed alone, no video behind them.
    leaderPosts= gtm_linkedin[], mined from the leaders the creator studies.
@@ -115,6 +115,7 @@ function updateTabCounts(w){
   set("office", poolCount(office));
   set("explainers", poolCount(w.explainers));
   set("moments", poolCount(w.moments));
+  set("days", poolCount(w.days));
   set("filmed", all.filter(x=>["filmed","posted"].includes(t(x.id).status)).length);
   set("linkedin", liveTwinsOf(w).length + soloPostsOf(w).length + leaderPostsOf(w).length);
   set("insp", (w.inspiration||[]).length);
@@ -200,7 +201,7 @@ async function exportPerformance(){
   };
   const weeksOut = WEEKS.map(w=>{
     const office=officeOf(w);
-    const second=[].concat(office, w.moments||[]);
+    const second=[].concat(office, w.moments||[], w.days||[]);
     const vids=videosOf(w).map(x=>row(x, second.includes(x)?"secondary":"primary"));
     const twins=(w.distribution||[]).filter(x=>x.linkedin&&x.linkedin.id).map(x=>x.linkedin);
     const posts=[].concat(w.linkedin||[], leaderPostsOf(w), twins).map(x=>row(x,"linkedin"));
@@ -943,7 +944,7 @@ function render(){
   statsBar();
   updateTabCounts(w);
   const showIgn = document.getElementById("showIgnored") && document.getElementById("showIgnored").checked;
-  document.getElementById("ignrow").style.display = ["dist","office","explainers","moments"].includes(TAB)?"block":"none";
+  document.getElementById("ignrow").style.display = ["dist","office","explainers","moments","days"].includes(TAB)?"block":"none";
   const pool = arr => showIgn
     ? arr.filter(x=>t(x.id).status==="ignored")
     : arr.filter(x=>{const s=t(x.id).status; return s!=="ignored"&&s!=="filmed"&&s!=="posted";});
@@ -956,6 +957,7 @@ function render(){
   }
   else if(TAB==="office"){ html=pool(office).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored scripts.":"Nothing left to film in this lane. Everything is filmed, posted, or ignored."; }
   else if(TAB==="explainers"){ html=pool(w.explainers||[]).map((x,i)=>scriptCard(x,false,i)).join(""); empty=showIgn?"No ignored explainers.":"No explainer to film this week."; }
+  else if(TAB==="days"){ html=pool(w.days||[]).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored posts.":"No five-day posts this week."; }
   else if(TAB==="moments"){ html=pool(w.moments||[]).map((x,i)=>scriptCard(x,true,i)).join(""); empty=showIgn?"No ignored moments.":"No day-in-the-life or break clips this week."; }
   else if(TAB==="filmed"){ const items=videosOf(w).filter(x=>["filmed","posted"].includes(t(x.id).status)); html=items.map((x,i)=>scriptCard(x, office.includes(x), i)).join(""); empty="Nothing filmed yet. Mark a script Filmed and it lands here for metric tracking."; }
   else if(TAB==="linkedin"){

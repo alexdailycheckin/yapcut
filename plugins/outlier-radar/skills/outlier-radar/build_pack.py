@@ -43,6 +43,12 @@ def load_cfg(home):
         return {}
 
 
+def cta_lines(it):
+    """The ask at the end of a script, when it has one: what to comment, and what he sends back."""
+    cta = it.get("cta")
+    return [f"**Ask at the end:** {cta.strip()}", ""] if isinstance(cta, str) and cta.strip() else []
+
+
 def opinion_lines(it, cfg):
     """The opinion slot (3.17.0): the script reports, the creator's own take closes it, said off
     the cuff. The ideas are prompts to riff on, never lines to read, and the slot is optional:
@@ -97,12 +103,18 @@ def episode_block(it, wps, ceiling, cfg=None):
              f"_{n} words, about {n / wps:.0f} seconds.{over}_"]
     if it.get("text_hook"):
         lines.append(f"_On screen: {it['text_hook']}_")
+    if it.get("day"):
+        when = f", {it['post_day']}" if it.get("post_day") else ""
+        lines.append(f"_Day: {it['day']}{when}_")
     if it.get("story_line"):
         # The creator's gate (2026-10-05): the story in one line, what happened and why it
         # matters. It sits above the script so the read starts from the point, not the receipts.
         lines += ["", f"**The story in one line:** {it['story_line'].strip()}"]
     lines += ["", "**Open on (frame one, flat):**", f"> {(it.get('spoken_hook') or '').strip()}", "",
               (it.get("script") or "").strip(), ""]
+    cta = it.get("cta")
+    if isinstance(cta, str) and cta.strip():
+        lines += [f"**Ask at the end:** {cta.strip()}", ""]
     lines += opinion_lines(it, cfg)
     pb = it.get("pov_beat")
     if isinstance(pb, dict) and pb.get("beat"):
@@ -170,7 +182,7 @@ def explainer_block(it, wps, cfg):
         lines.append(f"_Explained for: {g['who_its_for']}_")
     lines += ["", "**Open on:**", f"> {(it.get('spoken_hook') or '').strip()}", "",
               (it.get("script") or "").strip(), ""]
-    lines += opinion_lines(it, cfg)
+    lines += cta_lines(it) + opinion_lines(it, cfg)
     lines += guide_lines(g)
     if it.get("directions"):
         lines += ["**Directions:**", it["directions"].strip(), ""]
@@ -243,15 +255,17 @@ def render(d, home):
     week = d.get("week") or ""
     lane_of = lambda k: [it for it in d.get(k) or [] if isinstance(it, dict)]
     dist, office = lane_of("distribution"), lane_of("office")
-    explainers, moments = lane_of("explainers"), lane_of("moments")
+    explainers, moments, days = lane_of("explainers"), lane_of("moments"), lane_of("days")
     lane = [p for p in d.get("linkedin") or [] if isinstance(p, dict)]
     eps = [it.get("episode") for it in dist if it.get("episode")]
     out = [f"# Filming pack, {week}", "",
            f"_Rendered by build_pack.py from weeks/{week}.json. Edit the week file, then re-render; "
            f"never edit this file by hand._", ""]
     extra = ""
-    if explainers or moments:
+    if explainers or moments or days:
         extra = f", {len(explainers)} explainer(s), {len(moments)} moment piece(s)"
+        if days:
+            extra += f", {len(days)} five-day post(s)"
     if eps:
         out.append(f"Ep{min(eps)} to Ep{max(eps)}, plus {len(office)} secondary-lane script(s){extra} "
                    f"and {len(lane)} standalone post(s).")
@@ -267,6 +281,10 @@ def render(d, home):
         out += [explainer_block(it, wps, cfg), "---", ""]
     for it in moments:
         out += [moment_block(it), "---", ""]
+    if days:
+        out += ["## Five days", "", "_One post a weekday, each in its own format. Record them with the episodes._", ""]
+        for it in days:
+            out += [episode_block(it, wps, ceiling, cfg), "---", ""]
     twins = [(it.get("linkedin"), it) for it in dist if isinstance(it.get("linkedin"), dict)]
     if twins or lane:
         out += ["## LinkedIn", ""]
