@@ -55,9 +55,10 @@
     ]
   },
   "script": {
-    "_about": "check_fidelity.py length: spoken_hook plus script, split on whitespace. radar-config.json show.word_ceiling and show.words_per_second override per creator.",
+    "_about": "check_fidelity.py length: spoken_hook plus script, split on whitespace. radar-config.json show.word_ceiling and show.words_per_second override per creator. max_news_age_days: a research item's `news_date` (the day the thing happened, not the day an article ran) may be at most this many days before the week; radar-config show.max_news_age_days overrides.",
     "word_ceiling": 189,
-    "words_per_second": 2.9
+    "words_per_second": 2.9,
+    "max_news_age_days": 14
   },
   "text_hook": {
     "_about": "hook_lint.py: the burned line a muted viewer reads in one fixation.",
@@ -214,8 +215,8 @@
     "language": "`references/the-language-layer.md` sets the sentences: money word last, source attributed before the claim, no mid-sentence clauses, \"you\" outnumbering \"I\", contractions always, the spoken filler kept at the monologue rate and attached to a fact.",
     "five_moves": [
       {
-        "move": "The receipt",
-        "does": "The number or artifact on screen in frame one, spoken flat"
+        "move": "The contradiction",
+        "does": "The one true fact that sounds wrong, said first; the receipt is on screen, no date or source in the voice"
       },
       {
         "move": "The belief",

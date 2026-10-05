@@ -81,6 +81,21 @@ if [ "$rc" = 2 ] && grep -q "ORDER TEST" /tmp/yapcut-order.log; then ok "belief 
 python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-para.json" --schema-only >/dev/null 2>&1
 [ $? = 2 ] && ok "paraphrased belief exits 2" || bad "paraphrased belief did not exit 2"
 rm -f "$WS/weeks/0000-00-00-late.json" "$WS/weeks/0000-00-00-para.json"
+# old news (3.17.1): a story whose news_date sits past show.max_news_age_days must be rc 2,
+# and the same story inside the window must pass. A fresh article about an old event is old.
+python3 - "$WS" <<'OLD'
+import json, sys, os
+ws = sys.argv[1]; d = json.load(open(os.path.join(ws, "weeks", "0000-00-00-example.json")))
+d["week"] = "2026-01-05"; it = d["distribution"][0]
+it["news_date"] = "2025-12-10"; json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-old.json"), "w"))
+it["news_date"] = "2026-01-02"; json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-fresh.json"), "w"))
+OLD
+python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-old.json" --schema-only >/tmp/yapcut-old.log 2>&1
+rc=$?
+if [ "$rc" = 2 ] && grep -q "Old news" /tmp/yapcut-old.log; then ok "old news exits 2"; else bad "old news did not fail (rc $rc)"; fi
+python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-fresh.json" --schema-only >/tmp/yapcut-fresh.log 2>&1
+grep -q "Old news" /tmp/yapcut-fresh.log && bad "fresh news flagged as old" || ok "fresh news passes the age check"
+rm -f "$WS/weeks/0000-00-00-old.json" "$WS/weeks/0000-00-00-fresh.json"
 # no workspace: exit 2, never the skill folder
 ( cd /tmp && env -u YAPCUT_HOME -u OUTLIER_RADAR_HOME -u LEAD_MAGNET_HOME HOME=/tmp/yapcut-nohome python3 "$RADAR/yapcut_home.py" >/dev/null 2>&1 ); [ $? = 2 ] && ok "no workspace exits 2" || bad "no workspace did not exit 2"
 

@@ -103,11 +103,15 @@ When `show.enabled` is true the primary lane becomes THE SHOW under the creator'
 
 | # | Move | What it does |
 |---|---|---|
-| 1 | The receipt | The number or artifact on screen in frame one, spoken flat |
+| 1 | The contradiction | The one true fact that sounds wrong, said first; the receipt is on screen, no date or source in the voice |
 | 2 | The belief | What the viewer already believes about this, in their words, as if it were true |
 | 3 | The break | The receipts that make the belief untenable, but/therefore chained |
 | 4 | The mechanism | Why it happened, arriving as the consequence of move 3, never announced |
 | 5 | The landing, then the opinion slot | The story lands in one line, money word last; then `[NAME'S OPINION, IF ANY]`, the creator's own take said off the cuff, with two or three `opinion.ideas` as prompts |
+
+**The first line is a hook, not a citation.** A first line that opens on a publication and a date ("X reported on September 29th that...") is a newspaper lede: it spends the opening seconds on a source and a date nobody asked for, and a date also makes the story sound old. Open on the true fact that sounds wrong; the receipt card carries the date and the source.
+
+**Fresh means the event, not the article.** Every research item carries `news_date`, the day the thing happened. The gate fails one older than `show.max_news_age_days` (default 14) before the week. A new interview about an old raise is still the old raise.
 
 **The order test.** A belief stated after the receipts is a summary of them; the same belief stated before them turns the identical receipts into a demolition. `belief` is a required field on research items, copied verbatim from the script, and the gate fails a belief that sits after half the numbers. If the sentence naming what the viewer believes does not exist, the episode has no argument and goes back.
 

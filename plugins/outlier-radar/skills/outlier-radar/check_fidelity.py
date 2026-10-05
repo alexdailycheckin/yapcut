@@ -42,6 +42,7 @@ Usage:
   python3 check_fidelity.py --week ... --dir <workspace> [--cadence] [--strict-cadence] [--allow-unvalidated]
 """
 
+import datetime
 import json
 import os
 import pathlib
@@ -805,6 +806,39 @@ def check_length(it, where, fails, warns):
                      f"removing words rather than writing different ones")
 
 
+def _max_news_age():
+    """Days a research item's news_date may sit before the week: radar-config show.max_news_age_days,
+    else the rulebook default."""
+    lim = rules.get("script.max_news_age_days")
+    if RADAR:
+        try:
+            show = json.loads((pathlib.Path(RADAR) / "radar-config.json").read_text()).get("show") or {}
+            lim = int(show.get("max_news_age_days") or lim)
+        except (OSError, ValueError, TypeError):
+            pass
+    return lim
+
+
+def check_freshness(it, where, week, fails, warns):
+    """Old news (3.17.1). On 2026-10-04 a September 10th raise rode into an October batch on a
+    fresh interview about it, under a wildcard rule that allowed older pegs, and the creator
+    called the batch "very, very old". The age is the event's, never the article's."""
+    nd = it.get("news_date")
+    if not nd:
+        warns.append(f"{where}: no news_date, so nothing can say how old the story is")
+        return
+    try:
+        wk = datetime.date.fromisoformat(str(week).split()[0][:10])
+        age = (wk - datetime.date.fromisoformat(str(nd)[:10])).days
+    except ValueError:
+        warns.append(f"{where}: news_date {nd!r} or week {week!r} is not YYYY-MM-DD")
+        return
+    lim = _max_news_age()
+    if age > lim:
+        fails.append(f"{where}: the story happened {age} days before the week ({nd}), past the {lim}-day "
+                     f"limit. Old news: replace it with something from the last {lim} days")
+
+
 def _mentions(text, name):
     """Case-insensitive mention of a name as a whole token: 'G2', 'HubSpot', 'Oura'."""
     if not name:
@@ -835,7 +869,7 @@ def check_subject(it, where, fails, warns):
                      f"another story. Write it fresh or cut it")
 
 
-def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
+def _check_video_item(it, where, fails, warns, proof_counts, proof_missing, week=None):
     if not isinstance(it, dict):
         fails.append(f"{where}: item is not an object")
         return
@@ -849,6 +883,8 @@ def _check_video_item(it, where, fails, warns, proof_counts, proof_missing):
         check_belief_order(it, where, fails, warns)
         check_length(it, where, fails, warns)
         check_subject(it, where, fails, warns)
+        if week:
+            check_freshness(it, where, week, fails, warns)
     qa = it.get("qa")
     if qa is None:
         warns.append(f"{where}: no qa value")
@@ -932,7 +968,7 @@ def schema_check(d, path):
     for lane in VIDEO_LANES:
         for i, it in enumerate(d.get(lane) or []):
             where = f"{lane}[{i}]"
-            _check_video_item(it, where, fails, warns, proof_counts, proof_missing)
+            _check_video_item(it, where, fails, warns, proof_counts, proof_missing, d.get("week"))
             _collect_ids(it, where)
             if isinstance(it, dict) and isinstance(it.get("linkedin"), dict):
                 _collect_ids(it["linkedin"], where + ".linkedin")

@@ -4,6 +4,20 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.17.1: fresh news only, and a first line that hooks
+
+**What's new.**
+
+- **Old news fails.** Every episode carries `news_date`, the day the thing actually happened, and
+  the gate fails one older than `show.max_news_age_days` (14 by default). A new interview about an
+  old raise is still the old raise.
+- **The first line is the contradiction.** Move 1 used to be "the receipt, spoken flat", which
+  produced first lines like "X reported on September 29th that...". Now the voice opens on the
+  one true fact that sounds wrong, and the receipt card carries the date and the source.
+
+**To get it.** Set `show.max_news_age_days` in `radar-config.json` if you want it tighter (7 is a
+good number for a weekly news show). Your next weekly run writes `news_date` on every episode.
+
 ## 3.17.0: report first, then your take; explainers and moments
 
 **What's new.**

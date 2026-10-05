@@ -32,6 +32,8 @@ Required: `id`, `title`, `script_class` (`testimony`, `format`, `research`), `te
 `spoken_hook`, `script`, `value`, `sources[]` (`{label, url, published}`), `qa`, `psych`,
 `intent` (`educational` or `storytelling`), `tam` (`wide` or `narrow`).
 
+`research` items carry **`news_date`** (YYYY-MM-DD, the day the thing happened, never the day an article about it ran). `check_fidelity.py` FAILS an item whose `news_date` is more than `show.max_news_age_days` (rules default 14) before the week, and WARNS when it is missing.
+
 `research` items also require **`belief`**: move 2 of the five moves, the sentence naming
 what the viewer already believes, copied VERBATIM from `spoken_hook` or `script`. A
 paraphrase fails, because `check_fidelity.py` uses the field to locate the sentence and run

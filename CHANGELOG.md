@@ -2,6 +2,19 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.17.1 (outlier-radar)
+
+**Old news fails, and the first line is a hook.** A creator rejected a whole batch as "very, very
+old" and said "the hook is not a hook". Two causes, both in the engine: a wildcard could carry a
+peg older than 14 days, and `news_peg_days` counted from whichever article was newest, so a
+September 10th raise passed as two days old on an October 2nd interview. Research items now carry
+`news_date` (the event's day) and `check_fidelity.py` fails one older than
+`show.max_news_age_days` (rules default 14). Move 1 is now the contradiction, the one true fact
+that sounds wrong, said first, with the receipt on screen and no date or source in the voice;
+`rules.json` writer.five_moves and the playbook table carry the new wording. `tests/run.sh`
+pins both ends of the age check. Prevents: an October batch made of September stories, opened
+on the date that tells the viewer so.
+
 ## What's new in 3.17.0 (outlier-radar)
 
 **The script reports, the creator's take closes it, and two new formats.** Move 5 was a

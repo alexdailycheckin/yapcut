@@ -85,7 +85,7 @@ down, because the retain half is the half that goes missing.
 
 | # | Move | Time | What it has to DO | Status |
 |---|---|---|---|---|
-| 1 | The receipt | 0-4s | The headline, number or artifact ON SCREEN in frame one, spoken flat. Prove the click before making any argument. | FIXED |
+| 1 | The contradiction | 0-4s | The headline, number or artifact ON SCREEN in frame one, and the voice opens on the one true fact that sounds wrong. No date, no source, no 'X reported' in the first line: the card proves it, the voice makes them stay. | FIXED |
 | 2 | The belief | 4-12s | Say what the viewer already believes about this, in their words, as if it were true. | FIXED as a function |
 | 3 | The break | 12-45s | The receipts that make the belief untenable. 2 to 4 moves, but/therefore chained, escalating. Every number, brand and claim gets its artifact on screen within a second of being spoken. | FREE |
 | 4 | The mechanism | 45-55s | Why it happened, named, arriving as the consequence of move 3 in the same breath. One thing the viewer can carry. | FIXED as a function |
@@ -252,7 +252,7 @@ human filming pack may show the full read top to bottom.
 1. Sweep the week's news across the configured beats, multiple angles (mainstream
    tech press, niche trade press, aggregator front pages, wildcard hunting in any
    industry). Coverage breadth with real URLs is the virality proof.
-2. Pick `news_picks` news episodes + `wildcards` wildcards. Diversity check: never a
+2. Pick `news_picks` news episodes + `wildcards` wildcards. A wildcard is picked for viral ceiling, never for age: every pick's `news_date` sits inside `max_news_age_days`. Diversity check: never a
    whole week from one corner of the niche. No repeat subject inside 8 weeks.
 3. Verify every fact that will be spoken and collect the receipt URLs in the same pass.
 4. Write on the skeleton, in the creator's configured voice. Each episode carries its
