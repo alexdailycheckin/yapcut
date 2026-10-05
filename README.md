@@ -126,7 +126,7 @@ pass preflight.
   example week, and `rules_check.py`, which fails when a rule is copied back into a script.
   `release.sh` is the one release command.
 
-## What's new in 3.18.2
+## What's new in 3.19.0
 
 **The audit release.** The engine used to optimise the one stage that was never the
 constraint: 157 scripts written, 22 posted, the loop run once. 3.5.0 asks who your audience is
