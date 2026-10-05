@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.1: the chart grows with the list
+
+**What's new.** The two-sided chart opens one row at a time as you say it, instead of starting as
+a tall empty card, and its type is bigger. A number on the first line of a hook now shows its
+real value at frame zero.
+
+**To get it.** Nothing to do.
+
 ## 3.7.0: a two-sided chart for "if you want, you need" videos
 
 **What's new.** `ep.pairs(("If you want", "You need"), rows, t0, t1)` in a HyperFrames spec

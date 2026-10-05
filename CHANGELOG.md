@@ -2,6 +2,16 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.1 (tiktok-yap-editor)
+
+**The two-sided chart grows a row at a time, and a hook number on line one shows its value.**
+On the first real video the chart sat at full height from the start, a white card three
+quarters empty until the later rows arrived, and its 26px type read small on a phone. A row
+not said yet now takes no room and opens to its height as it is said, so the card grows with
+the list; the type starts at 34px. Separately, a counting number on the hook's first line froze
+at its starting value ("$0.0 billion") because only later lines animate: line one is static at
+frame zero, so a number there is now drawn at its final value. `tests/editor_units.py` pins both.
+
 ## What's new in 3.7.0 (tiktok-yap-editor)
 
 **A two-sided chart that builds as it is said.** A creator filmed a video of paired lines ("If

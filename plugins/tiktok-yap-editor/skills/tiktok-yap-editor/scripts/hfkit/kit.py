@@ -414,8 +414,12 @@ class Episode:
             at = round(r["at"], 2)
             rat = round(r.get("right_at", at + 0.6), 2)
             if at > t0 + 0.05:
-                self.js.append(f'gsap.set("#{rid}", {{opacity: 0}}); tl.fromTo("#{rid}", {{opacity: 0, x: -24}}, '
-                               f'{{opacity: 1, x: 0, duration: 0.35, ease: "power3.out", immediateRender: false}}, {at});')
+                # the card grows a row at a time: a row not said yet takes no room, so the card never
+                # shows an empty white field under the rows it already has
+                self.js.append(f'(function () {{ var r = q("#{rid}"), h = r.offsetHeight, m = parseFloat(getComputedStyle(r).marginTop) || 0; '
+                               f'gsap.set(r, {{height: 0, marginTop: 0, opacity: 0, overflow: "hidden"}}); '
+                               f'tl.fromTo(r, {{height: 0, marginTop: 0, opacity: 0, x: -24}}, {{height: h, marginTop: m, opacity: 1, x: 0, '
+                               f'duration: 0.35, ease: "power3.out", immediateRender: false}}, {at}); }})();')
                 self.sound("pop_small", at)
             if rat > t0 + 0.05:
                 self.js.append(f'gsap.set("#{xid}", {{opacity: 0}}); tl.fromTo("#{xid}", {{opacity: 0, x: 24}}, '
@@ -498,7 +502,12 @@ class Episode:
         spans, js = [], []
         for i, line in enumerate(h["lines"]):
             txt = esc(line)
-            if c and c["line"] == i:
+            if c and c["line"] == i and i == 0:
+                # line one is static and fully drawn at 0.00 (frame zero), so a number there never
+                # counts: it shows its final value. Before 3.7.1 it froze at the count's start ("$0.0").
+                final = f.get("final") or _num(f, f["to"])
+                txt = txt.replace(esc(c["token"]), f'<span class="spark">{esc(final)}</span>', 1)
+            elif c and c["line"] == i:
                 txt = txt.replace(esc(c["token"]), f'<span id="hnum" data-start-text="{esc(_num(f, f.get("from", 0)))}">{esc(_widest(f))}</span>', 1)
             elif h["spark"] and esc(h["spark"]) in txt:
                 txt = txt.replace(esc(h["spark"]), f'<span class="spark">{esc(h["spark"])}</span>', 1)

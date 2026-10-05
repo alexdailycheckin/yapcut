@@ -152,7 +152,13 @@ with tempfile.TemporaryDirectory() as t:
                                             dict(left="Referrals", right="Ask the same day", at=3.0, right_at=3.6)], 1.0, 7.0)
     h2 = open(os.path.join(ep2.build(), "index.html")).read()
     check('class="pairs"' in h2 and "If you want" in h2 and h2.count('class="prow"') == 2, "pairs draws a head and one row per item")
-    check('tl.fromTo("#pr1r1"' in h2 and 'tl.fromTo("#pr1r0"' not in h2, "a row said before the card lands is drawn with it; a later row builds on its line")
+    check('q("#pr1r1")' in h2 and 'q("#pr1r0")' not in h2, "a row said before the card lands is drawn with it; a later row builds on its line")
+    check("height: 0, marginTop: 0, opacity: 0" in h2, "a row not said yet takes no room, so the card grows a row at a time")
+    ep3 = hk.Episode("hook0", words=os.path.join(t, "w.json"), footage=clip, voice=clip, project_root=os.path.join(t, "p3"),
+                     library=os.path.join(lib, "library.json"))
+    ep3.hook(["$22.6 billion", "to sell more"], count=dict(line=0, token="$22.6", value=22.6, fmt={"pre": "$", "dec": 1}))
+    h3 = open(os.path.join(ep3.build(), "index.html")).read()
+    check("$22.6" in h3 and "$0.0" not in h3, "a number on the hook's first line is drawn at its final value at frame zero")
     check('tl.set("#pr1h0", {opacity: 0}, 3.6)' in h2 and 'tl.set("#pr1h1", {opacity: 1}, 3.6)' in h2, "the newest right cell lights as the one before it settles")
     check('document.querySelectorAll(".pairs")' in h2, "the chart scales its type together so every cell stays on one line")
 

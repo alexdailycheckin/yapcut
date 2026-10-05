@@ -83,10 +83,10 @@
       .lmark { width: 52px; height: 52px; flex: 0 0 auto; }
       .lmark path { fill: none; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; }
       .tight { padding: 22px 28px !important; }
-      .pairs { font-size: 26px; }
+      .pairs { font-size: 34px; }
       .prow { display: grid; grid-template-columns: 1fr 1.3em 1fr; align-items: center; column-gap: 0.45em; margin-top: 10px; }
       .prow .arrow { width: 1.3em; height: 0.75em; }
-      .phead { margin-top: 2px; font-size: 0.8em; }
+      .phead { margin-top: 2px; font-size: 0.62em; }
       .pcell { display: block; min-width: 0; white-space: nowrap; overflow: visible; line-height: 1.15; }
       .pl { border-radius: 14px; padding: 0.32em 0.6em; }
       .pr { position: relative; padding: 0.32em 0; }
