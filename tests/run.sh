@@ -96,6 +96,21 @@ if [ "$rc" = 2 ] && grep -q "Old news" /tmp/yapcut-old.log; then ok "old news ex
 python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-fresh.json" --schema-only >/tmp/yapcut-fresh.log 2>&1
 grep -q "Old news" /tmp/yapcut-fresh.log && bad "fresh news flagged as old" || ok "fresh news passes the age check"
 rm -f "$WS/weeks/0000-00-00-old.json" "$WS/weeks/0000-00-00-fresh.json"
+# a rejected line in a LinkedIn twin (3.18.1): the twin's body ships under the creator's name,
+# so a phrase they killed must fail there exactly as it fails in a script.
+python3 - "$WS" <<'TWIN'
+import json, sys, os
+ws = sys.argv[1]; d = json.load(open(os.path.join(ws, "weeks", "0000-00-00-example.json")))
+json.dump({"rejections": [{"pattern": "zzq twin phrase", "date": "2026-10-05", "why": "test"}]},
+          open(os.path.join(ws, "voice-corpus", "rejections.json"), "w"))
+tw = d["distribution"][0]["linkedin"]
+tw["body"] = tw["body"] + "\n\nzzq twin phrase."
+json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-twin.json"), "w"))
+TWIN
+python3 "$RADAR/spoken_lint.py" --dir "$WS" --week "$WS/weeks/0000-00-00-twin.json" >/tmp/yapcut-twin.log 2>&1
+rc=$?
+if [ "$rc" = 2 ] && grep -q "d-example-1-li.body" /tmp/yapcut-twin.log; then ok "a rejected phrase in a twin exits 2"; else bad "twin rejection did not fire (rc $rc)"; tail -8 /tmp/yapcut-twin.log; fi
+rm -f "$WS/weeks/0000-00-00-twin.json" "$WS/voice-corpus/rejections.json"
 # no workspace: exit 2, never the skill folder
 ( cd /tmp && env -u YAPCUT_HOME -u OUTLIER_RADAR_HOME -u LEAD_MAGNET_HOME HOME=/tmp/yapcut-nohome python3 "$RADAR/yapcut_home.py" >/dev/null 2>&1 ); [ $? = 2 ] && ok "no workspace exits 2" || bad "no workspace did not exit 2"
 

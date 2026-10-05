@@ -373,8 +373,11 @@ def load_rejections():
 
 def check_rejected(it):
     """FAIL on any phrase the creator has already rejected. Absolute, not a threshold: they said
-    it, so it does not ship again."""
+    it, so it does not ship again. Runs on every item and on every LinkedIn twin: until 3.18.1 a
+    twin's body was linted but never checked here, so a line the creator had killed in a script
+    could still ship under their name in the post."""
     out = []
+    field = "script" if it.get("script") else "body"
     text = ((it.get("spoken_hook") or "") + "\n" + (it.get("script") or it.get("body") or ""))
     for r in load_rejections():
         pat = r.get("pattern", "")
@@ -384,7 +387,7 @@ def check_rejected(it):
         hit = (re.search(pat, text, flags) if r.get("is_regex")
                else re.search(re.escape(pat), text, re.I))
         if hit:
-            out.append({"check": "rejected_phrase", "where": f"{it['id']}.script",
+            out.append({"check": "rejected_phrase", "where": f"{it['id']}.{field}",
                         "severity": "high", "text": hit.group(0)[:90].strip(),
                         "fix": "rewrite",
                         "why": f"the creator rejected this on {r.get('date','?')}: {r.get('why','')}"})
@@ -562,6 +565,7 @@ def lint_week(path: pathlib.Path):
             tw = it.get("linkedin")
             if isinstance(tw, dict) and tw.get("body"):
                 findings += lint_text(tw["body"], f"{tw.get('id','twin')}.body", spoken=False)
+                findings += check_rejected({"id": tw.get("id", f"{it['id']}-twin"), "body": tw["body"]})
             findings += check_rejected(it)
             # Both video lanes are spoken. Until 2026-09-09 only distribution[] was
             # measured here while check_fidelity.py measured office[] too, which is one

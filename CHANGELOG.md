@@ -2,6 +2,16 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.18.1 (outlier-radar)
+
+**A line the creator killed now fails in their LinkedIn twins too.** `spoken_lint.py` checked
+every script and every standalone post against `voice-corpus/rejections.json`. A twin's body
+(the LinkedIn post that rides on an episode) was only linted for shape, so a phrase the creator
+had rejected in a script could still ship under their name in the post. `check_rejected` now
+runs on every twin body and names the twin in the finding (`<twin id>.body`). `tests/run.sh`
+stage 2 pins it. Prevents: a construction the creator banned, like the ", and" twist one creator
+killed on 2026-10-05, surviving in the post after it was cut from the video.
+
 ## What's new in 3.18.0 (outlier-radar)
 
 **The week reaches the phone as written, and Anima shows the new lanes itself.** 3.17.0 folded

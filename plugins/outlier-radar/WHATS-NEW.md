@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.18.1: lines you killed stay out of your LinkedIn posts
+
+**What's new.** A line you've killed (anything in `voice-corpus/rejections.json`) now fails in
+the LinkedIn post that rides on an episode, not only in the script. Before this the post was
+checked for shape but never against your kills, so a killed line could still go out under your
+name.
+
+**To get it.** Nothing to do. The next gate run checks your twins.
+
 ## 3.18.0: explainers and moments on your phone
 
 **What's new.** This one is for the Anima app on your iPhone.
