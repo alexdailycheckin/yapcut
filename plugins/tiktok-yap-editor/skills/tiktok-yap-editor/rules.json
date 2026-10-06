@@ -40,10 +40,8 @@
     "pad_left_s": 0.1,
     "pad_right_s": 0.12,
     "edge": {
-      "_about": "Since 3.7.3 the Mac walks each boundary out until the sound falls below word_db (or margin_db over the room tone of the take's pauses, when that is higher), with no travel cap. tail_extra_s was that cap; only the phone's cutter still reads it, and it goes when the phone's cutter does the same walk.",
       "word_db": -55.0,
       "margin_db": 6.0,
-      "tail_extra_s": 0.25,
       "lead_s": 0.03,
       "gap_tolerance_s": 0.09
     },

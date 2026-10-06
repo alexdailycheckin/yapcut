@@ -2,6 +2,19 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.4 (tiktok-yap-editor)
+
+**`rules.json` drops `cut.edge.tail_extra_s`.** It capped how far past a word's end the cutter
+searched for where the word stops. 3.7.3 took the cap out of `yapcut.py`. The key stayed because
+the Anima phone app rejects a rulebook with a key missing, and its own cutter still used the cap.
+The phone's cutter now does the 3.7.3 walk too: every boundary moves out until the sound falls
+below `cut.edge.word_db`, or `margin_db` over the room tone of the take's pauses when that is
+higher, with no cap. Fed the same envelopes, it returns exactly the cut points `yapcut.py`
+returns: all 209 across ten real takes, plus the three synthetic takes in `tests/editor_units.py`.
+Its rulebook reader no longer asks for the key, so the key and the `_about` note that explained
+it both go. An Anima build from before this change rejects the new rulebook and keeps cutting
+with the copy it has cached until the app is updated.
+
 ## What's new in 3.20.0 (outlier-radar)
 
 **The dashboard opens on the scripts.** The creator's verdict on the old page: the first thing

@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.4: the rulebook drops a setting nothing reads
+
+**What's new.** `rules.json` loses `cut.edge.tail_extra_s`, the limit the cutter used before
+3.7.3. The Anima phone app now keeps soft words the way the Mac has since 3.7.3, so neither
+editor reads the setting any more. Your cuts do not change.
+
+**To get it.** Nothing to do on the Mac. If you use the Anima app, update it: a build from before
+this change keeps the rules it already has and stops picking up new ones.
+
 ## 3.7.3: soft words stay in the cut
 
 **What's new.** The cutter keeps a softly spoken word next to a pause, like a quiet "If" before
