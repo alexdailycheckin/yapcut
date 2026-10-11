@@ -85,7 +85,12 @@ def approved_scripts(home, n=3):
     Added 3.11.0. For fourteen weeks the brief listed what the creator had rejected and
     nothing they had approved, so a writer learned what to avoid and nothing about what to
     do. Filmed counts as approved: a person does not read a script to camera they dislike.
-    These are the taste; the corpus passages below are the voice."""
+    These are the taste; the corpus passages below are the voice.
+
+    Campaigns (`campaigns/*.json`, the cross-week collections) count too, since 3.20.1: they
+    carry the same lanes as a week file, and a creator who films a campaign's scripts has
+    approved them. Before, ten filmed campaign scripts were the newest yeses on disk and the
+    brief printed three older week scripts instead."""
     events = {}
     tp = home / "performance" / "tracking.jsonl"
     if tp.exists():
@@ -97,8 +102,11 @@ def approved_scripts(home, n=3):
             if r.get("event") in ("filmed", "posted", "approved") and r.get("id"):
                 events[r["id"]] = max(events.get(r["id"], ""), str(r.get("at") or ""))
     out = []
-    wdir = home / "weeks"
-    for wf in sorted(wdir.glob("*.json"), reverse=True) if wdir.exists() else []:
+    files = []
+    for sub in ("weeks", "campaigns"):
+        d = home / sub
+        files += sorted(d.glob("*.json"), reverse=True) if d.exists() else []
+    for wf in files:
         if wf.name.endswith(".gate.json"):
             continue
         try:

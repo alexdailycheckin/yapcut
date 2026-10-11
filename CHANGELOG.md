@@ -2,6 +2,16 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.20.1 (outlier-radar)
+
+**The voice brief reads campaigns.** `voice_brief.py` opens with the last three scripts the
+creator filmed, posted or approved, and it looked for them in `weeks/` only. A campaign
+(`campaigns/*.json`, the cross-week collections the dashboard already shows as their own lane)
+carries the same lanes as a week file, so its filmed scripts were invisible to the brief. On the
+creator's workspace that meant ten scripts filmed on a Friday were the newest yeses on disk, and
+the Sunday run wrote against three older ones. The brief now walks `weeks/` and `campaigns/`
+together and ranks them the same way.
+
 ## What's new in 3.7.4 (tiktok-yap-editor)
 
 **`rules.json` drops `cut.edge.tail_extra_s`.** It capped how far past a word's end the cutter

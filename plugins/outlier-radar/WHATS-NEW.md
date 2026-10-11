@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.20.1: the voice brief counts campaign scripts
+
+**What's new.** The brief your weekly run writes from opens with the last three scripts you
+filmed. It now finds them in your campaigns too, not only in your weeks, so a series you filmed
+mid-week shapes the next batch.
+
+**To get it.** Nothing. Your next weekly run reads it.
+
 ## 3.20.0: the dashboard opens on your scripts
 
 **What's new.** The dashboard has three tabs instead of ten. Film is where it opens: pick a
