@@ -23,6 +23,13 @@ Cut-placement rules (v2 "perfect cuts" pass, 2026-07-09):
   takes (2026-10-05: a softly spoken word next to a pause, "If", "from", "list",
   sat between -42 and -55 dB and was cut as silence). --padr 0.12 stays a floor
   under every measured tail.
+- A run's END walks further (2026-10-12: "stopped tomorrow", "raised their hand
+  for", "say that" and "do it." were cut as silence, though each sat above or
+  just under -55 dB). It crosses up to --min-gap of quiet to a soft word spoken
+  under the gate, never into the next run's measured onset, then follows the
+  last word's unbroken fade down to --decay-db (-60).
+- A clause end past the take's last measured frame is clamped for speech
+  detection, so protect_tail lands on the real last word, not on a sliver.
 - No transcript-based snapping: whisper -ml 1 -sow DTW tokens tile the whole
   timeline (a token's span runs to the next token's start), so "don't cut
   inside a word" degenerates to "pad every cut". Level-based boundaries with
@@ -34,7 +41,8 @@ Cut-placement rules (v2 "perfect cuts" pass, 2026-07-09):
 - Tight trailing pad (PADR) still removes the look-down-at-script frames.
 - Multi-source: each clause carries its own "src", so the shared CTA clip
   can be appended in the same pass for any content clip.
-- Per-clause "protect_tail": true keeps a quiet final word (no tail trim).
+- Per-clause "protect_tail": true keeps everything to the clause end (no tail
+  trim), room tone included. The end walk keeps a soft last word without it.
 
 Usage: yapcut.py --clauses c.json --workdir D --out OUT.mp4 [--min-gap S ...]
 Every default comes from the skill's rules.json (cut.*), the rulebook the phone
@@ -164,6 +172,26 @@ def audible_edge(dbs, t, direction, thr, stop_at=None, gap_tol=C["edge"]["gap_to
             if quiet>tol: break
     return last_good*HOP
 
+def fade_end(dbs, t, floor, stop_at=None):
+    """Follow a word's own fade from `t`, the last frame audible_edge() heard,
+    frame by frame while the sound stays above `floor`, and return where it
+    drops under it.
+
+    Why this exists (2026-10-12): a softly spoken last word fades out BELOW the
+    -55dB edge level. "She had to say that" sat at -55..-61dB for 0.16s after
+    the walk stopped, so the cut ended on "tha-". Lowering the edge level does
+    not work, because the walk bridges gaps and the breaths inside pauses sit at
+    -57..-70dB: on the 2026-10-11 batch an end walk at -60dB lost 6 of 173 cuts
+    and one at room tone + --edge-margin lost 37, each time by crossing a breath
+    into the next line. This step never bridges, so it stops at the first frame
+    under `floor` and a breath that rises out of the pause after the word has
+    ended is never reached. `stop_at` keeps it out of the next run's onset.
+    """
+    n=len(dbs); j=int(round(t/HOP))
+    limit=n if stop_at is None else min(n,int(round(stop_at/HOP)))
+    while j+1<limit and dbs[j+1]>floor: j+=1
+    return j*HOP
+
 def head_onset(dbs, seg_start, seg_end, thr, min_sustain=C["head_trim"]["min_sustain_s"]):
     # First time the envelope sustains above `thr` for >= min_sustain within
     # [seg_start, seg_end]. Used by --head-trim to skip a settling / room-tone
@@ -227,6 +255,10 @@ def parse_args(argv=None):
         help="on a noisy take, the boundary level sits this many dB over the room "
              "tone of the take's pauses when that is above --word-db, so the walk "
              "never follows room tone across a pause.")
+    ap.add_argument("--decay-db",type=float,default=C["edge"]["decay_db"],
+        help="a run's last word is followed through its own fade, frame by frame "
+             "and never across a dip, until the sound falls below this level "
+             "(or below the room tone + --edge-margin on a noisy take).")
     ap.add_argument("--grade",default="",
         help="ffmpeg filter string applied INSIDE the segment pass, e.g. "
              "'eq=brightness=0.05:contrast=1.1:saturation=1.06'. Use this rather "
@@ -243,7 +275,7 @@ def plan(clauses, ENV, a):
     """The cut points, [(src, a, b, gain_db)], from the clause plan and each source's
     envelope (ENV: {src: envelope()}). No ffmpeg and no files, so
     tests/editor_units.py runs it on a synthetic take."""
-    SIL={}; FLOOR={}; EDGE={}
+    SIL={}; FLOOR={}; EDGE={}; FADE={}
     for src,env in ENV.items():
         fl=estimate_floor(env)
         FLOOR[src]=fl
@@ -254,6 +286,7 @@ def plan(clauses, ENV, a):
         SIL[src]=silences(env,thr,a.d)
         room=room_tone(env,SIL[src])
         EDGE[src]=a.word_db if room is None else max(a.word_db, room+a.edge_margin)
+        FADE[src]=a.decay_db if room is None else max(a.decay_db, room+a.edge_margin)
 
     keeps=[]   # (src, a, b, gain_db)
     for ci,c in enumerate(clauses):
@@ -262,7 +295,11 @@ def plan(clauses, ENV, a):
         g=float(c.get("gain_db",0))
         if c.get("keep_whole",False):        # no silence processing; keep as-is
             keeps.append((src,max(0,cs-a.padl),ce,g)); continue
-        sp=speech_in(SIL[src],cs,ce)
+        # The envelope's last frame sits 10-40ms short of the audio, and no silence can be
+        # measured past it, so a clause ending at the take's duration read that sliver as a
+        # run of speech. protect_tail then kept the sliver, min_keep dropped it, and the real
+        # last word was trimmed: every final protect_tail clause of the 2026-10-11 batch.
+        sp=speech_in(SIL[src],cs,min(ce,len(ENV[src])*HOP))
         if not sp:
             keeps.append((src,max(0,cs-a.padl),ce,g)); continue
         # merge runs separated by < min-gap (keep natural cadence pauses)
@@ -310,6 +347,18 @@ def plan(clauses, ENV, a):
         # than the old behaviour did. A start never walks back past the previous
         # run's measured end: when sound fills a whole pause the two keeps meet and
         # merge below, where two uncapped walks would cross and play it twice.
+        #
+        # A run's END walks further than its start (2026-10-12). Every run end is a
+        # cut the gate chose, but a sentence often ends under the gate: on the
+        # 2026-10-11 batch "stopped tomorrow", "for", "do it.", "website." and a dozen
+        # more endings were cut as silence, some parted from their line by a 0.10s dip
+        # and one by a 0.37s pause. So the end walk crosses up to min_gap of quiet,
+        # the pause the cutter never cuts between two loud words, and stops at the next
+        # run's measured onset, so it can only reach sound that belongs to neither run.
+        # Then fade_end() follows the last word down to --decay-db. Across that batch's
+        # 173 cuts this kept every soft ending and lost one cut, where the gap left fell
+        # to 0.24s and min_cut merged it. The start walk keeps the closure tolerance:
+        # given min_gap it pulled the in-breath before a line into 50 of the same cuts.
         env=ENV[src]; thr=EDGE[src]; back=lo
         for i,(s,e) in enumerate(runs):
             last=(i==len(runs)-1)
@@ -318,7 +367,9 @@ def plan(clauses, ENV, a):
             if last and protect:
                 B=ce                          # keep quiet trailing word
             else:
-                back=audible_edge(env,e,+1,thr,stop_at=ce if last else runs[i+1][0])
+                nxt=ce if last else audible_edge(env,runs[i+1][0],-1,thr,stop_at=e)
+                back=audible_edge(env,e,+1,thr,stop_at=nxt,gap_tol=a.min_gap)
+                back=fade_end(env,back,FADE[src],stop_at=nxt)
                 B=min(ce, max(e+a.padr, back+a.lead))
             keeps.append((src,A,B,g))
     # a cut that removes < min-cut is not worth its visual jump: merge that

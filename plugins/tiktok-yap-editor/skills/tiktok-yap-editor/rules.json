@@ -43,7 +43,8 @@
       "word_db": -55.0,
       "margin_db": 6.0,
       "lead_s": 0.03,
-      "gap_tolerance_s": 0.09
+      "gap_tolerance_s": 0.09,
+      "decay_db": -60.0
     },
     "forward_merge_max_s": 1.0,
     "crop_alternation": [1.0, 1.06],

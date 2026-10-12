@@ -2,6 +2,40 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.5 (tiktok-yap-editor)
+
+**A sentence that trails off stays in the cut.** On the 2026-10-11 batch, quiet sentence endings
+were cut as silence even after 3.7.3: "if the product stopped tomorrow" lost "stopped tomorrow",
+"raised their hand for" lost "for", "She had to say that" ended on "tha-", and the final "do it."
+of one video was gone. The cause was not the edge level. Each take's room tone sat at -74 to
+-79 dB, so the edge stayed at -55 dB (`cut.edge.word_db`). The walk itself stopped early: it gave
+up after 90 ms of sound under -55 dB, and these endings had a 0.10 s dip between soft words, a
+fade that sat at -55 to -61 dB, or a 0.37 s pause before the last two words. Now a run's end
+crosses up to `cut.min_gap_s` of quiet, the same pause the cutter never cuts between two loud
+words, and stops at the next run's measured onset. Then it follows the last word's own fade,
+frame by frame and never across a dip, down to -60 dB (`cut.edge.decay_db`, new), or to room tone
+plus `cut.edge.margin_db` on a noisy take. Two simpler fixes failed on the same batch. Walking
+the end down to room tone plus 6 dB lost 37 of 173 cuts, and an end walk at -60 dB with gap
+bridging lost 6, both by crossing the breaths that sit at -57 to -70 dB inside pauses. The start
+of a run is unchanged: given the same tolerance it pulled in-breaths into 50 cuts. On the
+batch's own clause plans the release recovers about 15 endings that `protect_tail` could not
+reach because they sat at pauses inside a clause ("shows up.", "website.", "clicked on it.",
+"customers want.", "I get it."). The walk makes each video 0.45 to 1.0 s longer, and one cut
+merges away because its gap fell to 0.24 s, under `cut.min_cut_s`.
+
+**`protect_tail` works on a clause that runs to the end of the take.** The envelope's last frame
+sits 10 to 40 ms short of the audio, and a clause ending at the take's duration read that sliver
+as speech. `protect_tail` kept the sliver, `cut.min_keep_s` dropped it, and the real last word
+was trimmed. That hit every final `protect_tail` clause of the batch, six of six. Speech
+detection now stops at the last measured frame, so `protect_tail` keeps everything to the clause
+end. That includes the room tone after the last word: rerun as written, five of the batch's
+plans keep 0.7 to 2.0 s more at the end. A final clause now needs `protect_tail` only when its
+last word stays under -55 dB.
+
+`tests/editor_units.py` pins all three on synthetic takes, plus a breath in a pause that the cut
+must not reach. The Anima phone app reads `decay_db` without breaking and still cuts the 3.7.3
+way until its cutter makes the same change.
+
 ## What's new in 3.21.0 (outlier-radar)
 
 **The engine learns from your takes.** When a script doesn't sound right, you say it your own way

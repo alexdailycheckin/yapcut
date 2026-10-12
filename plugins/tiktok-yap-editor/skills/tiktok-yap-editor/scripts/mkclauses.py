@@ -14,7 +14,8 @@ Usage:
   ROWS
 
 Flags:
-  protect_tail  keep the final word's decay (stops the tail trim eating it)
+  protect_tail  keep everything to the clause end, room tone included (for a last
+                word under -55 dB; the cutter keeps a softer ending on its own)
   keep_whole    no internal silence processing at all
   gain=<db>     boost a quietly-spoken span
 

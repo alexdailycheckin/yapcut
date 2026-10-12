@@ -260,10 +260,10 @@ def take(path, parts, seed=7):
         w.writeframes(b"".join(int(max(-32768, min(32767, round(x)))).to_bytes(2, "little", signed=True) for x in out))
 
 
-def cut(path, end):
+def cut(path, end, protect=True):
     a = yapcut.parse_args(["--clauses", "-", "--out", "unit.mp4"])
     with contextlib.redirect_stdout(io.StringIO()):
-        return [(A, B) for _, A, B, _ in yapcut.plan([{"src": path, "start": 0.0, "end": end, "protect_tail": True}],
+        return [(A, B) for _, A, B, _ in yapcut.plan([{"src": path, "start": 0.0, "end": end, "protect_tail": protect}],
                                                      {path: yapcut.envelope(path)}, a)]
 
 
@@ -285,6 +285,38 @@ with tempfile.TemporaryDirectory() as t:
     k = cut(p, 3.0)
     check(len(k) == 1 and k[0][0] <= 0.3 and k[0][1] >= 2.7,
           f"a soft voice filling a whole pause is kept once, never as two keeps that overlap: {k}")
+
+# --- cutter (3.7.5): a sentence ends under the gate and still stays in the cut ----------------
+# 2026-10-11: with no protect_tail, "stopped tomorrow" lost both words to a 0.10s dip between
+# them, "say that" ended on "tha-" because its fade sat at -55..-61dB, and "do it." sat 0.37s
+# after "how you". With protect_tail, a clause ending past the take's last measured frame kept
+# a 20ms sliver instead of the last word. The room tone of every take was -74..-79dB.
+with tempfile.TemporaryDirectory() as t:
+    p = os.path.join(t, "tail.wav")
+    take(p, [(0.3, -75, "room"), (0.6, -26, "voice"), (0.2, -50, "voice"), (0.14, -66, "room"),
+             (0.25, -50, "voice"), (0.15, -58, "voice"), (1.5, -75, "room"), (0.6, -26, "voice"), (0.3, -75, "room")])
+    k = cut(p, 4.04, protect=False)
+    check(len(k) == 2 and k[0][1] >= 1.6,
+          f"soft words after a dip under the edge level, and their fade, end the first keep: {k}")
+    check(len(k) == 2 and k[1][0] - k[0][1] >= 1.2, f"the pause after the sentence is still cut: {k}")
+    p = os.path.join(t, "late.wav")
+    take(p, [(0.3, -75, "room"), (0.6, -26, "voice"), (0.37, -75, "room"), (0.4, -48, "voice"),
+             (1.5, -75, "room"), (0.6, -26, "voice"), (0.3, -75, "room")])
+    k = cut(p, 4.07, protect=False)
+    check(len(k) == 2 and k[0][1] >= 1.67,
+          f"a soft last word a short pause after its line is kept to its end: {k}")
+    check(len(k) == 2 and k[1][0] - k[0][1] >= 1.0, f"and the long pause after it is still cut: {k}")
+    p = os.path.join(t, "breath.wav")
+    take(p, [(0.3, -75, "room"), (0.6, -26, "voice"), (0.4, -75, "room"), (0.4, -63, "room"),
+             (0.7, -75, "room"), (0.6, -26, "voice"), (0.3, -75, "room")])
+    k = cut(p, 3.3, protect=False)
+    check(len(k) == 2 and k[0][1] <= 1.1 and k[1][0] >= 2.2,
+          f"a breath in the pause is not a word: the cut does not reach it: {k}")
+    p = os.path.join(t, "end.wav")
+    take(p, [(0.3, -75, "room"), (0.6, -26, "voice"), (0.6, -75, "room"), (0.3, -50, "voice"), (0.2, -75, "room")])
+    k = cut(p, 2.02)
+    check(len(k) == 1 and abs(k[0][1] - 2.02) < 1e-6,
+          f"protect_tail on a clause that ends past the take keeps the real last word to the clause end: {k}")
 
 
 if fails:

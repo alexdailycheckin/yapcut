@@ -4,6 +4,18 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.5: quiet sentence endings stay in the cut
+
+**What's new.** The cutter keeps a sentence that trails off, like a fading "stopped tomorrow" or
+a soft "do it." just after the line before it, without splitting the clause by hand.
+`protect_tail` now works on a clause that runs to the end of the take: it used to trim the last
+word anyway. Cuts come out a little longer.
+
+**To get it.** Nothing to do. A video already cut keeps its old cut until you run yapfull on it
+again. If you rerun an old plan, check its last clause: `protect_tail` now keeps everything to
+the clause end, the silence after the last word included, so drop the flag unless that word is
+very quiet. The Anima app still cuts the old way until it updates.
+
 ## 3.7.4: the rulebook drops a setting nothing reads
 
 **What's new.** `rules.json` loses `cut.edge.tail_extra_s`, the limit the cutter used before

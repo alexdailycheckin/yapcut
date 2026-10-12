@@ -91,10 +91,13 @@ are failures that actually happened and cost real time; each fix is proven.
   gate, so the gate alone calls it silence. Since 3.7.3 `yapcut.py` walks every
   boundary out from the gate crossing until the sound falls below -55 dB
   (`cut.edge.word_db`), so a soft word next to a pause stays in the cut.
-  `protect_tail` still keeps a clause's last tail up to the clause end, and a
-  clause with no detected speech is kept whole. A word quieter than -55 dB, or
-  one parted from its line by more than ~90 ms of silence, can still be cut:
-  give it its own narrow clause in `clauses.json`.
+  Since 3.7.5 a run's end also crosses up to `cut.min_gap_s` of quiet to a soft
+  word said after its line, then follows that word's fade down to -60 dB
+  (`cut.edge.decay_db`), so a sentence that trails off is kept without
+  `protect_tail`. `protect_tail` keeps a clause's last tail up to the clause
+  end, room tone included, and a clause with no detected speech is kept whole.
+  A last word under -55 dB throughout, or one more than 0.55 s after its line,
+  can still be cut: give it its own narrow clause in `clauses.json`.
 - **Diagnosing a specific word.** When unsure where a word actually is, scan RMS
   in small windows rather than trusting whisper:
   ```bash
@@ -144,8 +147,10 @@ The recipe that works:
 
 1. Take boundaries from `segmenter.py` **verbatim**. They are silence-accurate;
    that is the whole point of the tool.
-2. Set `protect_tail` on clauses whose last word is quiet or sentence-final,
-   which is most of them. It costs nothing and stops the tail trim biting.
+2. Set `protect_tail` only on a clause whose last word stays under -55 dB: since
+   3.7.5 the cutter keeps a sentence that trails off on its own. It keeps
+   everything up to the clause end, so end that clause where the word stops,
+   not at the end of the take.
 3. Move a boundary by hand ONLY to dodge a false start, and only after a window
    re-transcription of that exact span shows where the good take begins.
 4. Never auto-fit boundaries in bulk. Silence detection cannot tell a quiet
