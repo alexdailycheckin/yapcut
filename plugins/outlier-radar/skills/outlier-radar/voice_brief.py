@@ -126,6 +126,26 @@ def approved_scripts(home, n=3):
     return [it for _e, _w, it in out[:n]], (n_events, len(out) - n_events)
 
 
+def take_lessons(home, n=12):
+    """The newest places where the creator's filmed take left the script (take_lessons.py, 3.21.0).
+    Read right after the approved scripts: the approved script is what they said yes to, and
+    these are the lines they fixed on camera."""
+    p = home / "voice-corpus" / "takes.jsonl"
+    rows = []
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue
+    rows = [r for r in rows if r.get("kind") in ("retold", "replaced", "added", "cut")]
+    by_take = {}
+    for r in rows:
+        by_take.setdefault(r.get("take"), []).append(r)
+    # newest take first, each take's changes in the order they were said
+    return [r for t in reversed(list(by_take)) for r in by_take[t]][:n]
+
+
 def pick_samples(corpus, targets, n, seed_str):
     """Choose few-shot passages that DEMONSTRATE the profile rather than just sampling it.
 
@@ -249,6 +269,30 @@ def main():
         print("(none yet: nothing filmed, posted or marked qa passed. Mark what they film with")
         print(" log_perf.py --filmed <id>; until then the passages below are the only grounding.)")
         print()
+    lessons = take_lessons(home)
+    if lessons:
+        print("## HOW THEY ACTUALLY SAID IT. Where the take left the script, the take is right.")
+        print()
+        print("(From voice-corpus/takes.jsonl, written by take_lessons.py from their filmed takes,")
+        print(" newest first. Write the next script the way they said these, not the way we wrote them.)")
+        print()
+        for r in lessons:
+            head = f"--- {r.get('id')}  {r.get('title') or ''}  ({r.get('at')})"
+            if r.get("kind") == "retold":
+                said = " ".join((r.get("said") or "").split()[:140])
+                print(f"{head}: they retold it in their own words")
+                print(f"  said: {said}{' ...' if len((r.get('said') or '').split()) > 140 else ''}")
+            elif r.get("kind") == "added":
+                print(f"{head}: they added")
+                print(f"  said: {r.get('said')}")
+            elif r.get("kind") == "cut":
+                print(f"{head}: they cut")
+                print(f"  script: {r.get('script')}")
+            else:
+                print(f"{head}: they changed")
+                print(f"  script: {r.get('script')}")
+                print(f"  said:   {r.get('said')}")
+            print()
     print("## HOW THEY ACTUALLY TALK (measured, not chosen)")
     print()
     print(f"- Sentence length: median {sw['median']:.0f} words, mean {sw['mean']}. Most lines are SHORT.")

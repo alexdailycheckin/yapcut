@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.21.0: the engine learns from your takes
+
+**What's new.** If a script doesn't sound like you, say it your own way on camera. The engine now
+compares each take with its script and keeps what you changed, so your next scripts are written the
+way you actually talk.
+
+**To get it.** After you transcribe a batch, run `python3 take_lessons.py <batch folder>`. The weekly
+run reads what it found.
+
 ## 3.20.1: the voice brief counts campaign scripts
 
 **What's new.** The brief your weekly run writes from opens with the last three scripts you

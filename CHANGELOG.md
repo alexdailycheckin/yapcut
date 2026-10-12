@@ -2,6 +2,17 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.21.0 (outlier-radar)
+
+**The engine learns from your takes.** When a script doesn't sound right, you say it your own way
+on camera. `take_lessons.py <batch>` matches each filmed take to the script it came from and keeps
+only what you said differently, as whole sentences: a line you replaced, a line you added, a line you
+cut. When you retold most of a script, the whole retelling is kept instead. Lines you read as written
+are left out on purpose, because a straight read only teaches the engine its own voice back. The
+lessons land once in `voice-corpus/takes.jsonl`, and `voice_brief.py` prints the newest under "How
+they actually said it", right after the scripts you approved, so the next batch is written the way
+you said the last one.
+
 ## What's new in 3.20.1 (outlier-radar)
 
 **The voice brief reads campaigns.** `voice_brief.py` opens with the last three scripts the
