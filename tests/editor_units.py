@@ -121,6 +121,8 @@ with tempfile.TemporaryDirectory() as t:
     ep = hk.Episode("unit", words=os.path.join(t, "w.json"), footage=clip, voice=clip, project_root=os.path.join(t, "p"),
                     library=os.path.join(lib, "library.json"))
     check(ep.t("running at $7 billion") == 2.9 and ep.e("a spreadsheet startup") == 2.05, "phrase anchors read the cut's own seconds")
+    _, caps = ep._captions()
+    check(all(b["t0"] >= a["t1"] for a, b in zip(caps, caps[1:])), "a caption group leaves before the next one shows")
     try:
         ep.t("never said this"); check(False, "an unknown phrase stops the build")
     except SystemExit:

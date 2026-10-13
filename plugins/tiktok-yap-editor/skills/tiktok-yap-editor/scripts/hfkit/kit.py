@@ -542,7 +542,10 @@ class Episode:
         for g, idx in enumerate(groups):
             spans = " ".join(f'<span class="cw" id="cw{i}">{esc(re.sub(r"[.,;:!?]+$", "", W[i]["w"]))}</span>' for i in idx)
             html.append(f'<div class="capgroup" id="cg{g}">{spans}</div>')
-            g1 = W[groups[g + 1][0]]["t0"] if g + 1 < len(groups) else self.dur
+            # a group shows 0.02s before its first word, so the one before it leaves at that same
+            # moment: ending it on the next word's t0 left both groups stacked for 20ms at every
+            # handover, a frame of doubled captions about two times in three at 30fps
+            g1 = max(0, W[groups[g + 1][0]]["t0"] - 0.02) if g + 1 < len(groups) else self.dur
             data.append({"id": f"cg{g}", "t0": round(max(0, W[idx[0]]["t0"] - 0.02), 3), "t1": round(min(g1, W[idx[-1]]["t1"] + 0.6, self.dur), 3),
                          "words": [{"id": f"cw{i}", "t0": W[i]["t0"], "t1": max(W[i]["t1"], W[i]["t0"] + 0.12)} for i in idx]})
         return "\n".join(html), data

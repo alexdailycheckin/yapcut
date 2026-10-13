@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.6: captions stop doubling up between groups
+
+**What's new.** In a HyperFrames package, two caption groups used to sit on top of each other
+for one frame at most handovers. Now one group leaves as the next one shows.
+
+**To get it.** Rebuild and re-render a package to pick it up. A video already rendered keeps
+the doubled frames.
+
 ## 3.7.5: quiet sentence endings stay in the cut
 
 **What's new.** The cutter keeps a sentence that trails off, like a fading "stopped tomorrow" or

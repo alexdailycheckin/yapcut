@@ -2,6 +2,16 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.6 (tiktok-yap-editor)
+
+**Caption groups no longer overlap at every handover.** In a HyperFrames package, a caption group
+shows 0.02 s before its first word, but the group before it stayed up until that word's start.
+For 20 ms at every handover both groups were on screen, stacked on the same line. At 30 fps a
+frame lands in that window about two times in three, so a 70-second video carried about 65
+frames of doubled captions. All seven videos of the 2026-10-11 batch had it, 97 to 107
+handovers each. A group now leaves at the moment the next one shows. `tests/editor_units.py`
+pins it.
+
 ## What's new in 3.7.5 (tiktok-yap-editor)
 
 **A sentence that trails off stays in the cut.** On the 2026-10-11 batch, quiet sentence endings
