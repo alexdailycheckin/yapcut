@@ -44,8 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from stutter_check import accept_key, load_accepted  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
 
-MODEL = os.environ.get("WHISPER_MODEL",
-                       os.path.expanduser("~/.whisper-models/ggml-small.en.bin"))
+MODEL = ywords.whisper_model()   # the same model as the cut's words, or two wordings read as a restart
 RATE = 16000
 WINDOWS = (1.1, 1.6)      # measured 2026-09-18: 1.1s caught both restarts, 1.6s one, 3s none
 HOP = 0.45

@@ -14,6 +14,8 @@
 #   YAP_ALLOW_STUTTER=1    a deliberate rhetorical repeat
 #   YAP_ALLOW_GAPS="6.9,41.2" | =1   permit those beats / skip the dead-air gate
 #   YAP_ALLOW_CAPTIONS=1   skip the caption garble gate
+#   YAP_UNSCRIPTED=1       the take had no script: the caption gate has nothing to diff (without it
+#                          a missing <out>_script.txt fails the gate)
 #   YAP_ALLOW_SEAM=1       override seam holes (justify with seam_evidence.py first)
 #   YAP_ALLOW_STATIC=1     override the retention gate (deliberate slow burn)
 #   YAP_PIP_STRICT=1       receipts gate fatal regardless of brand-config
@@ -157,7 +159,14 @@ gate_caption() {                     # gate_caption <cap.ass> <script.txt> <bran
   local ass="$1" script="$2" brand="$3" ovr="$4" accept="$5" rc=0
   echo "--- gate caption ---"
   if [ ! -f "$script" ]; then
-    echo "  SKIPPED: no script at $script (unscripted yap). Scripted runs save the verbatim script there."; rc=1
+    # a missing script used to be read as "unscripted" and passed with a warning: on 2026-10-11 seven
+    # scripted videos shipped unchecked that way. Unscripted is now something the run says, not a guess.
+    if [ "${YAP_UNSCRIPTED:-0}" = "1" ]; then
+      echo "  skipped: YAP_UNSCRIPTED=1 (no script exists for this take)"; rc=1
+    else
+      echo "  no script at $script. Save the verbatim script there (the words read on camera, no labels),"
+      echo "  or set YAP_UNSCRIPTED=1 when there is no script."; rc=2
+    fi
   elif [ "${YAP_ALLOW_CAPTIONS:-0}" = "1" ]; then
     echo "  skipped by YAP_ALLOW_CAPTIONS=1"; rc=1
   else

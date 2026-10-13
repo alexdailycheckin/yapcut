@@ -2,6 +2,34 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.7 (tiktok-yap-editor)
+
+**Captions are timed word by word.** `transcribe.sh --words` asked for DTW alignment and never got
+it. whisper.cpp turned flash attention on by default, and with it `-dtw` silently does nothing:
+every `t_dtw` comes back -1. Even before that, `-oj` never carried the DTW times and nothing read
+them, so captions always ran on whisper's per-segment offsets. Those stack fast words inside
+80 ms ("taken a new" at 9.06, 9.09 and 9.14 s), so a caption group popped up whole and its
+highlight jumped across three words at once. The run is now `-nfa -dtw <preset> -ojf`, and the
+new `align_words.py` writes the usual words file from it. DTW lands about 60 ms after the voice,
+so that is taken off. A word that still starts in silence is checked against the wav and moved
+onto the voice, never closer than 0.12 s to a neighbour. On the seven videos of the 2026-10-11
+batch, stacked words fell from 9 to 23 a video to 2 to 5 on six of them (Persona 23 to 14), and
+words shown during silence fell on six of seven.
+
+**The large model when it is there.** Every transcript in a run now comes from one model:
+`$WHISPER_MODEL`, else `ggml-large-v3-turbo.bin`, else `ggml-small.en.bin`
+(`yaplib.words.whisper_model`). On the same batch the large model fixed what the small one
+misheard: "rebuilt" for "rebuild", "calendar" for "count", "pitched them" for "pitched him",
+names, and the sentence breaks of a whole video. The restart scanners use the same model as
+the cut's words, because two models word the same audio differently and `xwin_scan` reads that
+difference as a restart. `preflight.py` says how to get the large model. Each word file takes
+about 20 s on an M4.
+
+**A missing script fails the caption gate.** The gate used to read a missing
+`<out>_script.txt` as an unscripted yap and pass with a warning. On 2026-10-11 seven scripted
+videos shipped that way, and no caption was ever diffed against the script. Now the gate fails
+unless the run says `YAP_UNSCRIPTED=1`.
+
 ## What's new in 3.7.6 (tiktok-yap-editor)
 
 **Caption groups no longer overlap at every handover.** In a HyperFrames package, a caption group

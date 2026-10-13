@@ -44,8 +44,7 @@ from yaplib import words as ywords  # noqa: E402
 def transcribe_punct_separate(video: str, t0: float = None, t1: float = None) -> str:
     """16k mono extract + whisper -ml 1 (NO -sow): punct tokens stay separate.
     Pass t0/t1 to transcribe just a window (window timings do not drift)."""
-    model = os.environ.get("WHISPER_MODEL",
-                           os.path.expanduser("~/.whisper-models/ggml-small.en.bin"))
+    model = ywords.whisper_model()
     td = tempfile.mkdtemp(prefix="gapchk_")
     wav = os.path.join(td, "a.wav")
     out = os.path.join(td, "w")

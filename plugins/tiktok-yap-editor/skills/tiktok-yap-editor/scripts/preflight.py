@@ -94,6 +94,10 @@ check("whisper ggml model (~/.whisper-models/ or $WHISPER_MODEL)",
       "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin")
 if models:
     print(f"          found: {', '.join(os.path.basename(m) for m in models)}")
+    if not any(os.path.basename(m) == "ggml-large-v3-turbo.bin" for m in models):
+        print("          captions: ggml-large-v3-turbo.bin (1.6 GB) hears and times words better than small.en;"
+              " transcribe.sh uses it when present: curl -L -o ~/.whisper-models/ggml-large-v3-turbo.bin "
+              "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin")
 
 # python packages: whatever requirements.txt lists must import
 req = find_requirements()

@@ -28,8 +28,7 @@ from stutter_check import find_flags, norm, accept_key, load_accepted  # noqa: E
 from yaplib import media  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
 
-MODEL = os.environ.get("WHISPER_MODEL",
-                       os.path.expanduser("~/.whisper-models/ggml-small.en.bin"))
+MODEL = ywords.whisper_model()   # the same model as the cut's words
 
 def window_tokens(video, t0, t1, tmpdir):
     base = os.path.join(tmpdir, f"w_{int(t0*1000)}")
@@ -37,7 +36,7 @@ def window_tokens(video, t0, t1, tmpdir):
                     "-i", video, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
                     base + ".wav", "-hide_banner", "-loglevel", "error"], check=True)
     subprocess.run(["whisper-cli", "-m", MODEL, "-f", base + ".wav", "-ml", "1",
-                    "-sow", "-dtw", "small.en", "-oj", "-of", base],
+                    "-sow", "-dtw", ywords.dtw_preset(MODEL), "-oj", "-of", base],
                    capture_output=True, check=True)
     out = []
     for s, e, t in ywords.load_words(base + ".json", offset=t0):

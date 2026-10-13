@@ -320,6 +320,28 @@ with tempfile.TemporaryDirectory() as t:
     check(len(k) == 1 and abs(k[0][1] - 2.02) < 1e-6,
           f"protect_tail on a clause that ends past the take keeps the real last word to the clause end: {k}")
 
+# --- caption timing (3.7.7): DTW times, checked against the voice ------------------------------
+import align_words as aw  # noqa: E402
+
+
+def full_json(words):
+    """A whisper -ojf transcript: (text, segment start s, segment end s, dtw s)."""
+    return {"transcription": [{"text": " " + w, "offsets": {"from": round(a * 1000), "to": round(b * 1000)},
+                               "tokens": [{"text": " " + w, "t_dtw": round(d * 100)}]} for w, a, b, d in words]}
+
+
+# segment offsets stack "taken a new" inside 80 ms; DTW spreads them
+w = aw.align(full_json([("taken", 9.06, 9.09, 9.20), ("a", 9.09, 9.14, 9.42), ("new", 9.14, 9.44, 9.60)]))
+st = [x["offsets"]["from"] / 1000 for x in w]
+check(st == [9.14, 9.36, 9.54] and all(x["offsets"]["to"] > x["offsets"]["from"] for x in w),
+      f"words take DTW's times, less its 60 ms lag, not the stacked segment offsets: {st}")
+# a word DTW stamps in the pause after the voice stopped moves back onto the voice
+sp = [False] * 100 + [True] * 50 + [False] * 60 + [True] * 50   # voice 1.0-1.5 s, quiet, voice 2.1-2.6 s
+w = aw.align(full_json([("the", 1.0, 1.2, 1.06), ("numbers.", 1.2, 1.5, 1.72), ("Next", 2.1, 2.4, 2.16)]), sp)
+st = [x["offsets"]["from"] / 1000 for x in w]
+check(1.18 <= st[1] <= 1.3, f"a trailing word stamped in the pause moves back onto the voice: {st}")
+check(st == sorted(st), "a moved word never passes its neighbours")
+
 
 if fails:
     print(f"{len(fails)} failure(s)")

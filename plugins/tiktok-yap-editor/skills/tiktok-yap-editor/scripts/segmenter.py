@@ -13,6 +13,7 @@ import argparse, json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yaplib import media  # noqa: E402
+from yaplib import words as ywords  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("src")
@@ -24,8 +25,7 @@ a = ap.parse_args()
 src = a.src
 WD = a.workdir or os.path.join(os.path.dirname(os.path.abspath(src)), ".yap_build")
 os.makedirs(os.path.join(WD, "audio"), exist_ok=True)
-MODEL = os.environ.get("WHISPER_MODEL",
-                       os.path.expanduser("~/.whisper-models/ggml-small.en.bin"))
+MODEL = ywords.whisper_model()
 base = os.path.splitext(os.path.basename(src))[0]
 wav = f"{WD}/audio/{base}.wav"
 if not os.path.exists(wav):

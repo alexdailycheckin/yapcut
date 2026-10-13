@@ -2,15 +2,24 @@
 # Transcribe one clip with whisper.cpp, producing word-level timestamps.
 # Usage: transcribe.sh <video> <out_prefix> [--words]
 #   default  : sentence-level .txt + .json (use for reading/story-shaping)
-#   --words  : word-level with DTW alignment (use for caption sync)
+#   --words  : word-level, timed by DTW and checked against the voice (use for caption sync)
 #
-# Why DTW for captions: plain whisper word END-times drift and are unreliable
-# for cutting, but -dtw gives accurate per-word timing that captions need to
-# land on the actual speech. We extract 16kHz mono first because that's what
-# whisper.cpp expects.
+# Caption timing (3.7.7): whisper.cpp's per-segment offsets stack fast words inside 80 ms, so a
+# caption group pops up whole. DTW gives each word its own time, but only with flash attention
+# off (-nfa; whisper.cpp turned it on by default and DTW then silently does nothing), and only in
+# the full JSON (-ojf). align_words.py reads that, corrects DTW's lateness against the wav and
+# writes the usual -oj shape, so every caller reads the same file as before.
+#
+# Model: ggml-large-v3-turbo when present (it hears names, plurals and punctuation the small model
+# misses: "rebuilt" for "rebuild", "calendar" for "count"), else ggml-small.en. $WHISPER_MODEL
+# overrides. The restart scanners use the same model (yaplib.words.whisper_model).
 set -euo pipefail
 VIDEO="$1"; OUT="$2"; MODE="${3:-}"
-MODEL="${WHISPER_MODEL:-$HOME/.whisper-models/ggml-small.en.bin}"
+SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
+# one model for every transcript in a run (yaplib.words.whisper_model): $WHISPER_MODEL, else
+# large-v3-turbo, else small.en; the DTW preset follows its file name
+MODEL="$(cd "$SCRIPTS" && python3 -c 'from yaplib import words as w; print(w.whisper_model())')"
+DTW="$(cd "$SCRIPTS" && python3 -c 'import sys; from yaplib import words as w; print(w.dtw_preset(sys.argv[1]))' "$MODEL")"
 WAV="${OUT}.wav"
 
 ffmpeg -nostdin -y -i "$VIDEO" -ar 16000 -ac 1 -c:a pcm_s16le "$WAV" \
@@ -18,9 +27,10 @@ ffmpeg -nostdin -y -i "$VIDEO" -ar 16000 -ac 1 -c:a pcm_s16le "$WAV" \
 
 if [ "$MODE" = "--words" ]; then
   # -ml 1 -sow = one token per segment (word-level); -dtw = accurate alignment
-  whisper-cli -m "$MODEL" -f "$WAV" -ml 1 -sow -dtw small.en -oj -of "$OUT" \
+  whisper-cli -m "$MODEL" -f "$WAV" -ml 1 -sow -nfa -dtw "$DTW" -ojf -of "${OUT}.full" \
     2>/dev/null >/dev/null
-  echo "word-level timestamps: ${OUT}.json"
+  python3 "$SCRIPTS/align_words.py" "${OUT}.full.json" "${OUT}.json" "$WAV"
+  echo "word-level timestamps: ${OUT}.json ($(basename "$MODEL"), DTW $DTW)"
 else
   whisper-cli -m "$MODEL" -f "$WAV" -otxt -oj -of "$OUT" 2>/dev/null >/dev/null
   echo "transcript: ${OUT}.txt  (json: ${OUT}.json)"

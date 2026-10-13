@@ -4,6 +4,21 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.7: captions land on each word, and a missing script stops the build
+
+**What's new.** Caption words were never timed by the alignment the editor asked for, so fast
+words bunched up and a whole group appeared at once. Words are now timed one by one and checked
+against your voice. The editor uses whisper's large model when you have it, which hears names
+and word endings better. A scripted video with no `<out>_script.txt` now fails the caption gate
+instead of skipping it.
+
+**To get it.** For the large model (1.6 GB), run
+`curl -L -o ~/.whisper-models/ggml-large-v3-turbo.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin`.
+Without it the editor keeps using small.en, with the new timing. Save the script you read as
+`<out>_script.txt` next to the build before the gates run. For a take with no script, set
+`YAP_UNSCRIPTED=1`. A video cut before this update keeps its old word times until you
+re-transcribe it, which means running yapfull without `YAP_FROM_CUT=1`.
+
 ## 3.7.6: captions stop doubling up between groups
 
 **What's new.** In a HyperFrames package, two caption groups used to sit on top of each other

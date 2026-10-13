@@ -70,9 +70,12 @@ are failures that actually happened and cost real time; each fix is proven.
 - **Word END-times are unreliable** for cutting. Whisper stamps words nearly
   back-to-back and the end of a quiet word drifts. Cut on `silencedetect` energy
   instead. Use whisper word times only for caption sync, and then with `-dtw`.
-- **`-dtw small.en`** (token-level DTW alignment) gives noticeably more accurate
-  per-word timing. Use it for captions; without it captions lead/lag the speech
-  and feel "off".
+- **DTW needs `-nfa` and `-ojf`.** whisper.cpp turned flash attention on by default, and with it
+  `-dtw` silently does nothing (every `t_dtw` is -1). Even when it ran, `-oj` never carried the
+  DTW times, so until 3.7.7 captions used the per-segment offsets, which stack fast words inside
+  80 ms. `transcribe.sh --words` now runs `-nfa -dtw <preset> -ojf` and `align_words.py` turns
+  that into the usual words file. To check a run: open `w_<out>.full.json` and look for
+  `t_dtw` values above -1.
 - **Transcriber hallucinations at jump-cut seams.** When two clips butt
   together, whisper sometimes invents filler ("And again...") at the seam. It is
   not in the audio. Sanity-check by confirming the word exists in a source clip;

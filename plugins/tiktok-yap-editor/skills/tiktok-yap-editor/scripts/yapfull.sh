@@ -19,7 +19,8 @@
 #   YAP_CUT_BASE=<base>  name of the cut to reuse when <out> differs from it
 #       (hook_variant.sh sets this so clip-b.mp4 composes from full_clip.mp4)
 #   HOOK_SECS=5.0    how long the burned hook stays up
-#   YAP_SCRIPT=<path>  verbatim script for the caption gate (default $WD/<base>_script.txt)
+#   YAP_SCRIPT=<path>  verbatim script for the caption gate (default $WD/<base>_script.txt);
+#       missing, the caption gate fails unless YAP_UNSCRIPTED=1
 #   plus the gate overrides documented in gates.sh.
 # Writes $WD/<final-base>_gates.json (every gate's rc, hook, platform, paths);
 # finalize.sh turns that into the edit record.

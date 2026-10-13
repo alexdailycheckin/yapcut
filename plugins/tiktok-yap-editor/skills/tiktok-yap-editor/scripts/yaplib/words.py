@@ -22,6 +22,25 @@ def read_words_json(path):
         return json.load(f)
 
 
+def whisper_model():
+    """The one whisper model every transcript in a run comes from (3.7.7). $WHISPER_MODEL wins;
+    then ggml-large-v3-turbo, then ggml-small.en, both in ~/.whisper-models. The cut's words and the
+    restart scanners' windows must share a model: two models word the same audio differently, and
+    xwin_scan reads that difference as a restart."""
+    env = os.environ.get("WHISPER_MODEL")
+    if env:
+        return os.path.expanduser(env)
+    d = os.path.expanduser("~/.whisper-models")
+    large = os.path.join(d, "ggml-large-v3-turbo.bin")
+    return large if os.path.exists(large) else os.path.join(d, "ggml-small.en.bin")
+
+
+def dtw_preset(model):
+    """whisper-cli's -dtw preset for a ggml file: ggml-large-v3-turbo.bin -> large.v3.turbo."""
+    name = re.sub(r"-q\d.*$", "", os.path.basename(model)[:-4] if model.endswith(".bin") else os.path.basename(model))
+    return re.sub(r"^ggml-", "", name).replace("-", ".")
+
+
 def load_words(path, offset=0.0):
     """[(start_s, end_s, text), ...] for every NON-EMPTY token, in order.
     Index in this list is the canonical word index. offset shifts every time
