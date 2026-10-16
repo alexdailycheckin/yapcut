@@ -99,7 +99,7 @@ are failures that actually happened and cost real time; each fix is proven.
   (`cut.edge.decay_db`), so a sentence that trails off is kept without
   `protect_tail`. `protect_tail` keeps a clause's last tail up to the clause
   end, room tone included, and a clause with no detected speech is kept whole.
-  A last word under -55 dB throughout, or one more than 0.55 s after its line,
+  A last word under -55 dB throughout, or one more than `cut.min_gap_s` (0.5 s) after its line,
   can still be cut: give it its own narrow clause in `clauses.json`.
 - **Diagnosing a specific word.** When unsure where a word actually is, scan RMS
   in small windows rather than trusting whisper:

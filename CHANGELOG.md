@@ -2,6 +2,15 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.9 (tiktok-yap-editor)
+
+**Tighter pauses: cut from 0.5 seconds, bridges up to 0.5.** Alex watched the October 16th
+Cheap Gambler cut at the old cadence and said it left too much space: five pauses of 0.45 to
+0.72 seconds stayed in, the longest because `bridge_max_s` let a short run join its neighbour
+across 0.75 seconds of quiet. At `min_gap_s` 0.5 and `bridge_max_s` 0.5 the same take kept three
+pauses, none over 0.53 seconds, and he said "love this". Both numbers live in `rules.json`, so
+the Anima app's cutter (which reads the same rulebook) cuts the same way.
+
 ## What's new in 3.7.8 (tiktok-yap-editor)
 
 **A carved bed is saved again after the house grade.** Since 2026-10-12 the HyperFrames batch

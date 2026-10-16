@@ -379,7 +379,7 @@ improvising.
 ## Why yapcut
 
 The old flow concatenated auto-editor output and dropped a one-frame black flash at every
-jump cut. `yapcut.py` does everything in one clean CFR pass, cuts only at pauses of 0.55s or
+jump cut. `yapcut.py` does everything in one clean CFR pass, cuts only at pauses of 0.5s or
 more, bridges segments under 0.45s, requires a cut to remove 0.25s to exist, finds edges by
 walking the energy envelope out to a measured margin, and paces frames against the cumulative
 audio clock so lips never slide off the voice. Zero dead space means zero DEAD space: real

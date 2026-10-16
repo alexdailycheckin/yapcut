@@ -4,12 +4,12 @@ all in ONE clean CFR 30fps encode. Replaces cut.py + auto-editor (whose VFR
 output caused 1-frame black flashes at every jump cut).
 
 Cut-placement rules (v2 "perfect cuts" pass, 2026-07-09):
-- Only pauses >= --min-gap (0.55) become jump cuts. Shorter pauses are speech
+- Only pauses >= --min-gap (0.5) become jump cuts. Shorter pauses are speech
   cadence: cutting them saves ~0.2-0.4s but costs a visible pose-jump + crop
   toggle every couple of seconds (machine-gun cutting).
 - No kept segment shorter than --min-seg (0.45): a 4-10 frame segment between
   two cuts reads as a glitch/flash. Sub-min-seg runs are bridged into the
-  nearer neighbour (the gap is kept) when that gap is <= --bridge-max (0.75);
+  nearer neighbour (the gap is kept) when that gap is <= --bridge-max (0.5);
   bridge-max is deliberately tight so bridging can never re-include a long
   dead-air pause. A cut that removes < --min-cut (0.25) is not worth its
   visual jump and is merged away (the small gap stays).

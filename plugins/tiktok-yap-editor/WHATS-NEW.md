@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.9: tighter pauses
+
+**What's new.** The editor now cuts every pause of half a second or more (it was 0.55), and a
+short phrase only joins its neighbour across half a second of quiet (it was 0.75), so talking
+head cuts feel faster with no change to how words are kept.
+
+**What you need to do.** Nothing. To keep the old pace on one video, pass `--min-gap 0.55
+--bridge-max 0.75` to `yapcut.py`.
+
 ## 3.7.8: a carved music bed is kept between builds
 
 **What's new.** If you grade your footage with `hyperframes media-treatment --apply` before you
