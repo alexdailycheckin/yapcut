@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.8: a carved music bed is kept between builds
+
+**What's new.** If you grade your footage with `hyperframes media-treatment --apply` before you
+carve the music bed, the editor reported the carve as failed and kept no copy of it, so every
+rebuild carved the bed again. The carve was in your video all along. Now the carved bed is found
+and kept, and later builds reuse it.
+
+**To get it.** Nothing to do. The next carve is saved, and the builds after it reuse it.
+
 ## 3.7.7: captions land on each word, and a missing script stops the build
 
 **What's new.** Caption words were never timed by the alignment the editor asked for, so fast

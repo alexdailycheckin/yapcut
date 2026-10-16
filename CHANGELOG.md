@@ -2,6 +2,20 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.8 (tiktok-yap-editor)
+
+**A carved bed is saved again after the house grade.** Since 2026-10-12 the HyperFrames batch
+runs `media-treatment --apply` on the camera layers before `Episode.carve()`. That step stamps a
+`data-hf-id` on every element, ahead of its `id`, so the bed tag became
+`<audio data-hf-id="hf-..." id="bed" ...>`. `carve()` looked for `<audio id="bed"` exactly and
+missed it. It printed "carve: FAILED", returned False and never saved `.bed.carved.html`,
+although `carve.mjs` had already carved `index.html` in place. The render kept its carved bed,
+but every rebuild carved again from scratch and the log said the opposite of what happened.
+`carve()` now finds the bed by its id wherever the id sits in the tag, and saves the tag without
+the stamp, so a rebuild reuses `<audio id="bed" ...>` as it did before the grade. On
+arch-demand-tester the saved tag is byte for byte the one written by hand on 2026-10-16. A unit
+test pins the stamped case.
+
 ## What's new in 3.7.7 (tiktok-yap-editor)
 
 **Captions are timed word by word.** `transcribe.sh --words` asked for DTW alignment and never got

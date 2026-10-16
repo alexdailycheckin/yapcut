@@ -645,9 +645,11 @@ class Episode:
                 subprocess.run(["npm", "i", "-D", f"@hyperframes/core@{version}", "--no-audit", "--no-fund"], cwd=core, capture_output=True)
         idx = os.path.join(self.root, "index.html")
         r = subprocess.run(["node", script, "--comp", idx, "--bed", "bed", "--voice", "voice", "--core", core], capture_output=True, text=True)
-        m = re.search(r'<audio id="bed"[^>]*></audio>', open(idx).read())
+        # id need not come first: media-treatment --apply stamps data-hf-id on every element ahead of it
+        m = re.search(r'<audio\b[^>]*\sid="bed"[^>]*></audio>', open(idx).read())
         if r.returncode or not m or "data-fx-carve" not in m.group(0):
             print(r.stdout[-800:], r.stderr[-800:])
             return False
-        open(os.path.join(self.root, ".bed.carved.html"), "w").write(m.group(0))
+        # saved without the stamp so the reused tag reads <audio id="bed" like the flat one build() writes
+        open(os.path.join(self.root, ".bed.carved.html"), "w").write(re.sub(r'\s+data-hf-id="[^"]*"', "", m.group(0)))
         return True

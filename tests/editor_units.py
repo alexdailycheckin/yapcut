@@ -142,6 +142,20 @@ with tempfile.TemporaryDirectory() as t:
     check("{{" not in html and "document.fonts.ready" in html and ".flowrow" in html, "the page fits rows to their card after fonts load")
     check('src="assets/lib/x.mp3"' in html and os.path.exists(os.path.join(t, "p", "assets", "lib", "x.mp3")), "sounds come from the library by tag")
     check(ep.snaps and all(0 < s < ep.dur for s in ep.snaps), "every card has a snapshot time before it leaves")
+    # the bed carve (3.7.8): media-treatment --apply stamps data-hf-id ahead of id="bed" before carve runs
+    open(os.path.join(ep.root, "index.html"), "w").write(
+        html.replace('<audio id="bed"', '<audio data-hf-id="hf-unit" id="bed" data-fx-carve="{}"', 1))
+    os.makedirs(os.path.join(t, "home", ".claude", "skills", "hyperframes-audio", "scripts"))
+    open(os.path.join(t, "home", ".claude", "skills", "hyperframes-audio", "scripts", "carve.mjs"), "w").close()
+    run0, home0, ep.core = subprocess.run, os.environ["HOME"], t
+    subprocess.run, os.environ["HOME"] = (lambda *a, **k: subprocess.CompletedProcess(a, 0, "", "")), os.path.join(t, "home")
+    try:
+        carved = ep.carve()
+    finally:
+        subprocess.run, os.environ["HOME"] = run0, home0
+    saved = open(os.path.join(ep.root, ".bed.carved.html")).read() if carved else ""
+    check(saved.startswith('<audio id="bed"') and "data-fx-carve" in saved and "data-hf-id" not in saved,
+          "carve finds the bed behind a data-hf-id stamp and saves it unstamped for the next build")
     neutral = from_brand({})
     check(neutral["contact"] is None and neutral["star"] is None, "the default theme carries no creator's brand")
     th = from_brand({"accent_hex": "#1570EF", "ink_hex": "#101010", "handle": "YOU.COM", "contact_lines": ["you@you.com"]})
