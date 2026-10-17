@@ -2,6 +2,20 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.22.0 (outlier-radar)
+
+**A show can drop the belief.** Alex read his own takes against the scripts on 2026-10-17. On
+Ep32 and Ep33 he kept talking for 18 and 21 seconds after the script ended, and those stretches
+were the best part of both cuts. The five moves had spent the minute on a belief nobody held
+(eight of the last fifteen ended in "right?") and a slogan close. His show now runs reaction,
+what happened, how it sold, his unscripted take, then a question to the viewer.
+`show.require_belief: false` in `radar-config.json` stops the gate requiring `belief`; it
+defaults to true, so every other workspace behaves as before. The pack prints the closing
+question (`cta`) after the take slot instead of before it, the dashboard's copied script does
+the same, and the length error no longer says "cut by deletion": it says to cut a whole beat or
+move it into the take prompts. The other shape is written up in `the-show-template.md`. A test
+pins both sides of the switch.
+
 ## What's new in 3.7.9 (tiktok-yap-editor)
 
 **Tighter pauses: cut from 0.5 seconds, bridges up to 0.5.** Alex watched the October 16th

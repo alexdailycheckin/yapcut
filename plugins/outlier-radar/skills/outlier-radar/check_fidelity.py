@@ -794,6 +794,19 @@ def _show_budget():
         return DEFAULT_CEILING, DEFAULT_WPS
 
 
+def _require_belief():
+    """show.require_belief in radar-config.json, default True. A show that reacts and reports
+    instead of arguing against a belief sets it false (3.22.0), and the gate stops requiring
+    `belief`. Every other research check still runs."""
+    if not RADAR:
+        return True
+    try:
+        show = json.loads((pathlib.Path(RADAR) / "radar-config.json").read_text()).get("show") or {}
+    except (OSError, ValueError):
+        return True
+    return show.get("require_belief", True) is not False
+
+
 def check_length(it, where, fails, warns):
     ceiling, wps = _show_budget()
     spoken = ((it.get("spoken_hook") or "") + " " + (it.get("script") or "")).split()
@@ -802,8 +815,8 @@ def check_length(it, where, fails, warns):
         return
     if n > ceiling:
         fails.append(f"{where}: {n} spoken words against a {ceiling} ceiling, about "
-                     f"{n / wps:.0f} seconds. Cut by DELETION; the budget is satisfied by "
-                     f"removing words rather than writing different ones")
+                     f"{n / wps:.0f} seconds. Cut a whole beat, or move it into the take prompts "
+                     f"(opinion.ideas); never squeeze the words that make the story flow")
 
 
 def _max_news_age():
@@ -880,7 +893,8 @@ def _check_video_item(it, where, fails, warns, proof_counts, proof_missing, week
     if cls not in ("format", "moment") and not (it.get("script") or it.get("beats")):
         warns.append(f"{where}: no script and no beats")
     if cls == "research":
-        check_belief_order(it, where, fails, warns)
+        if _require_belief():
+            check_belief_order(it, where, fails, warns)
         check_length(it, where, fails, warns)
         check_subject(it, where, fails, warns)
         if week:

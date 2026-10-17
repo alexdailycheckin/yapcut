@@ -73,6 +73,7 @@
   },
   "show": {
     "enabled": false,
+    "require_belief": true,
     "name": "",
     "turn_line": "",
     "takeaway_lines": [],

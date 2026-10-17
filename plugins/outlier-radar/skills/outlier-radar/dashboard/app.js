@@ -222,9 +222,9 @@ function scriptText(x){
     if(!hook && x.hook) parts.push(String(x.hook).trim());
     if(typeof x.beats==="string") parts.push(x.beats.trim());
   }
-  if(x.cta) parts.push(String(x.cta).trim());
   const ideas=opinionIdeas(x);
   if(ideas.length) parts.push(opinionLabel()+"\nNot script: the take is said off the cuff, or skipped. Ideas: "+ideas.join(" / "));
+  if(x.cta) parts.push(String(x.cta).trim());
   return parts.filter(Boolean).join("\n\n");
 }
 const table = (hd, rows) => `<div class="tablewrap"><table><thead><tr>${hd.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;

@@ -4,6 +4,16 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.22.0: a show without a belief
+
+**What's new.** If your best part is the take you say off the script, your show can now be built
+around it: react to the headline, say what happened and how it sold, give your take, then ask the
+viewer a question. The gate no longer demands a "belief" sentence for that shape, and the filming
+pack puts the closing question after your take.
+
+**To get it.** Set `"require_belief": false` in the `show` block of `radar-config.json`. Leave it
+out to keep the five moves as they are. The shape is described in `references/the-show-template.md`.
+
 ## 3.21.0: the engine learns from your takes
 
 **What's new.** If a script doesn't sound like you, say it your own way on camera. The engine now

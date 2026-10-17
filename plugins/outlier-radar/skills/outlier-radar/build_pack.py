@@ -110,12 +110,11 @@ def episode_block(it, wps, ceiling, cfg=None):
         # The creator's gate (2026-10-05): the story in one line, what happened and why it
         # matters. It sits above the script so the read starts from the point, not the receipts.
         lines += ["", f"**The story in one line:** {it['story_line'].strip()}"]
-    lines += ["", "**Open on (frame one, flat):**", f"> {(it.get('spoken_hook') or '').strip()}", "",
+    lines += ["", "**Open on (frame one):**", f"> {(it.get('spoken_hook') or '').strip()}", "",
               (it.get("script") or "").strip(), ""]
-    cta = it.get("cta")
-    if isinstance(cta, str) and cta.strip():
-        lines += [f"**Ask at the end:** {cta.strip()}", ""]
-    lines += opinion_lines(it, cfg)
+    # The take comes before the ask (3.22.0): the closing question is the last thing said,
+    # after the creator's own take, so it prints last.
+    lines += opinion_lines(it, cfg) + cta_lines(it)
     pb = it.get("pov_beat")
     if isinstance(pb, dict) and pb.get("beat"):
         lines += [f"_POV beat: {pb['beat']}_" + (f" _(source: {pb['source']})_" if pb.get("source") else ""), ""]
@@ -182,7 +181,7 @@ def explainer_block(it, wps, cfg):
         lines.append(f"_Explained for: {g['who_its_for']}_")
     lines += ["", "**Open on:**", f"> {(it.get('spoken_hook') or '').strip()}", "",
               (it.get("script") or "").strip(), ""]
-    lines += cta_lines(it) + opinion_lines(it, cfg)
+    lines += opinion_lines(it, cfg) + cta_lines(it)
     lines += guide_lines(g)
     if it.get("directions"):
         lines += ["**Directions:**", it["directions"].strip(), ""]

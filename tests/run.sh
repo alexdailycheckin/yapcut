@@ -81,6 +81,27 @@ if [ "$rc" = 2 ] && grep -q "ORDER TEST" /tmp/yapcut-order.log; then ok "belief 
 python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-para.json" --schema-only >/dev/null 2>&1
 [ $? = 2 ] && ok "paraphrased belief exits 2" || bad "paraphrased belief did not exit 2"
 rm -f "$WS/weeks/0000-00-00-late.json" "$WS/weeks/0000-00-00-para.json"
+# optional belief (3.22.0): an episode with no belief fails by default, and passes the belief
+# test when the config sets show.require_belief false. The take-first shape has no belief.
+python3 - "$WS" <<'NOBEL'
+import json, sys, os
+ws = sys.argv[1]; d = json.load(open(os.path.join(ws, "weeks", "0000-00-00-example.json")))
+d["distribution"][0].pop("belief", None)
+json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-nobelief.json"), "w"))
+NOBEL
+python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-nobelief.json" --schema-only >/tmp/yapcut-nobel.log 2>&1
+rc=$?
+if [ "$rc" = 2 ] && grep -q "no belief field" /tmp/yapcut-nobel.log; then ok "a missing belief exits 2 by default"; else bad "missing belief did not fail by default (rc $rc)"; fi
+cp "$WS/radar-config.json" "$WS/radar-config.json.keep"
+python3 - "$WS" <<'OFF'
+import json, sys, os
+p = os.path.join(sys.argv[1], "radar-config.json"); c = json.load(open(p))
+c.setdefault("show", {})["require_belief"] = False; json.dump(c, open(p, "w"))
+OFF
+python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-nobelief.json" --schema-only >/tmp/yapcut-nobel2.log 2>&1
+grep -q "no belief field" /tmp/yapcut-nobel2.log && bad "require_belief false still demanded a belief" || ok "require_belief false skips the belief test"
+mv "$WS/radar-config.json.keep" "$WS/radar-config.json"
+rm -f "$WS/weeks/0000-00-00-nobelief.json"
 # old news (3.17.1): a story whose news_date sits past show.max_news_age_days must be rc 2,
 # and the same story inside the window must pass. A fresh article about an old event is old.
 python3 - "$WS" <<'OLD'

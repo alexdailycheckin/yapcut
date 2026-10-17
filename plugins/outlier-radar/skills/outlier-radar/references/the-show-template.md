@@ -95,6 +95,23 @@ FREE means the order, count and wording are the writer's call, and an episode th
 the belief to the landing in a different order should run that way. FIXED as a function means
 the move happens every episode and its wording is never the same twice.
 
+### The other shape: react, report, then the creator's take (3.22.0)
+
+Some creators are at their best off the script. Their takes run past the written ending every
+time, and those takes are the part worth watching. For them the five moves spend the minute on
+the wrong thing: a belief the viewer never held, a landing line that reads like a slogan, and a
+written take that guesses at what the creator would say. The other shape runs:
+
+1. **The reaction.** The headline fact plus the creator's honest reaction to it.
+2. **What happened.** Two or three facts, told to a friend.
+3. **How it sold.** One or two sentences on what made it sell, or why it didn't.
+4. **The take.** Unscripted, from two or three `opinion.ideas` prompts. It's the longest part.
+5. **The question.** One question to the viewer, in `cta`. The pack prints it after the take.
+
+Set `show.require_belief: false` and the gate stops requiring `belief`. Freshness, receipts, the
+subject check and the ceiling on the written part still run. The written part lands around 100 to
+130 words, so the finished video runs 60 to 90 seconds with the take on top.
+
 ### Move 2 is the load-bearing one
 
 Muller's misconception research is the best-evidenced structure available: clear expository
