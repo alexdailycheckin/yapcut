@@ -301,6 +301,17 @@ python3 "$RADAR/build_dashboard.py" --dir "$WS" >/tmp/yapcut-dash.log 2>&1 && ok
 grep -q 'id="weeks-data"' "$WS/dashboard.html" && ok "weeks embedded as JSON" || bad "weeks-data block missing"
 node --check "$RADAR/dashboard/app.js" >/dev/null 2>&1 && ok "app.js parses" || bad "app.js does not parse"
 python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$RADAR/build_dashboard.py" && ok "build_dashboard.py parses" || bad "build_dashboard.py does not parse"
+# 3.23.0: a campaign marked retired stays on disk but leaves the page; moments_lane.label renames the lane
+mkdir -p "$WS/campaigns"
+echo '{"campaign":"zzq","label":"ZZQ Retired Lane","retired":true,"distribution":[]}' > "$WS/campaigns/zzq.json"
+python3 - "$WS" <<'ML'
+import json, sys, os
+p = os.path.join(sys.argv[1], "radar-config.json"); c = json.load(open(p))
+c["moments_lane"] = {"label": "ZZQ Breaks"}; json.dump(c, open(p, "w"))
+ML
+python3 "$RADAR/build_dashboard.py" --dir "$WS" >/tmp/yapcut-dash2.log 2>&1
+grep -q "ZZQ Retired Lane" "$WS/dashboard.html" && bad "a retired campaign still renders" || ok "a retired campaign leaves the page"
+grep -q "ZZQ Breaks" "$WS/dashboard.html" && ok "moments_lane.label reaches the page" || bad "moments_lane.label missing from the page"
 rm -rf "$WS"
 
 echo

@@ -142,12 +142,13 @@ const LANES = [
   {k:"show", src:w=>w.distribution||[], help:"One news story a week, told as a teardown. The freshest story films first."},
   {k:"viral", src:officeOf, help:"Insider jokes riding a format that is rising right now. One person, one seat."},
   {k:"explainers", src:w=>w.explainers||[], label:"Explainers", help:"A how-to you learn first and explain second. It ships with your own step-by-step guide."},
-  {k:"moments", src:w=>w.moments||[], label:"Moments", help:"Filmed, not read. A capture list for a day in the life or a 5-minute break."},
+  {k:"moments", src:w=>w.moments||[], help:"Filmed, not read. A capture list for a day in the life or a 5-minute break."},
   {k:"days", src:w=>w.days||[], label:"Five days", help:"One short video a day, Monday to Friday, each in its own format."},
 ];
 function laneLabel(L, w){
   if(L.label) return L.label;
   if(L.k==="viral") return UI.secondary_label || "Viral videos";
+  if(L.k==="moments") return UI.moments_label || "Moments";
   return UI.primary_label || ((w.distribution||[])[0]||{}).franchise || "Industry";
 }
 /* Every video item in the week, in lane order. Everything that counts, finds or exports videos reads this. */

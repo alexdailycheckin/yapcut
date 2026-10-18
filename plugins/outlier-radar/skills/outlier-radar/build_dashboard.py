@@ -424,9 +424,15 @@ def load_campaigns(ws):
     for f in sorted(glob.glob(os.path.join(ws, "campaigns", "*.json"))):
         try:
             with open(f, encoding="utf-8") as fh:
-                out.append(json.load(fh))
+                c = json.load(fh)
         except Exception as e:
             warn(f"skip campaign {_base(f)}: {e}")
+            continue
+        # "retired": true keeps the file and its history on disk but takes the lane off the page
+        # (3.23.0), so a series can be paused and brought back by deleting one key.
+        if isinstance(c, dict) and c.get("retired"):
+            continue
+        out.append(c)
     return out
 
 
@@ -588,6 +594,7 @@ def render(ws, cfg, weeks, campaigns, seed):
         # absolute root to build a file:// link the browser can follow.
         "__UI_JSON__": json_for_script({
             "primary_label": primary, "secondary_label": secondary, "leaders_hdr": leaders,
+            "moments_label": lane_label(cfg, "moments_lane", "Moments"),
             "opinion_label": rules.opinion_label(cfg), "workspace": os.path.abspath(ws),
             "built": datetime.now().strftime("%Y-%m-%d")}),
     }

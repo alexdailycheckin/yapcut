@@ -105,5 +105,9 @@
   "sweep": {
     "beats": [],
     "_comment": "Optional (3.17.0). The beats the weekly sweep searches one by one, so the batch covers the niche and not only its loudest funding news. Example for a growth creator: marketing, sales, growth, distribution platforms."
+  },
+  "moments_lane": {
+    "label": "Moments",
+    "_comment": "OPTIONAL (3.23.0): the dashboard name for the moments lane, e.g. 'Pomodoro Breaks'."
   }
 }

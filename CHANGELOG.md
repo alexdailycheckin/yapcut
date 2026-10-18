@@ -2,6 +2,14 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.23.0 (outlier-radar)
+
+**Pause a campaign, rename the moments lane.** Alex retired the CMO/Head of Growth Mirror for now
+and wanted the moments lane called Pomodoro Breaks. A campaign file with `"retired": true` stays in
+`campaigns/` with its history and posted links, and its lane leaves the dashboard; delete the key
+to bring it back. `moments_lane.label` in `radar-config.json` names the moments lane (default
+"Moments"). A test pins both.
+
 ## What's new in 3.7.10 (tiktok-yap-editor)
 
 **HDR iPhone clips come out SDR.** Alex's October 17th takes arrived as 10-bit HLG BT.2020; the
