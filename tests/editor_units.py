@@ -389,6 +389,22 @@ if media.has_tonemap_filters():
                       *media.SDR_TAGS, out], what="tone map")
         check(tags(out) == ("yuv420p", "bt709", "bt709", "bt709"),
               f"an HLG source comes out 8-bit and tagged bt709: {tags(out)}")
+
+        # 3.7.11: 3.7.10's mobius at npl=100 clipped faces (Apple's SDR rendering: face luma 111,
+        # mobius: 184). Flat HLG greys pin the curve: mid-grey must land mid-grey, light grey must
+        # roll off under white. Mobius gave Y 175 and 219 here; the tuned curve gives 93 and 146.
+        def grey_y(rgb):
+            g = os.path.join(t, f"g{rgb}.mp4")
+            media.ffmpeg(["-f", "lavfi", "-i", f"color=c=0x{rgb}:s=64x64:d=0.1:r=30", "-vf",
+                          "setparams=color_primaries=bt2020:color_trc=arib-std-b67:colorspace=bt2020nc:range=tv,"
+                          "format=yuv420p10le", "-c:v", "libx264", g], what="grey fixture")
+            r = media.run(["ffmpeg", "-nostdin", "-v", "error", "-i", g, "-vf", media.sdr_tonemap(g) +
+                           "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-",
+                           "-frames:v", "1", "-f", "null", "-"]).stdout
+            return float(r.split("YAVG=")[1].split()[0])
+        mid, light = grey_y("808080"), grey_y("C0C0C0")
+        check(80 <= mid <= 110, f"an HLG mid-grey lands mid-grey in SDR (Y {mid:.0f}; 3.7.10's mobius gave 175)")
+        check(light <= 170, f"an HLG light grey rolls off under white, not clipped (Y {light:.0f}; mobius gave 219)")
 else:
     print("  skip HDR tone map: this ffmpeg has no zscale/tonemap (preflight.py flags it)")
 

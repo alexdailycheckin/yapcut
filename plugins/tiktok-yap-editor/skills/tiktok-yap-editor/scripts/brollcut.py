@@ -53,7 +53,7 @@ def main():
     for src, tone in tones.items():
         if tone:
             print(f"hdr: {os.path.basename(src)} is 10-bit {media.hdr_kind(src)} (BT.2020); "
-                  "tone-mapped to SDR BT.709 (mobius), beats tagged bt709")
+                  "tone-mapped to SDR BT.709, beats tagged bt709")
     if any(tones.values()) and not media.has_tonemap_filters():
         sys.exit("hdr: this ffmpeg lacks the zscale/tonemap filters an HDR source needs. "
                  "brew install ffmpeg-full && brew link --overwrite --force ffmpeg-full")

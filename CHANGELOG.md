@@ -2,6 +2,25 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.11 (tiktok-yap-editor)
+
+**HDR clips now look the way Apple shows them.** 3.7.10's mobius curve at npl=100 was wrong,
+and Alex called the results tragic: faces clipped flat and salmon. On the Doubting Believer take
+at 40.0 seconds, Apple's own SDR rendering of the frame (AVAssetImageGenerator, forceSDR) has face
+luma 111, and mobius gave 184, a mean-abs pixel difference of 66. With no peak given, ffmpeg's
+tonemap reads a linear frame as peaking at 1.0, so mobius compressed nothing and clipped. The
+curve is now zscale at npl=1000 (HLG's reference display) into reinhard with peak 1.5 and param
+0.5, chosen by grid search against Apple frames. Apple's frame comes back in BT.2020 primaries
+(its PNG carries a QuickTime nclc 9-1-9 profile), so it is compared after conversion to 709. The
+curve scores 2.45 at the frame it was tuned on and 3.09 on frames from four other October 17th
+takes it never saw. Apple's own HEVC export, which the creator's session tried first, scores 8.05
+on the same frame because it comes out about 9 levels bright, so the cut uses the ffmpeg curve on
+every platform, with no Swift helper and no cached intermediate. The finished cut's frame at
+source 40.0s sits at mean-abs 3.71 against the raw Apple frame (2.75 after the gamut fix), with
+face luma 105.7 against 106.6 and the same contrast, and the 32 keeps are unchanged. SDR sources
+are cut byte-identical. A unit test pins the curve on flat HLG greys: mid-grey lands at Y 93
+where mobius gave 175. PQ uses the same curve, untested against an Apple frame.
+
 ## What's new in 3.23.0 (outlier-radar)
 
 **Pause a campaign, rename the moments lane.** Alex retired the CMO/Head of Growth Mirror for now

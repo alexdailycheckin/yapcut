@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.11: HDR clips look the way your phone shows them
+
+**What's new.** 3.7.10 converted HDR clips too bright: faces came out flat and pinkish. The
+conversion now matches the way your iPhone and Mac show the same clip on a normal screen, within
+a few levels of brightness, with the same cut points as before.
+
+**What you need to do.** Nothing. Re-cut any HDR video you made with 3.7.10.
+
 ## 3.7.10: HDR iPhone clips work as they are
 
 **What's new.** Clips your iPhone shot in HDR (10-bit, HLG) used to go into the cut still marked

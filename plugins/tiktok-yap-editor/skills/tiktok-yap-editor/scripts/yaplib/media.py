@@ -83,9 +83,18 @@ def audio_start(path):
 # other phones and cameras). The cut used to pass those tags through to its 8-bit H.264, and on
 # 2026-10-17 the HyperFrames render took its HDR layered-composite path on such a cut and wrote
 # 31 GB of raw frames before the disk filled. A cut now tone-maps an HDR source to SDR BT.709
-# inside the segment pass (no extra generation) and tags the result bt709. Mobius matched the
-# brightness of the SDR takes from the day before; hable came out darker. libplacebo would need
+# inside the segment pass (no extra generation) and tags the result bt709. libplacebo would need
 # Vulkan, which a Mac does not have, so the chain is zscale + tonemap.
+#
+# THE CURVE (3.7.11). 3.7.10 shipped mobius at npl=100 and the creator called it tragic: faces
+# clipped flat and salmon, face luma 184 where Apple's own SDR rendering of the frame gives 111.
+# With no peak given, tonemap reads a linear frame as peaking at 1.0, so mobius compressed
+# nothing and clipped. The target is Apple's rendering (AVAssetImageGenerator, forceSDR), with one
+# trap: that frame comes back in BT.2020 primaries (QuickTime nclc 9-1-9), so it is compared after
+# conversion to 709. Against it, npl=1000 (HLG's reference display) into reinhard peak 1.5,
+# param 0.5 scores mean-abs 2.45 at 40.0s of the take it was tuned on (face luma 110), and 3.09 on
+# frames from four other takes it never saw. Apple's own HEVC export scored 8.05 (9 levels bright).
+# PQ goes through the same curve untested: no PQ clip with an Apple reference was at hand.
 HDR_TRANSFERS = {"arib-std-b67": "HLG", "smpte2084": "PQ"}
 SDR_TAGS = ["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709"]
 # Since ffmpeg 7.1 the encoder takes primaries and transfer from the frames and ignores the two
@@ -115,8 +124,9 @@ def sdr_tonemap(path):
     t = color_transfer(path)
     if t not in HDR_TRANSFERS:
         return ""
-    return (f"zscale=tin={t}:min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=100,format=gbrpf32le,"
-            "zscale=p=bt709,tonemap=tonemap=mobius:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p,")
+    return (f"zscale=tin={t}:min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=1000,format=gbrpf32le,"
+            "zscale=p=bt709,tonemap=tonemap=reinhard:param=0.5:peak=1.5:desat=0,"
+            "zscale=t=bt709:m=bt709:r=tv,format=yuv420p,")
 
 
 def has_tonemap_filters():
