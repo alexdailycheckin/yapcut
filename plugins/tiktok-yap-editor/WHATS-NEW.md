@@ -4,6 +4,16 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.10: HDR iPhone clips work as they are
+
+**What's new.** Clips your iPhone shot in HDR (10-bit, HLG) used to go into the cut still marked
+HDR, and the HyperFrames render then filled the disk with raw frames. The editor now converts
+them to normal SDR color inside the cut, at the brightness your SDR clips have, with the same cut
+points. SDR clips are cut exactly as before.
+
+**What you need to do.** Nothing, as long as `preflight.py` shows the zscale and tonemap filters
+as OK. If it does not, install the full ffmpeg build it names.
+
 ## 3.7.9: tighter pauses
 
 **What's new.** The editor now cuts every pause of half a second or more (it was 0.55), and a

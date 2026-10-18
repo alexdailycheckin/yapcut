@@ -7,7 +7,8 @@ discovering a missing dependency three steps into a render.
 
 Checks, in order: ffmpeg + ffprobe, the libass `ass` filter (the ONE caption
 burn path; the Pillow PNG-overlay fallback was removed 2026-09-09 along with
-caption_frames.py and compose.sh), whisper-cli + a ggml model, every Python
+caption_frames.py and compose.sh), the zscale + tonemap filters (an HDR iPhone
+clip is tone-mapped to SDR at the cut), whisper-cli + a ggml model, every Python
 package listed in requirements.txt (repo root), the fonts the default presets
 name, and that the shipped brand-config.default.json agrees with yaplib.brand.
 
@@ -83,6 +84,10 @@ if has_ffmpeg:
           "the default `ffmpeg` bottle lacks libass. Install the full build:\n"
           "          brew install ffmpeg-full && brew link --overwrite --force ffmpeg-full\n"
           "          (if a later `brew upgrade` relinks the minimal ffmpeg, re-run the link command)")
+    # an iPhone clip shot in HDR (10-bit HLG) is tone-mapped to SDR by the cut with zscale + tonemap
+    check("zscale + tonemap filters (tone-map HDR iPhone clips to SDR)",
+          " zscale " in filters and " tonemap " in filters,
+          "brew install ffmpeg-full && brew link --overwrite --force ffmpeg-full")
 
 # whisper.cpp + model
 check("whisper-cli (whisper.cpp)", shutil.which("whisper-cli") is not None, "brew install whisper-cpp")

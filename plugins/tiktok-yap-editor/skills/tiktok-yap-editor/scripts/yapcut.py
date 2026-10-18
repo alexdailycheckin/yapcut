@@ -429,6 +429,17 @@ def main():
     AOFF={src: media.audio_start(src) for src in {k[0] for k in keeps}}
     for src,off in AOFF.items():
         if off: print(f"audio start: {os.path.basename(src)} audio begins {off*1000:.0f}ms into the movie; seeks shifted to match")
+    # HDR SOURCES (3.7.10): a 10-bit HLG or PQ take is tone-mapped to SDR BT.709 inside the segment
+    # pass and the cut is tagged bt709 (yaplib.media has why). An SDR take gets an empty prefix and
+    # no tags, so its encode is the same command as before. Timing never changes: the keeps come
+    # from the audio, and the picture's frame count from the audio clock.
+    TONE={src: media.sdr_tonemap(src) for src in AOFF}
+    for src in AOFF:
+        if TONE[src]: print(f"hdr: {os.path.basename(src)} is 10-bit {media.hdr_kind(src)} (BT.2020); "
+                            "tone-mapped to SDR BT.709 (mobius) inside the segment pass, cut tagged bt709")
+    if any(TONE.values()) and not media.has_tonemap_filters():
+        sys.exit("hdr: this ffmpeg lacks the zscale/tonemap filters an HDR source needs. "
+                 "brew install ffmpeg-full && brew link --overwrite --force ffmpeg-full")
     t_audio=0.0; f_video=0
     for i,(src,s,e,gain) in enumerate(keeps):
         ov=f"{segdir}/yc_{i:03d}.mov"; oa=f"{segdir}/ya_{i:03d}.wav"
@@ -452,7 +463,7 @@ def main():
         # lossy encode of the entire video on top of an already 3-generation
         # chain, and those were the two files the creator called low quality.
         grade=(a.grade+",") if a.grade else ""
-        vf=(f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+        vf=(f"{TONE[src]}scale={W}:{H}:force_original_aspect_ratio=increase,"
             f"crop={media.W}:{media.H},setsar=1,{grade}fps=30,"
             f"tpad=stop_mode=clone:stop_duration=0.3")
         # -ss/-to (not -t): input -t measures from the packet where reading
@@ -465,6 +476,7 @@ def main():
             # concat, so crf 12 here is effectively transparent and stops the
             # first generation eating detail the later ones can never restore.
             "-c:v","libx264","-preset","veryfast","-crf","12","-pix_fmt","yuv420p",
+            *(media.SDR_TAGS if TONE[src] else []),
             "-video_track_timescale","30000","-an",ov,
             "-map","0:a","-af",af,"-c:a","pcm_s16le","-ar","48000","-ac","2","-vn",oa,
             "-hide_banner","-loglevel","error"],check=True)
@@ -480,11 +492,15 @@ def main():
     # join; renumber the video onto a gapless 30fps grid (setpts=N/(30*TB)) so
     # every frame lands at frame#/30 and locks to the gapless PCM->AAC audio.
     # Never -c:v copy here.
+    # With an HDR source the frames are stamped bt709 too: ffmpeg takes primaries and transfer from
+    # the frames, so an untagged SDR clip mixed in could leave them unset (media.SDR_STAMP).
     subprocess.run(["ffmpeg","-nostdin","-y","-i",tmpv,"-i",tmpa,
         "-map","0:v","-map","1:a",
-        "-vf","setpts=N/(30*TB),setsar=1","-r","30","-vsync","cfr",
+        "-vf","setpts=N/(30*TB),setsar=1"+(","+media.SDR_STAMP if any(TONE.values()) else ""),
+        "-r","30","-vsync","cfr",
         "-video_track_timescale","30000",
         "-c:v","libx264","-preset","medium","-crf","16","-pix_fmt","yuv420p",
+        *(media.SDR_TAGS if any(TONE.values()) else []),
         "-c:a","aac","-b:a","192k",a.out,"-hide_banner","-loglevel","error"],check=True)
     os.remove(tmpv); os.remove(tmpa)
     shutil.rmtree(segdir,ignore_errors=True)   # segments are spent once concatenated

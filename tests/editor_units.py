@@ -356,6 +356,42 @@ st = [x["offsets"]["from"] / 1000 for x in w]
 check(1.18 <= st[1] <= 1.3, f"a trailing word stamped in the pause moves back onto the voice: {st}")
 check(st == sorted(st), "a moved word never passes its neighbours")
 
+# --- HDR sources (3.7.10): an HLG take is tone-mapped to SDR BT.709, an SDR take is untouched ------
+# 2026-10-17: iPhone takes arrived 10-bit HLG, the cut passed the tags through, and the HyperFrames
+# render took its HDR path and wrote 31 GB of raw frames. Tiny tagged clips stand in for the takes.
+from yaplib import media  # noqa: E402
+
+
+def tagged(path, trc, prim, space, pix):
+    media.ffmpeg(["-f", "lavfi", "-i", "testsrc2=s=192x108:d=0.2:r=30", "-vf",
+                  f"setparams=color_primaries={prim}:color_trc={trc}:colorspace={space}:range=tv,format={pix}",
+                  "-c:v", "libx264", path], what="fixture")
+
+
+def tags(path):
+    s = media.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                   "stream=pix_fmt,color_transfer,color_primaries,color_space", "-of", "json", path]).stdout
+    s = json.loads(s)["streams"][0]
+    return s.get("pix_fmt"), s.get("color_transfer"), s.get("color_primaries"), s.get("color_space")
+
+
+if media.has_tonemap_filters():
+    with tempfile.TemporaryDirectory() as t:
+        hlg, pq, sdr, out = (os.path.join(t, n) for n in ("hlg.mp4", "pq.mp4", "sdr.mp4", "out.mp4"))
+        tagged(hlg, "arib-std-b67", "bt2020", "bt2020nc", "yuv420p10le")
+        tagged(pq, "smpte2084", "bt2020", "bt2020nc", "yuv420p10le")
+        tagged(sdr, "bt709", "bt709", "bt709", "yuv420p")
+        check((media.hdr_kind(hlg), media.hdr_kind(pq), media.hdr_kind(sdr)) == ("HLG", "PQ", ""),
+              "HLG and PQ sources read as HDR, a bt709 source as SDR")
+        check(media.sdr_tonemap(sdr) == "", "an SDR source gets no tone map, so its cut is the same command")
+        check("tin=smpte2084" in media.sdr_tonemap(pq), "a PQ source is linearised from PQ, not HLG")
+        media.ffmpeg(["-i", hlg, "-vf", media.sdr_tonemap(hlg) + "scale=96:54", "-pix_fmt", "yuv420p",
+                      *media.SDR_TAGS, out], what="tone map")
+        check(tags(out) == ("yuv420p", "bt709", "bt709", "bt709"),
+              f"an HLG source comes out 8-bit and tagged bt709: {tags(out)}")
+else:
+    print("  skip HDR tone map: this ffmpeg has no zscale/tonemap (preflight.py flags it)")
+
 
 if fails:
     print(f"{len(fails)} failure(s)")

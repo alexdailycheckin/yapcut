@@ -383,7 +383,9 @@ jump cut. `yapcut.py` does everything in one clean CFR pass, cuts only at pauses
 more, bridges segments under 0.45s, requires a cut to remove 0.25s to exist, finds edges by
 walking the energy envelope out to a measured margin, and paces frames against the cumulative
 audio clock so lips never slide off the voice. Zero dead space means zero DEAD space: real
-pauses, restarts and stutters go; speech cadence stays.
+pauses, restarts and stutters go; speech cadence stays. An iPhone clip shot in HDR (10-bit HLG,
+or PQ) is tone-mapped to SDR BT.709 inside the same pass and the cut is tagged bt709, so no
+batch needs a manual SDR conversion; the cut log prints an `hdr:` line for each such source.
 
 ## Hard rules
 

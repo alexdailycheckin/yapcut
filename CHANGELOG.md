@@ -2,6 +2,24 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.10 (tiktok-yap-editor)
+
+**HDR iPhone clips come out SDR.** Alex's October 17th takes arrived as 10-bit HLG BT.2020; the
+October 16th ones were SDR. The cut passed the HLG tags through to its 8-bit H.264, the
+HyperFrames render then took its HDR layered-composite path and wrote 31 GB of raw frames until
+the disk was nearly full, and the batch was saved by converting every original to SDR by hand.
+`yapcut.py` and `brollcut.py` now read each source's transfer: an HLG (`arib-std-b67`) or PQ
+(`smpte2084`) source goes through zscale to linear, the mobius tone map (it matched the October
+16th brightness; hable came out darker) and back to 8-bit BT.709 inside the segment pass, so the
+fix costs no extra generation, and the cut is tagged bt709. The frames carry the tags as well as
+the flags, because ffmpeg 7.1 and later take primaries and transfer from the frames and ignore
+`-color_primaries` and `-color_trc`. Keeps come from the audio, so the cut points do not move: the
+Doubting Believer take cut from the HLG original gives the same 32 keeps as the 3.7.9 cut and
+the hand-converted SDR cut, at the same brightness (mean luma 146.71 against 146.74). An SDR
+source gets the same command as 3.7.9 and a byte-identical file. The cut log prints an `hdr:` line
+per HDR source, `preflight.py` checks for the zscale and tonemap filters, and
+`yaplib/media.py hdr <file>` answers HLG, PQ or nothing.
+
 ## What's new in 3.22.0 (outlier-radar)
 
 **A show can drop the belief.** Alex read his own takes against the scripts on 2026-10-17. On

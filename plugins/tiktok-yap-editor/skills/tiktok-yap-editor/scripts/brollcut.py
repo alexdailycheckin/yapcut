@@ -47,6 +47,16 @@ def main():
     segdir = f"{wd}/broll_{outbase}"
     os.makedirs(segdir, exist_ok=True)
     beats = json.load(open(a.beats))
+    # an HDR (HLG/PQ) clip is tone-mapped to SDR BT.709 inside its beat's encode and the beat is
+    # tagged bt709; an SDR clip gets '' and no tags, so its encode is unchanged (yaplib.media has why)
+    tones = {src: media.sdr_tonemap(src) for src in {b["src"] for b in beats}}
+    for src, tone in tones.items():
+        if tone:
+            print(f"hdr: {os.path.basename(src)} is 10-bit {media.hdr_kind(src)} (BT.2020); "
+                  "tone-mapped to SDR BT.709 (mobius), beats tagged bt709")
+    if any(tones.values()) and not media.has_tonemap_filters():
+        sys.exit("hdr: this ffmpeg lacks the zscale/tonemap filters an HDR source needs. "
+                 "brew install ffmpeg-full && brew link --overwrite --force ffmpeg-full")
 
     concat = f"{wd}/bconcat_{outbase}.txt"
     open(concat, "w").close()
@@ -65,14 +75,17 @@ def main():
         # zoompan quantizes x/y to whole pixels and the push visibly shakes;
         # sampling from 2160x3840 makes the steps sub-pixel and smooth.
         W, H = media.W, media.H
+        tone = tones[src]
         if b.get("push"):
-            vf = (f"scale={W * 2}:{H * 2}:force_original_aspect_ratio=increase,"
+            vf = (f"{tone}scale={W * 2}:{H * 2}:force_original_aspect_ratio=increase,"
                   f"crop={W * 2}:{H * 2},setsar=1,fps={a.fps},"
                   "zoompan=z='min(1.0+0.0009*on,1.12)':d=1:"
                   f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={W}x{H}:fps={a.fps}")
         else:
-            vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+            vf = (f"{tone}scale={W}:{H}:force_original_aspect_ratio=increase,"
                   f"crop={W}:{H},setsar=1,fps={a.fps}")
+        if tone:   # zoompan makes new frames without the tone map's bt709 tags; stamp them back
+            vf += "," + media.SDR_STAMP
 
         cmd = ["ffmpeg", "-nostdin", "-y", "-ss", f"{s:.3f}", "-to", f"{e:.3f}",
                "-i", src]
@@ -85,7 +98,7 @@ def main():
                     "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
                     "-vf", vf, "-map", "0:v", "-map", "1:a"]
         cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-                "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2",
+                "-pix_fmt", "yuv420p", *(media.SDR_TAGS if tone else []), "-c:a", "aac", "-ar", "48000", "-ac", "2",
                 "-b:a", "192k", "-video_track_timescale", "30000",
                 o, "-hide_banner", "-loglevel", "error"]
         media.run(cmd, what=f"ffmpeg beat {i}")

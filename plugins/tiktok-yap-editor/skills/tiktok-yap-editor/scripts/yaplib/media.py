@@ -10,6 +10,7 @@ CLI (for the shell orchestrators):
   python3 yaplib/media.py drift <file> [--limit S]   -> prints drift, exit 2 over limit
   python3 yaplib/media.py streams <file>             -> codec_type=duration lines
   python3 yaplib/media.py has-audio <file>           -> exit 0 yes, 1 no
+  python3 yaplib/media.py hdr <file>                 -> prints HLG or PQ, exit 0 HDR, 1 SDR
 """
 import json
 import subprocess
@@ -78,6 +79,55 @@ def audio_start(path):
     return v if v == v and 0.0 < v < 1.0 else 0.0
 
 
+# HDR SOURCES (3.7.10). iPhone video shot in HDR is 10-bit BT.2020 with an HLG transfer (PQ from
+# other phones and cameras). The cut used to pass those tags through to its 8-bit H.264, and on
+# 2026-10-17 the HyperFrames render took its HDR layered-composite path on such a cut and wrote
+# 31 GB of raw frames before the disk filled. A cut now tone-maps an HDR source to SDR BT.709
+# inside the segment pass (no extra generation) and tags the result bt709. Mobius matched the
+# brightness of the SDR takes from the day before; hable came out darker. libplacebo would need
+# Vulkan, which a Mac does not have, so the chain is zscale + tonemap.
+HDR_TRANSFERS = {"arib-std-b67": "HLG", "smpte2084": "PQ"}
+SDR_TAGS = ["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709"]
+# Since ffmpeg 7.1 the encoder takes primaries and transfer from the frames and ignores the two
+# flags above (only -colorspace and range are negotiated), so the tags that stick ride on the
+# frames: zscale sets them in the tone map, and this stamps them where frames may arrive untagged.
+SDR_STAMP = "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709"
+
+
+def color_transfer(path):
+    """The first video stream's color_transfer tag ('' when untagged or there is no video).
+    JSON, not csv: an iPhone HDR stream carries side data (Dolby Vision, the display matrix),
+    and csv prints it as extra fields, so the tag came back as 'arib-std-b67,'."""
+    out = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+               "stream=color_transfer", "-of", "json", str(path)], what="ffprobe color").stdout
+    streams = json.loads(out or "{}").get("streams") or [{}]
+    return streams[0].get("color_transfer", "")
+
+
+def hdr_kind(path):
+    """'HLG' or 'PQ' for an HDR source, '' for SDR."""
+    return HDR_TRANSFERS.get(color_transfer(path), "")
+
+
+def sdr_tonemap(path):
+    """The filter chain that brings an HDR source to 8-bit SDR BT.709, ending in a comma so it
+    prefixes an existing -vf. '' for an SDR source, so an SDR cut's filter graph stays the same."""
+    t = color_transfer(path)
+    if t not in HDR_TRANSFERS:
+        return ""
+    return (f"zscale=tin={t}:min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=100,format=gbrpf32le,"
+            "zscale=p=bt709,tonemap=tonemap=mobius:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p,")
+
+
+def has_tonemap_filters():
+    """True when this ffmpeg has the zscale and tonemap filters an HDR source needs."""
+    try:
+        out = run(["ffmpeg", "-hide_banner", "-filters"], what="ffmpeg filters").stdout
+    except MediaError:
+        return False
+    return " zscale " in out and " tonemap " in out
+
+
 def probe_streams(path):
     """{codec_type: {duration, width, height, sample_rate, r_frame_rate}} for
     the first stream of each type."""
@@ -142,6 +192,11 @@ def _cli(argv):
                 print(f"{t}={d:.3f}")
         elif cmd == "has-audio":
             sys.exit(0 if has_audio(path) else 1)
+        elif cmd == "hdr":
+            k = hdr_kind(path)
+            if k:
+                print(k)
+            sys.exit(0 if k else 1)
         elif cmd == "drift":
             limit = DRIFT_LIMIT_FINAL
             if "--limit" in argv:

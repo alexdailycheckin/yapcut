@@ -83,6 +83,13 @@ def ready_editor():
     """HyperFrames packaging on this machine. Fast: no network, no npx."""
     rows = [(_node_major() >= 22, "Node 22 or newer", "install it (on a Mac: brew install node)"),
             (bool(shutil.which("ffmpeg")), "ffmpeg", "install it (on a Mac: brew install ffmpeg)")]
+    if shutil.which("ffmpeg"):   # 3.7.10: the cut tone-maps HDR iPhone clips with these two filters
+        try:
+            f = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True, timeout=3).stdout
+        except Exception:
+            f = ""
+        rows.append((" zscale " in f and " tonemap " in f, "ffmpeg's zscale and tonemap filters (HDR iPhone clips)",
+                     "brew install ffmpeg-full && brew link --overwrite --force ffmpeg-full"))
     lib = False
     try:
         sys.path.insert(0, os.path.join(SKILL, "scripts"))
