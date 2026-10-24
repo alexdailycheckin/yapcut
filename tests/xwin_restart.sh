@@ -61,4 +61,29 @@ if [ "$rc" = 0 ] && ! grep -q "\[MEDIUM\]" "$T/3.log"; then ok "a transcript tha
 python3 "$SCRIPTS/xwin_scan.py" --video "$T/once.wav" --words "$T/w_once.json" >"$T/4.log" 2>&1
 rc=$?
 if [ "$rc" = 0 ]; then ok "the line said once has no MEDIUM"; else bad "false MEDIUM on a clean line (rc $rc)"; cat "$T/4.log"; fi
+# 3.8.0, keeps mode: the windows come from the source take and the joins from the cut. The same
+# restart must still be MEDIUM when the cut keeps it whole, and when a join splits its two passes
+# (the cut is the same audio either way: the keeps meet at the pause). A rerun decodes nothing.
+python3 - "$T/w_restart.json" "$T/restart.wav" "$T" <<'PY'
+import json, re, sys
+segs = json.load(open(sys.argv[1]))["transcription"]
+its = [s for s in segs if re.sub(r"[^a-z']", "", s.get("text", "").lower()) == "it's"]
+made = [s for s in segs if s["offsets"]["to"] <= its[1]["offsets"]["from"]][-1]
+mid = round((made["offsets"]["to"] + its[1]["offsets"]["from"]) / 2000.0, 3)
+import wave
+w = wave.open(sys.argv[2]); dur = w.getnframes() / w.getframerate(); w.close()
+json.dump([{"src": sys.argv[2], "a": 0.0, "b": round(dur, 3)}], open(f"{sys.argv[3]}/keeps1.json", "w"))
+json.dump([{"src": sys.argv[2], "a": 0.0, "b": mid}, {"src": sys.argv[2], "a": mid, "b": round(dur, 3)}],
+          open(f"{sys.argv[3]}/keeps2.json", "w"))
+PY
+for k in 1 2; do
+  python3 "$SCRIPTS/xwin_scan.py" --video "$T/restart.wav" --words "$T/w_merged.json" --keeps "$T/keeps$k.json" \
+    --cache "$T/xk$k.json" --store-dir "$T/xwin_src" >"$T/k$k.log" 2>&1
+  rc=$?
+  label=$([ "$k" = 1 ] && echo "kept whole" || echo "split by a join")
+  if [ "$rc" = 2 ] && grep -q "\[MEDIUM\]" "$T/k$k.log"; then ok "keeps mode: the restart $label is MEDIUM"; else bad "keeps mode missed the restart $label (rc $rc)"; cat "$T/k$k.log"; fi
+done
+python3 "$SCRIPTS/xwin_scan.py" --video "$T/restart.wav" --words "$T/w_merged.json" --keeps "$T/keeps2.json" \
+  --cache "$T/xk2.json" --store-dir "$T/xwin_src" >"$T/k3.log" 2>&1
+grep -q " 0 decoded" "$T/k3.log" && ok "a rerun decodes nothing" || { bad "the rerun decoded windows again"; cat "$T/k3.log"; }
 [ "$FAILS" = 0 ] || exit 2

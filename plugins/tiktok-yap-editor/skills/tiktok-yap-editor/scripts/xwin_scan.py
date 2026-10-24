@@ -28,21 +28,40 @@ repeat, and stutter_check.py already reads that transcript), the transcript neve
 MEDIUM is a decision like the other two detectors': cut it in the clause plan, or listen and
 add one of its printed keys to the shared accept-file (<out>_stutter_ok.json).
 
-Window decodes are cached beside the accept-file keyed on the cut's audio, so a
-YAP_FROM_CUT=1 rebuild skips the whisper pass. A fresh scan costs about 1s of whisper per
-window on an Apple M4 (a 55s cut is about 235 windows, 4 minutes); running whisper
-processes side by side is slower, not faster, because they share the GPU.
+Decoding is the whole cost: about 1.2s of whisper per window on an Apple M4 whatever the
+window's length (whisper encodes 30s of audio for every window; --audio-ctx makes it 2x faster
+and rewrote 41 of 60 real windows, some into repeats of their own, so it stays off). A cut with
+no cache is 300 to 400 windows. Three things keep that off the critical path (3.8.0):
+
+  - every decode is cached by the audio it decoded (window_key), so any window whose audio is
+    unchanged is never decoded twice
+  - with --keeps the windows inside each keep are cut from the SOURCE take on the take's own
+    fixed grid and cached per take in --store-dir (xwin_src/). A re-cut of the same takes moves
+    the keeps, not the grid: on 2026-10-24 a 1.1x re-cut of five videos paid 13 to 22 minutes of
+    whisper each for audio decoded the night before. Only the joins (audio side by side in no
+    source) and the cut's first and last window are decoded from the cut.
+  - --prescan decodes the takes' windows inside the clause plans before the cut exists, so
+    yapbatch runs it in a background lane while the cut and the previous render run.
+Running two whisper processes side by side is slower than one after the other (they share the
+GPU), so every decode takes a lock in the store directory.
+
+The script settles what it says itself (--script): a gram the script says twice within 15 words
+is LOW, never MEDIUM, before the opinion slot (--free-from).
 
 Usage: xwin_scan.py --video cut.mp4 --words w_<out>.json
+                    [--keeps keeps_full_<out>.json --speed 1.1 --workdir .yap_build]
                     [--accept-file <out>_stutter_ok.json] [--cache xwin_<out>.json]
-                    [--windows 1.1,1.6] [--hop 0.45] [--show-low]
+                    [--store-dir .yap_build/xwin_src] [--script <out>_script.txt]
+                    [--free-from <s>] [--windows 1.1,1.6] [--hop 0.45] [--show-low]
+       xwin_scan.py --prescan clauses_<out>.json [...] --store-dir .yap_build/xwin_src
 Exit: 0 clean, only LOW hits, or every MEDIUM accepted; 2 a MEDIUM needs a decision.
 """
-import argparse, hashlib, json, os, re, subprocess, sys, tempfile, wave
+import argparse, hashlib, json, math, os, re, subprocess, sys, tempfile, time, wave
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from stutter_check import accept_key, load_accepted  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
+from yaplib import script as yscript  # noqa: E402
 
 MODEL = ywords.whisper_model()   # the same model as the cut's words, or two wordings read as a restart
 RATE = 16000
@@ -51,6 +70,8 @@ HOP = 0.45
 LEAD_PAD = 0.25           # silence before and after each window: whisper decodes a clip
 TAIL_PAD = 0.4            # that starts or ends on a word badly without it
 MIN_AUDIO = 0.3           # the last window must carry at least this much audio
+DECODE_CHUNK = 120        # windows per whisper-cli call (progress prints between calls)
+SCRIPT_NEAR = 15          # script tokens within which the script saying a gram twice settles it
 MAX_START_GAP = 3.0       # two windows further apart than this are not one restart
 SPAN_PAD = 0.6            # transcript words counted this far either side of a hit
 THRESHOLD = 0.6           # MEDIUM at or above; only the merged shape (score()) gets there
@@ -79,9 +100,10 @@ def decode_prone(tokens):
                for t in tokens)
 
 
-def read_wav(video, tmpdir):
-    wav = os.path.join(tmpdir, "all.wav")
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-v", "error", "-i", video, "-vn",
+def read_pcm(path, tmpdir):
+    """16 kHz mono s16 PCM of any media file."""
+    wav = os.path.join(tmpdir, hashlib.sha1(os.path.abspath(path).encode()).hexdigest()[:12] + ".wav")
+    subprocess.run(["ffmpeg", "-nostdin", "-y", "-v", "error", "-i", path, "-vn",
                     "-ar", str(RATE), "-ac", "1", "-c:a", "pcm_s16le", wav], check=True)
     w = wave.open(wav, "rb")
     data = w.readframes(w.getnframes())
@@ -89,72 +111,273 @@ def read_wav(video, tmpdir):
     return data
 
 
-def signature(pcm, windows, hop):
-    h = hashlib.sha1(pcm)
-    h.update(json.dumps([list(windows), hop, LEAD_PAD, TAIL_PAD, MIN_AUDIO,
-                         os.path.basename(MODEL)]).encode())
-    return h.hexdigest()
+def read_wav(video, tmpdir):
+    return read_pcm(video, tmpdir)
 
 
-def decode_windows(pcm, win, hop, tmpdir):
-    """[[t, text], ...] for every window of length win that decoded to speech. ONE
-    whisper-cli call with every window as its own -f input: the model loads once and
-    each window is still decoded on its own, so nothing smooths across windows."""
-    dur = len(pcm) / 2 / RATE
-    lead = b"\x00\x00" * int(LEAD_PAD * RATE)
-    tail = b"\x00\x00" * int(TAIL_PAD * RATE)
-    files, k = [], 0
-    while k * hop + MIN_AUDIO < dur:
-        t = round(k * hop, 2)
-        a, b = int(t * RATE) * 2, min(len(pcm), int((t + win) * RATE) * 2)
-        f = os.path.join(tmpdir, f"w{win:.2f}_{t:08.2f}.wav")
-        o = wave.open(f, "wb"); o.setnchannels(1); o.setsampwidth(2); o.setframerate(RATE)
-        o.writeframes(lead + pcm[a:b] + tail); o.close()
-        files.append((t, f)); k += 1
-    cmd = ["whisper-cli", "-m", MODEL, "-oj", "-np"]
-    for _, f in files:
-        cmd += ["-f", f]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    if r.returncode != 0:
-        # a scan that could not run must never read as a clean zero
-        sys.stderr.write((r.stderr or "")[-600:])
-        sys.exit(f"xwin_scan: whisper-cli failed (rc {r.returncode}) on the {win:g}s windows; "
-                 "nothing was scanned, so the gate cannot pass")
+def source_pcm(src, workdir, tmpdir):
+    """A source take's PCM. yapcut.py already wrote <workdir>/audio/<clip>.wav at 16 kHz mono;
+    read that when it is there and newer than the clip, else decode the clip."""
+    wav = os.path.join(workdir, "audio", os.path.splitext(os.path.basename(src))[0] + ".wav") if workdir else ""
+    if wav and os.path.isfile(wav) and os.path.getmtime(wav) >= os.path.getmtime(src):
+        w = wave.open(wav, "rb")
+        if w.getframerate() == RATE and w.getnchannels() == 1 and w.getsampwidth() == 2:
+            data = w.readframes(w.getnframes())
+            w.close()
+            return data
+        w.close()
+    return read_pcm(src, tmpdir)
+
+
+def window_bytes(pcm, t, win):
+    """The audio whisper decodes for one window: lead silence, the slice, tail silence."""
+    a, b = int(t * RATE) * 2, min(len(pcm), int((t + win) * RATE) * 2)
+    return (b"\x00\x00" * int(LEAD_PAD * RATE)) + pcm[a:b] + (b"\x00\x00" * int(TAIL_PAD * RATE))
+
+
+def window_key(audio):
+    """Content address of a window decode: the exact audio plus everything that changes what
+    whisper returns for it. The same audio decodes the same wherever it sits, so a key computed
+    from a source take survives every re-cut of that take."""
+    h = hashlib.sha1(audio)
+    h.update(json.dumps([LEAD_PAD, TAIL_PAD, os.path.basename(MODEL)]).encode())
+    return h.hexdigest()[:24]
+
+
+class Store:
+    """Window decodes by content key ({key: text}, "" for a window with no speech), in one json
+    file. save() merges with what is on disk, so two scans sharing a file lose nothing."""
+
+    def __init__(self, path):
+        self.path, self.w, self.new = path, {}, {}
+        if path and os.path.isfile(path):
+            try:
+                d = json.load(open(path))
+                self.w = d.get("windows", {}) if isinstance(d, dict) and d.get("store") == 1 else {}
+            except (OSError, ValueError):
+                self.w = {}
+
+    def get(self, key):
+        return self.new.get(key, self.w.get(key))
+
+    def put(self, key, text):
+        self.new[key] = text
+
+    def save(self):
+        if not self.path or not self.new:
+            return
+        cur = Store(self.path).w
+        cur.update(self.w); cur.update(self.new)
+        os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+        tmp = self.path + ".tmp"
+        json.dump({"store": 1, "model": os.path.basename(MODEL), "windows": cur}, open(tmp, "w"), indent=0)
+        os.replace(tmp, self.path)
+        self.w, self.new = cur, {}
+
+
+def clean_text(segs):
+    # a looping decode repeats a whole segment verbatim; that is whisper, not speech
+    segs = [s for i, s in enumerate(segs) if s and (i == 0 or s != segs[i - 1])]
+    txt = " ".join(segs).strip()
+    return "" if (not txt or "BLANK_AUDIO" in txt or not norm_words(txt)) else txt
+
+
+class whisper_lock:
+    """One whisper decode at a time across processes (3.8.0): yapbatch runs the next video's
+    prescan beside the current video's cut and render, and two whisper-cli processes on one GPU
+    are slower together than one after the other. A mkdir lock beside the window store, taken
+    per chunk; a lock whose owner is gone is taken over."""
+
+    def __init__(self, store_dir):
+        self.dir = os.path.join(store_dir, ".whisper.lock") if store_dir else ""
+
+    def __enter__(self):
+        if not self.dir:
+            return self
+        os.makedirs(os.path.dirname(self.dir), exist_ok=True)
+        waited = 0
+        while True:
+            try:
+                os.mkdir(self.dir)
+                open(os.path.join(self.dir, "pid"), "w").write(str(os.getpid()))
+                return self
+            except FileExistsError:
+                try:
+                    pid = int(open(os.path.join(self.dir, "pid")).read() or 0)
+                    os.kill(pid, 0)
+                except (OSError, ValueError):
+                    if waited >= 2:                       # gone or never wrote a pid: take it over
+                        subprocess.run(["rm", "-rf", self.dir])
+                        continue
+                if waited == 0:
+                    print("  waiting for another whisper decode to finish", flush=True)
+                time.sleep(1); waited += 1
+
+    def __exit__(self, *exc):
+        if self.dir:
+            subprocess.run(["rm", "-rf", self.dir])
+
+
+LOCK_DIR = ""
+
+
+def decode_batch(jobs, tmpdir, label=""):
+    """jobs: [(store, key, audio)]. Decodes every key not yet in its store, in ONE whisper-cli
+    call per chunk (the model loads once; each window is still its own -f input, so nothing
+    smooths across windows), and puts the text in the store."""
+    todo, seen = [], set()
+    for st, key, audio in jobs:
+        if st.get(key) is None and key not in seen:
+            seen.add(key); todo.append((st, key, audio))
+    if not todo:
+        return 0
+    t0 = time.time()
+    for c in range(0, len(todo), DECODE_CHUNK):
+        part = todo[c:c + DECODE_CHUNK]
+        files = []
+        for st, key, audio in part:
+            f = os.path.join(tmpdir, key + ".wav")
+            o = wave.open(f, "wb"); o.setnchannels(1); o.setsampwidth(2); o.setframerate(RATE)
+            o.writeframes(audio); o.close()
+            files.append(f)
+        cmd = ["whisper-cli", "-m", MODEL, "-oj", "-np"]
+        for f in files:
+            cmd += ["-f", f]
+        with whisper_lock(LOCK_DIR):
+            r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            # a scan that could not run must never read as a clean zero
+            sys.stderr.write((r.stderr or "")[-600:])
+            sys.exit(f"xwin_scan: whisper-cli failed (rc {r.returncode}) on {label or 'the'} windows; "
+                     "nothing was scanned, so the gate cannot pass")
+        for (st, key, _a), f in zip(part, files):
+            try:
+                segs = [s.get("text", "").strip() for s in json.load(open(f + ".json"))["transcription"]]
+            except (OSError, ValueError, KeyError):
+                segs = []
+            st.put(key, clean_text(segs))
+        done = min(c + DECODE_CHUNK, len(todo))
+        print(f"  {label}decoded {done}/{len(todo)} windows ({time.time() - t0:.0f}s)", flush=True)
+    return len(todo)
+
+
+def grid_times(lo, hi, win, hop):
+    """Window starts on the fixed grid k*hop whose whole window lies inside [lo, hi]. The grid
+    is anchored at 0 of the timeline it lives on, so the same take always yields the same
+    windows whatever the cut keeps of it."""
+    k = max(0, math.ceil((lo - 1e-6) / hop))
     out = []
-    for t, f in files:
-        try:
-            segs = [s.get("text", "").strip() for s in json.load(open(f + ".json"))["transcription"]]
-        except (OSError, ValueError, KeyError):
-            continue
-        # a looping decode repeats a whole segment verbatim; that is whisper, not speech
-        segs = [s for i, s in enumerate(segs) if s and (i == 0 or s != segs[i - 1])]
-        txt = " ".join(segs).strip()
-        if not txt or "BLANK_AUDIO" in txt or not norm_words(txt):
-            continue
-        out.append([t, txt])
+    while k * hop + win <= hi + 0.02:
+        out.append(round(k * hop, 2)); k += 1
+    return out
+
+
+def cut_grid(dur, win, hop):
+    out, k = [], 0
+    while k * hop + MIN_AUDIO < dur:
+        out.append(round(k * hop, 2)); k += 1
     return out
 
 
 def load_decodes(video, cache, windows, hop):
+    """Legacy (no keeps): every grid window of the cut itself. -> ({win: [[t, text, dur]]}, dur)."""
+    st = Store(cache)
     with tempfile.TemporaryDirectory(prefix="xwin_") as td:
         pcm = read_wav(video, td)
-        sig = signature(pcm, windows, hop)
-        if cache and os.path.isfile(cache):
-            try:
-                c = json.load(open(cache))
-                if c.get("sig") == sig:
-                    print(f"  window decodes: cached ({os.path.basename(cache)})")
-                    return c["decodes"], len(pcm) / 2 / RATE
-            except (OSError, ValueError):
-                pass
-        decodes = {}
-        for win in windows:
-            decodes[f"{win:g}"] = decode_windows(pcm, win, hop, td)
-            print(f"  {win:g}s windows: {len(decodes[f'{win:g}'])} decoded")
-        if cache:
-            json.dump({"sig": sig, "video": os.path.abspath(video), "decodes": decodes},
-                      open(cache, "w"), indent=0)
-        return decodes, len(pcm) / 2 / RATE
+        dur = len(pcm) / 2 / RATE
+        plan = {f"{w:g}": [(t, window_key(window_bytes(pcm, t, w)), window_bytes(pcm, t, w))
+                           for t in cut_grid(dur, w, hop)] for w in windows}
+        n = decode_batch([(st, k, a) for rows in plan.values() for _t, k, a in rows], td)
+    st.save()
+    total = sum(len(v) for v in plan.values())
+    print(f"  window decodes: {total - n} cached, {n} decoded ({os.path.basename(cache) if cache else 'no cache'})")
+    decodes = {w: [[t, st.get(k), float(w)] for t, k, _a in rows if st.get(k)] for w, rows in plan.items()}
+    return decodes, dur
+
+
+def source_store(store_dir, src):
+    base = os.path.splitext(os.path.basename(src))[0]
+    return Store(os.path.join(store_dir, f"{base}.{hashlib.sha1(os.path.abspath(src).encode()).hexdigest()[:8]}.json"))
+
+
+def load_keeps_decodes(video, keeps_path, speed, cache, store_dir, workdir, windows, hop):
+    """Keeps mode (3.8.0): the cut is the source takes' kept spans laid end to end, so a window
+    that lies wholly inside one keep is decoded from the SOURCE take, on the take's own fixed
+    grid, and cached per take in store_dir. A re-cut of the same takes moves the keeps but not
+    the grid, so nearly every window is already decoded; on 2026-10-24 a 1.1x re-cut of five
+    videos paid 13 to 22 minutes of whisper each for audio it had decoded the night before.
+
+    What only the cut has is decoded from the cut: one window per size centred on every join
+    (audio that sits side by side nowhere in a source), and the first and last window. Those are
+    cached by content in `cache`, so an unchanged join is free on the next run too.
+
+    speed: the cut plays at this rate (YAP_SPEED); keeps carry source a and b = a + cut length,
+    as yapfull writes them, so a keep's source span is a .. a + (b - a) * speed."""
+    keeps = json.load(open(keeps_path))
+    cst = Store(cache)
+    with tempfile.TemporaryDirectory(prefix="xwin_") as td:
+        cut = read_wav(video, td)
+        dur = len(cut) / 2 / RATE
+        srcs = {}
+        for k in keeps:
+            if k["src"] not in srcs:
+                srcs[k["src"]] = (source_pcm(k["src"], workdir, td), source_store(store_dir, k["src"]))
+        plan = {f"{w:g}": [] for w in windows}      # win -> [(cut_t, store, key, audio, cut_dur)]
+        c0, joins = 0.0, []
+        for i, k in enumerate(keeps):
+            a, clen = float(k["a"]), float(k["b"]) - float(k["a"])
+            pcm, sst = srcs[k["src"]]
+            for w in windows:
+                for t in grid_times(a, a + clen * speed, w, hop):
+                    aud = window_bytes(pcm, t, w)
+                    plan[f"{w:g}"].append((round(c0 + (t - a) / speed, 3), sst, window_key(aud), aud, w / speed))
+            if i:
+                joins.append(c0)
+            c0 += clen
+        for w in windows:
+            starts = {0.0, max(0.0, round(dur - w, 3))} | {max(0.0, round(j - w / 2, 3)) for j in joins}
+            for t in sorted(starts):
+                aud = window_bytes(cut, t, w)
+                plan[f"{w:g}"].append((t, cst, window_key(aud), aud, w))
+        jobs = [(st, key, aud) for rows in plan.values() for _t, st, key, aud, _d in rows]
+        n = decode_batch(jobs, td)
+    for _pcm, sst in srcs.values():
+        sst.save()
+    cst.save()
+    total = len(jobs)
+    print(f"  window decodes: {total} windows ({len(joins)} joins, {len(srcs)} take(s)): "
+          f"{total - n} cached, {n} decoded")
+    decodes = {w: sorted([t, st.get(key), d] for t, st, key, _a, d in rows if st.get(key))
+               for w, rows in plan.items()}
+    return decodes, dur
+
+
+def prescan(plan_paths, store_dir, workdir, windows, hop, pad=0.15):
+    """Decode the source grid ahead of the gate (3.8.0). Each path is a clause plan (its spans,
+    padded by yapcut's left pad and a little: a keep starts at most 0.1s before its clause) or a
+    1x keeps file (exactly the spans the gate will read, for a rerun on an existing cut). Clause
+    spans still hold the pauses the cut removes, 22 to 50% more windows on the 2026-10-23 takes,
+    so yapbatch runs this in a background lane where that cost is off the critical path."""
+    spans = {}
+    for p in plan_paths:
+        for c in json.load(open(p)):
+            if "a" in c and "b" in c:
+                spans.setdefault(c["src"], []).append((float(c["a"]), float(c["b"])))
+            else:
+                spans.setdefault(c["src"], []).append((max(0.0, float(c["start"]) - pad), float(c["end"]) + pad))
+    with tempfile.TemporaryDirectory(prefix="xwin_pre_") as td:
+        jobs, stores = [], []
+        for src, sp in spans.items():
+            pcm, sst = source_pcm(src, workdir, td), source_store(store_dir, src)
+            stores.append(sst)
+            ts = {(w, t) for lo, hi in sp for w in windows for t in grid_times(lo, hi, w, hop)}
+            for w, t in sorted(ts):
+                aud = window_bytes(pcm, t, w)
+                jobs.append((sst, window_key(aud), aud))
+        n = decode_batch(jobs, td, label="prescan: ")
+    for sst in stores:
+        sst.save()
+    print(f"prescan: {len(jobs)} windows over {len(spans)} take(s): {len(jobs) - n} cached, {n} decoded -> {store_dir}")
 
 
 def grams_of(tokens):
@@ -189,29 +412,34 @@ def find_hits(decodes, max_gap=MAX_START_GAP):
     hits = []
     for key, rows in decodes.items():
         win = float(key)
-        rows = sorted(rows)
-        toks = [(t, txt, norm_words(txt)) for t, txt in rows]
-        toks = [x for x in toks if len(x[2]) <= MAX_WPS * win + 2]
-        for i, (t1, x1, w1) in enumerate(toks):
+        # a row is [t, text] (a cache from before 3.8.0) or [t, text, length in the cut]: a
+        # window decoded from a source take covers win / speed seconds of a sped-up cut
+        rows = sorted((r[0], r[1], r[2] if len(r) > 2 else win) for r in rows)
+        toks = [(t, txt, d, norm_words(txt)) for t, txt, d in rows]
+        toks = [x for x in toks if len(x[3]) <= MAX_WPS * win + 2]
+        for i, (t1, x1, d1, w1) in enumerate(toks):
             g1 = grams_of(w1)
-            for t2, x2, w2 in toks[i + 1:]:
+            for t2, x2, d2, w2 in toks[i + 1:]:
                 if t2 - t1 > max_gap:
                     break
-                if t2 < t1 + win - 1e-6:          # overlapping windows share audio
+                if t2 < t1 + d1 - 1e-6:           # overlapping windows share audio
                     continue
                 for g in g1 & grams_of(w2):
-                    hits.append(("x-window", g, t1, t2 + win, win, t1, t2, x1, x2))
+                    hits.append(("x-window", g, t1, t2 + d2, win, t1, t2, x1, x2))
             for n in (1, 2, 3):                   # the same words twice inside one window
                 for j in range(len(w1) - 2 * n + 1):
                     if w1[j:j + n] == w1[j + n:j + 2 * n]:
-                        hits.append(("in-window", tuple(w1[j:j + n]), t1, t1 + win, win,
+                        hits.append(("in-window", tuple(w1[j:j + n]), t1, t1 + d1, win,
                                      t1, t1, x1, x1))
     return hits
 
 
-def score(event, toks):
-    """(confidence 0..1, why). Only the merged shape reaches the MEDIUM threshold."""
+def score(event, toks, script=None, free=None):
+    """(confidence 0..1, why). Only the merged shape reaches the MEDIUM threshold, and not when
+    the script says the same words twice right there (3.8.0): then two passes are what the
+    creator was meant to say, and the transcript merging them is its usual tidying."""
     grams = event["grams"]
+    scripted = bool(script) and (free is None or event["lo"] < free)
     lo, hi = event["lo"] - SPAN_PAD, event["hi"] + SPAN_PAD
     best, why = 0.0, ""
     for g in sorted(grams, key=lambda g: (-len(g), g)):
@@ -224,6 +452,8 @@ def score(event, toks):
             conf, w = 0.3, "the cut's transcript says it twice too: a scripted repeat, or one stutter_check.py already reads"
         elif c == 0:
             conf, w = 0.25, "the cut's transcript never says it: most likely a short-window mis-decode"
+        elif scripted and yscript.says_twice_near(script, [yscript.norm(x) for x in g], SCRIPT_NEAR):
+            conf, w = 0.35, "the script says it twice here: two passes are the script, not a restart"
         else:
             conf = 0.6
             conf += 0.2 if len(g) >= 3 else 0.1
@@ -256,13 +486,28 @@ def events_of(hits):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--video", required=True, help="the cut (full_<out>.mp4)")
-    ap.add_argument("--words", required=True,
+    ap.add_argument("--video", help="the cut (full_<out>.mp4)")
+    ap.add_argument("--words",
                     help="the cut's word transcript (w_<out>.json); every hit is judged against it")
+    ap.add_argument("--keeps", default="",
+                    help="keeps_full_<out>.json: decode windows inside each keep from the source take "
+                         "(cached per take in --store-dir) and only the joins from the cut (3.8.0)")
+    ap.add_argument("--speed", type=float, default=1.0, help="the cut's playback rate (YAP_SPEED)")
+    ap.add_argument("--store-dir", default="",
+                    help="per-take window decodes (default: xwin_src/ beside --cache)")
+    ap.add_argument("--workdir", default="",
+                    help=".yap_build: reuse yapcut's 16 kHz take audio from <workdir>/audio/")
+    ap.add_argument("--prescan", nargs="+", metavar="PLAN",
+                    help="decode the take windows inside these clause plans (or 1x keeps files) now and exit; no gate")
+    ap.add_argument("--script", default="",
+                    help="<out>_script.txt: a gram the script says twice nearby is not a restart")
+    ap.add_argument("--free-from", type=float, default=None,
+                    help="seconds where the unscripted opinion slot starts")
     ap.add_argument("--accept-file", default="",
                     help="JSON list of repeats already listened to and judged deliberate, "
                          "shared with stutter_check.py and restart_scan.py")
-    ap.add_argument("--cache", default="", help="window decodes, reused while the cut's audio is unchanged")
+    ap.add_argument("--cache", default="",
+                    help="window decodes by content (xwin_<out>.json); any window whose audio is unchanged is reused")
     ap.add_argument("--windows", default=",".join(f"{w:g}" for w in WINDOWS))
     ap.add_argument("--hop", type=float, default=HOP)
     ap.add_argument("--threshold", type=float, default=THRESHOLD,
@@ -270,7 +515,22 @@ def main():
     ap.add_argument("--show-low", action="store_true", help="print the words of every LOW hit too")
     a = ap.parse_args()
     windows = tuple(float(w) for w in a.windows.split(",") if w.strip())
-    decodes, dur = load_decodes(a.video, a.cache, windows, a.hop)
+    base_dir = os.path.dirname(os.path.abspath(a.cache)) if a.cache else (a.workdir or os.getcwd())
+    store_dir = a.store_dir or os.path.join(base_dir, "xwin_src")
+    workdir = a.workdir or (os.path.dirname(os.path.abspath(a.keeps)) if a.keeps else "")
+    global LOCK_DIR
+    LOCK_DIR = store_dir
+    if a.prescan:
+        prescan(a.prescan, store_dir, workdir or base_dir, windows, a.hop)
+        return
+    if not a.video or not a.words:
+        ap.error("--video and --words are required (or --prescan)")
+    if a.keeps and os.path.isfile(a.keeps):
+        decodes, dur = load_keeps_decodes(a.video, a.keeps, a.speed, a.cache, store_dir, workdir,
+                                          windows, a.hop)
+    else:
+        decodes, dur = load_decodes(a.video, a.cache, windows, a.hop)
+    script = yscript.load(a.script)
     toks = transcript_tokens(a.words)
     if len(toks) >= 3 and not any(decodes.values()):
         print("xwin_scan: the cut has words but no window decoded to speech; nothing was "
@@ -278,7 +538,7 @@ def main():
         sys.exit(2)
     evs = events_of(find_hits(decodes))
     for e in evs:
-        e["conf"], e["why"] = score(e, toks)
+        e["conf"], e["why"] = score(e, toks, script, a.free_from)
         e["keys"] = sorted({accept_key(" ".join(g)) for g in e["grams"]}, key=lambda k: (-len(k), k))
     accepted = load_accepted(a.accept_file)
     med = [e for e in evs if e["conf"] >= a.threshold]

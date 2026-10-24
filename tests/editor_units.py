@@ -409,6 +409,108 @@ else:
     print("  skip HDR tone map: this ffmpeg has no zscale/tonemap (preflight.py flags it)")
 
 
+# --- the script settles its own repeats (3.8.0): 2026-10-23, five scripted cuts, every one failed a gate ---
+from yaplib import script as yscript  # noqa: E402
+import stutter_check as sc  # noqa: E402
+SCRIPT = ("They poke at it, they make a joke about it, they poke at it again. Right now people talk to a "
+          "chatbot when they're lonely. A chatbot is always there. They noticed. That's what they do. They notice.")
+stoks = yscript.tokens(SCRIPT)
+check(yscript.alike("notice", "noticed") and yscript.alike("belt", "built") and not yscript.alike("they", "then"),
+      "alike: an inflection and a consonant skeleton match, a different word does not")
+check(yscript.count(stoks, ["they", "poke", "at", "it"]) == 2, "the script says 'they poke at it' twice")
+check(yscript.says_twice_near(stoks, ["a", "chatbot"], 8), "the script's own 'a chatbot ... A chatbot' is near")
+
+
+def words_of(text, t=0.0):
+    out = []
+    for w in text.split():
+        out.append((t, t + 0.3, w, sc.norm(w))); t += 0.35
+    return out
+
+
+take = words_of("They poke at it, they make a joke about it, they poke at it again.")
+fl = [f for f in sc.find_flags(take) if "poke" in f[4]]
+check(fl and sc.scripted(fl[0], take, stoks), f"a re-read the script says as often is settled: {fl}")
+take3 = words_of("They poke at it, they poke at it, they make a joke about it, they poke at it again.")
+fl3 = [f for f in sc.find_flags(take3) if "poke" in f[4]]
+check(fl3 and not any(sc.scripted(f, take3, stoks) for f in fl3),
+      "said three times where the script says it twice: still a restart")
+take_r = words_of("Right now people talk to a chatbot when they're alone a chatbot is always there.")
+fr = [f for f in sc.find_flags(take_r) if "chatbot" in f[4]]
+check(fr and sc.scripted(fr[0], take_r, stoks), f"a written restart shape with an ad-libbed word between is settled: {fr}")
+check(not (fr and sc.scripted(fr[0], take_r, stoks, free=0.0)), "nothing after the opinion slot starts is settled")
+with tempfile.TemporaryDirectory() as t:
+    p = os.path.join(t, "ok.json")
+    json.dump(["a lot", {"key": "put googly eyes on the printer", "why": "his callback, listened"},
+               {"key": "no reason given", "why": ""}], open(p, "w"))
+    check(sc.load_accepted(p) == {"a lot", "put googly eyes on the printer", "no reason given"},
+          "the accept-file reads bare keys and keyed entries")
+    check(sc.load_accepted_high(p) == {"put googly eyes on the printer"}, "only an entry with a reason clears a HIGH")
+
+# --- caption words from the script (3.8.0): lowercase transcript, "fineman" for Feynman --------------
+import script_fix  # noqa: E402
+cut = [(i * 0.4, i * 0.4 + 0.3, w) for i, w in enumerate(
+    "richard fineman is my favorite example he cracked the combination logs i think they noticed it".split())]
+scr = "Richard Feynman is my favorite example. He cracked the combination locks. I think they notice it.".split()
+fixes, drops, swapped = script_fix.plan(cut, scr, locked=set())
+got = [fixes.get(i, w[2]) for i, w in enumerate(cut)]
+check(got[:2] == ["Richard", "Feynman"] and "locks." in got and got[got.index("locks.") + 1] == "I",
+      f"script case, punctuation and near-miss words restored: {got}")
+check(got[-2] == "noticed", f"an inflection is how it was said, never swapped for the script's: {got[-2]}")
+fixes2, _, _ = script_fix.plan(cut, scr, locked={1})
+check(1 not in fixes2, "a hand fix is never overridden")
+fixes3, _, _ = script_fix.plan(cut, scr, locked=set(), free=cut[5][0])
+check(1 in fixes3 and 8 not in fixes3, "words after the opinion slot keep their own form")
+
+# --- the restart scan decodes a take once (3.8.0): keeps map windows to the cut, joins come from the cut ---
+import xwin_scan as xs  # noqa: E402
+check(xs.grid_times(1.0, 3.0, 1.1, 0.45) == [1.35, 1.8], "grid windows lie wholly inside the span, on the take's grid")
+check(xs.grid_times(1.2, 3.2, 1.1, 0.45) == [1.35, 1.8], "the grid does not move when the keep's edges move")
+rows = {"1.1": [[0.0, "it's the same bet we made", 1.0], [1.0, "it's the same bet we made at the company", 1.0]]}
+check(any(h[0] == "x-window" for h in xs.find_hits(rows)), "two windows that do not overlap in the cut are two passes")
+rows["1.1"][1][0] = 0.9
+check(not any(h[0] == "x-window" for h in xs.find_hits(rows)), "windows that overlap in cut time share audio")
+with tempfile.TemporaryDirectory() as t:
+    a = xs.Store(os.path.join(t, "s.json")); a.put("k1", "hello"); a.save()
+    b = xs.Store(os.path.join(t, "s.json")); b.put("k2", ""); c = xs.Store(os.path.join(t, "s.json")); c.put("k3", "x")
+    b.save(); c.save()
+    d = xs.Store(os.path.join(t, "s.json"))
+    check(d.get("k1") == "hello" and d.get("k2") == "" and d.get("k3") == "x", "two stores saving one file lose nothing")
+pcm = bytes(range(256)) * 400
+check(xs.window_key(xs.window_bytes(pcm, 0.5, 1.1)) == xs.window_key(xs.window_bytes(pcm[:], 0.5, 1.1)) !=
+      xs.window_key(xs.window_bytes(pcm, 0.95, 1.1)), "a window's key is its audio")
+ev = {"kind": "x-window", "lo": 0.0, "hi": 4.0, "grams": {("they", "notice")}, "words": {"they", "notice"},
+      "wins": {1.1}, "pairs": {(1.1, 0.0, 2.0)}}
+toks = [(0.5, "they"), (0.8, "notice")]
+check(xs.score(ev, toks)[0] >= 0.6 and xs.score(ev, toks, stoks)[0] < 0.6,
+      "the merged shape is MEDIUM, unless the script says it twice right there")
+
+# --- yapbatch (3.8.0): the failing gate and its fix are read from yapfull's log, the ETA from timed steps ---
+import yapbatch  # noqa: E402
+with tempfile.TemporaryDirectory() as t:
+    log = os.path.join(t, "log.txt")
+    open(log, "w").write("gate hook_words: ok\nGATE dead_air FAILED (rc 2). The cut is not tight: raise --silence-db.\n")
+    check(yapbatch.failing_gate(log) == ("dead_air", "The cut is not tight: raise --silence-db."),
+          "the failing gate and its fix come from yapfull's log")
+    st = yapbatch.Status(t, ["a", "b", "c"])
+    st.set("a", state="done", gates_s=300.0, after_s=200.0, has_after=True)
+    st.set("b", state="gate-failed", gates_s=100.0, gate="caption", has_after=True)
+    st.set("c", state="queued", has_after=True)
+    left, unknown = st.eta()
+    check(abs(left - 400.0) < 1 and not unknown,
+          f"ETA: one queued video at the mean gate time (300, 100) plus the mean render (200): {left}")
+    check("stopped at caption" in open(os.path.join(t, "batch_status.txt")).read(), "the status names the stopped gate")
+    v = {"name": "x", "clauses": os.path.join(t, "clauses_x.json")}
+    check(yapbatch.prescan_plan(v, t, from_cut=True) == v["clauses"], "no cut yet: prescan the clause plan")
+    open(os.path.join(t, "keeps_full_x.json"), "w").write("[]")
+    check(yapbatch.prescan_plan(v, t, from_cut=True).endswith("keeps_full_x.json"), "a rerun on a 1x cut: prescan its keeps")
+    check(yapbatch.prescan_plan(v, t, from_cut=False) == v["clauses"], "a fresh cut: the old keeps say nothing")
+    open(os.path.join(t, "full_x.mp4.speed"), "w").write("1.1")
+    open(os.path.join(t, "keeps_full_x.1x.json"), "w").write("[]")
+    check(yapbatch.prescan_plan(v, t, from_cut=True).endswith("keeps_full_x.1x.json"),
+          "a rerun on a sped-up cut: prescan the 1x keeps, never the rescaled ones")
+
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)

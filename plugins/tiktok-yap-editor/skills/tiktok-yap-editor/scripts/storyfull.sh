@@ -77,7 +77,7 @@ else
 fi
 
 # 2b/2c. REPETITION + DEAD-AIR GATES on the VO
-gate_stutter_restart "$WORDS" "$PV" "$STUTOK"
+gate_stutter_restart "$WORDS" "$PV" "$STUTOK" "" "$SCRIPTFILE"
 gate_dead_air "$PV"
 
 # 3. captions + hook in the brand style, then the CTA contact block

@@ -2,6 +2,61 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.0 (tiktok-yap-editor)
+
+**A batch is one queue, the script settles its own repeats, and a re-cut no longer pays the
+restart scan again.** The 2026-10-23 batch, five scripted talking heads, took two working
+sessions: the creator's redo request ran 16:58 to 21:26 on takes already transcribed and
+scripted. The cut itself took 1 to 2.5 minutes a video. The time went to three things, and this
+release fixes all three.
+
+- **Gates that failed on the script itself.** Every first-pass cut failed a gate, and the agent's
+  own read was that none of the flags was a real problem with the takes. `stutter_check.py`,
+  `restart_scan.py` and `xwin_scan.py` now read `<out>_script.txt` (`yaplib/script.py`): a repeat
+  the script says as many times, as close together, prints `script` and gates nothing ("They poke
+  at it, they make a joke about it, they poke at it again"). Saying it more times than the script
+  does still gates, and nothing after the opinion slot is settled by the script. A HIGH used to be
+  clearable only with `YAP_ALLOW_STUTTER=1`, which silences all three detectors for the whole
+  video; three of five cuts shipped that way, each for one deliberate repeat. An accept-file entry
+  `{"key": ..., "why": ...}` now clears that HIGH alone, and a bare key still clears a MEDIUM only.
+  `script_fix.py` runs before the captions: every word the script also says takes the script's
+  case, punctuation and spelling, and a mis-heard word where the script has a similar one takes
+  the script's word ("fineman" to Feynman, "combination logs" to combination locks, both from the
+  Lock Picker cut). Inflections stay as said, hand entries always win, and its own entries carry
+  `"by": "script"` so a re-cut rewrites them. It replaces the batch's one-off `punct_fix.py`,
+  `capfix.py` and `adlibs.py`. Ad-libbed words still go to the caption gate for a ruling: on that
+  batch they ran 8 to 41 a video, and no script can settle them.
+- **The restart scan re-decoded audio it had already decoded.** `xwin_scan.py` costs about 1.2s
+  of whisper per window whatever the window's length, and 13 to 22 minutes per cut in that batch.
+  Its cache was keyed on the whole cut, so the 1.1x re-cut of all five videos paid it again. Every
+  decode is now cached by the audio it decoded. With `--keeps` the windows inside each keep come
+  from the source take, on the take's own fixed grid, cached per take in `.yap_build/xwin_src/`,
+  and only the joins and the cut's first and last window are decoded from the cut. On the Lock
+  Picker take (86s at 1.1x, 19 keeps): 566s with an empty store, 110s for the 1x cut of the same
+  take afterwards (307 of 347 windows from the store, the 40 join windows decoded), 0.7s for an
+  unchanged rerun. The old scan's two MEDIUMs on that cut ("there's a", "are the") were decodes
+  of the sped-up audio: the same moments decoded from the 1x take read "Cool type of person" and
+  "The ones who solve it", the transcript and the script say each line once, and both had been
+  overridden by hand. `tests/xwin_restart.sh` now also proves the known restart is MEDIUM in keeps
+  mode, kept whole and split across a join. `--prescan` decodes a take's windows from the clause
+  plan before the cut exists. Clause spans still hold the pauses the cut removes, 22 to 50% more
+  windows on the 2026-10-23 takes, which is why it runs in a lane beside the cut and the renders;
+  on a rerun from an existing cut it decodes exactly the 1x keeps. A lock keeps whisper to one
+  decode at a time across processes. `--audio-ctx` was measured and rejected: 2.2x faster, and it
+  rewrote 41 of 60 real windows, some into repeats of their own. `restart_scan.py` caches its
+  findings on the cut's audio, so a rerun on the same cut skips its 65 seconds.
+- **No batch driver.** The agent wrote about twenty one-off drivers for that batch, and the
+  creator asked "done?" or "eta?" eight times. `yapbatch.py <batch.json>` takes the batch as one
+  file: each video through `yapfull.sh`, then its `after` step (the HyperFrames render) only once
+  its gates pass, one render at a time. A red gate stops that video, records the gate and its fix,
+  and the queue goes on. The prescan runs in a background lane, so a video's cut and the previous
+  video's render overlap its scan. `batch_status.txt` and `--status` show every video's state and
+  an ETA from the steps already timed. `yapfull.sh` takes the format settings the batch needed a
+  re-cut script for: `YAP_SPEED` (setpts and atempo after the cut, keeps rescaled, the 1x cut
+  kept) and `YAP_CUT_ARGS`. A `YAP_FROM_CUT=1` rerun reuses the transcript only while it was made
+  from that exact cut: on 2026-10-24 the sped-up cuts were gated against their 1x words, and
+  Practical Futurist's end card fell off the end, caught in a snapshot just before its render.
+
 ## What's new in 3.24.0 (outlier-radar)
 
 **The show can run with no word ceiling.** `show.word_ceiling` in `radar-config.json` set to

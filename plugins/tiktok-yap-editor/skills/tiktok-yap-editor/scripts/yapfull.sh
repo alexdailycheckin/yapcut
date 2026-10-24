@@ -15,7 +15,15 @@
 #       platform's hook animation and length band from brand-config `platforms`;
 #       any platform other than tiktok suffixes the output: <out>.<platform>.mp4.
 #   YAP_FROM_CUT=1   skip the cut and reuse $WD/full_<base>.mp4 (caption fixes,
-#       platform variants, hook variants: seconds instead of minutes)
+#       platform variants, hook variants: seconds instead of minutes). Its transcript is
+#       reused only while it was made from this exact cut (w_<base>.json.cut holds the cut's
+#       hash): on 2026-10-24 a sped-up re-cut was gated against the old 1x words.
+#   YAP_SPEED=1.1    play the cut faster with the pitch kept (setpts + atempo), after the cut
+#       and before its transcript; keeps_full_<base>.json is rescaled for the seam gate and the
+#       1x cut and keeps stay as full_<base>.1x.mp4 / keeps_full_<base>.1x.json. Remembered in
+#       full_<base>.mp4.speed, so a YAP_FROM_CUT=1 rerun picks it up.
+#   YAP_CUT_ARGS="--min-gap 0.3 --silence-db -38"  extra yapcut.py flags for this cut (a format
+#       that cuts pauses tighter than rules.json); recorded in the gates json
 #   YAP_CUT_BASE=<base>  name of the cut to reuse when <out> differs from it
 #       (hook_variant.sh sets this so clip-b.mp4 composes from full_clip.mp4)
 #   HOOK_SECS=5.0    how long the burned hook stays up
@@ -63,29 +71,70 @@ gate_hook_words "$HOOK" "$HOOKWORD" "$HANIM" "$HSTYLE" "$HOOK_SECS"
 
 # 1. single-pass cut (clean CFR, dead-air, tight tails, anti-stutter crop-alt)
 if [ "${YAP_FROM_CUT:-0}" != "1" ]; then
-  # every cut number comes from rules.json (cut.*); no flag repeats one here
-  python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$CUT"
+  # every cut number comes from rules.json (cut.*); YAP_CUT_ARGS is the per-format exception
+  # shellcheck disable=SC2086
+  python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$CUT" ${YAP_CUT_ARGS:-}
+  rm -f "$CUT.speed"
+  if [ -n "${YAP_SPEED:-}" ] && [ "${YAP_SPEED}" != "1" ]; then
+    mv "$CUT" "${CUT%.mp4}.1x.mp4"; cp "$KEEPS" "${KEEPS%.json}.1x.json"
+    ffmpeg -nostdin -y -v error -i "${CUT%.mp4}.1x.mp4" \
+      -filter_complex "[0:v]setpts=PTS/${YAP_SPEED},fps=30[v];[0:a]atempo=${YAP_SPEED}[a]" \
+      -map "[v]" -map "[a]" -c:v libx264 -crf 14 -preset medium -pix_fmt yuv420p \
+      -color_primaries bt709 -color_trc bt709 -colorspace bt709 -c:a aac -b:a 256k \
+      -movflags +faststart "$CUT"
+    python3 - "$KEEPS" "$YAP_SPEED" <<'PY2'
+import json, sys
+p, s = sys.argv[1], float(sys.argv[2]); k = json.load(open(p))
+for x in k:   # source a, and b = a + the keep's length in the faster cut (what seam_qa adds up)
+    x["b"] = round(x["a"] + (x["b"] - x["a"]) / s, 3)
+json.dump(k, open(p, "w"), indent=1)
+PY2
+    echo "$YAP_SPEED" > "$CUT.speed"
+    echo "speed: ${YAP_SPEED}x (1x cut kept as $(basename "${CUT%.mp4}.1x.mp4"))"
+  fi
 else
   [ -f "$CUT" ] || { echo "YAP_FROM_CUT=1 but no cut at $CUT"; exit 2; }
   echo "reusing cut: $CUT"
+  [ -f "$CUT.speed" ] && export YAP_SPEED="$(cat "$CUT.speed")"
 fi
+export YAP_SPEED="${YAP_SPEED:-1}"
+gate_meta_json cut "$(python3 -c 'import json,sys; print(json.dumps({"speed": float(sys.argv[1]), "args": sys.argv[2]}))' "$YAP_SPEED" "${YAP_CUT_ARGS:-}")"
 echo "--- blackdetect (cut) ---"
 ffmpeg -nostdin -i "$CUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
   | grep -i black_start || echo "  NO black frames"
 DUR=$(python3 "$SCRIPTS/yaplib/media.py" duration "$CUT")
 echo "--- dur: $DUR ---"
 
-# 2. word-timed transcript of the cut (reused on YAP_FROM_CUT=1 when present:
-# the cut did not change, so neither did its words)
-if [ "${YAP_FROM_CUT:-0}" = "1" ] && [ -s "$WORDS" ]; then
+# 2. word-timed transcript of the cut, reused only while it was made from this exact cut
+CUTSIG="$(python3 -c 'import hashlib,sys
+h = hashlib.sha1()
+with open(sys.argv[1], "rb") as f:
+    for b in iter(lambda: f.read(1 << 20), b""): h.update(b)
+print(h.hexdigest())' "$CUT")"
+if [ "${YAP_FROM_CUT:-0}" = "1" ] && [ -s "$WORDS" ] && [ "$(cat "$WORDS.cut" 2>/dev/null)" = "$CUTSIG" ]; then
   echo "reusing transcript: $WORDS"
 else
+  [ -s "$WORDS" ] && [ "${YAP_FROM_CUT:-0}" = "1" ] && echo "transcript is from another cut: re-transcribing"
   bash "$SCRIPTS/transcribe.sh" "$CUT" "$WD/w_${CUTBASE}" --words >/dev/null 2>&1
+  echo "$CUTSIG" > "$WORDS.cut"
+fi
+
+# 2a. caption words from the script: its case, punctuation and spelling for every word the
+# script also says (script_fix.py; hand entries in the corrections file always win)
+if [ -f "$SCRIPTFILE" ] && [ "${YAP_UNSCRIPTED:-0}" != "1" ]; then
+  OPFREE=()
+  OPJ="$WD/${CUTBASE}_opinion.json"
+  if [ -f "$OPJ" ]; then
+    OPT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("start",""))' "$OPJ" 2>/dev/null || true)
+    [ -n "$OPT" ] && OPFREE=(--free-from "$OPT")
+  fi
+  python3 "$SCRIPTS/script_fix.py" --words "$WORDS" --script "$SCRIPTFILE" --corrections "$CORR" \
+    ${OPFREE[@]+"${OPFREE[@]}"}
 fi
 
 # 2b. REPETITION GATE: two detectors (transcript + windowed audio scan). MEDIUM
 # is a decision, not a note: unlisted MEDIUM fails, list judged ones in $STUTOK.
-gate_stutter_restart "$WORDS" "$CUT" "$STUTOK"
+gate_stutter_restart "$WORDS" "$CUT" "$STUTOK" "$KEEPS" "$SCRIPTFILE"
 
 # 2c. DEAD-AIR GATE: pauses that survived the cut, transcript-measured.
 gate_dead_air "$CUT"

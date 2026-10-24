@@ -243,7 +243,8 @@ directory by default; `--wipe` does.
 ## The sequence is locked
 
 One video walks every step before it is done, sequentially, never a batch ahead of the gates.
-`yapfull.sh` (Mode A) and `storyfull.sh` (Mode B) both source `scripts/gates.sh`, which runs
+More than one video: write a batch file and run `scripts/yapbatch.py` (below, "Batches"), never
+a one-off driver. `yapfull.sh` (Mode A) and `storyfull.sh` (Mode B) both source `scripts/gates.sh`, which runs
 every gate and records each result in `<workdir>/<out>_gates.json`. Exit codes: 0 pass, 1
 warning (printed, the build continues), 2 fail (the build stops and the gate names its fix and
 its override variable). Never set an override to turn a red gate green; each one exists
@@ -255,17 +256,28 @@ because of a shipped defect (why: `references/gotchas.md`, CHANGELOG).
 | 1. Survey | | probe every clip; never pre-judge takes by length | | |
 | 2. Transcribe | | `transcribe.sh <clip> <out>` per clip; read all transcripts together | | |
 | 2b. Restart-heavy takes | `keep_whole` rows via `mkclauses.py` | `segmenter.py <clip>` for silence-accurate runs | | gotchas.md, "Clause boundaries": use run boundaries verbatim, never auto-fit them |
-| 2c. Stutters | `<out>_stutter_ok.json` for deliberate repeats | `stutter_check.py --words`, `restart_scan.py --video`, `xwin_scan.py --video --words` (1.1s and 1.6s windows: the restart the transcript reads once) | listen; cut it via the clause plan or record its key. A MEDIUM is a decision, not a note | `references/speech-and-repetition.md`, gotchas.md "The transcript merges a short restart" |
+| 2c. Stutters | `<out>_stutter_ok.json` for deliberate repeats: a bare key clears a MEDIUM, `{"key", "why"}` clears a HIGH | `stutter_check.py --words`, `restart_scan.py --video`, `xwin_scan.py --video --words --keeps` (1.1s and 1.6s windows: the restart the transcript reads once). All three read `<out>_script.txt`: a repeat the script says as often, as close together, prints `script` and needs nothing | listen; cut it via the clause plan or record its key. A MEDIUM is a decision, not a note. Never `YAP_ALLOW_STUTTER=1` for one deliberate repeat: it silences all three detectors | `references/speech-and-repetition.md`, gotchas.md "The transcript merges a short restart" |
 | 2d. Footage library | `records.json` (kind, tags, moments, `reads_as`) | `library.py prep`, `upsert`; after finalize `mark-used`, `reconcile --roots` | | `library.py --help`; data in `<home>/footage-library/` |
 | 3. Storyline | the beat sheet, with the receipt and the cutaway per line, approved by the creator | | | Part 1 |
 | 4. Clause plan | `clauses.json` with boundaries taken from a window re-transcription, never a full-file transcript | `transcribe.sh` on a trimmed window | | gotchas.md, "Boundary placement" |
-| 5. Cut | | `yapcut.py` (flags fixed in yapfull.sh; `--grade` rides inside the segment pass) | black frames are a canary; `seam_qa.py` is the fatal check | "Why yapcut", CHANGELOG 2.3 |
-| 6. Gates | `<out>_script.txt` (required: without it the caption gate fails; `YAP_UNSCRIPTED=1` only for a take with no script), `<out>_corrections.json`, `<out>_capqa_ok.json`, `<out>_overlays.json` | inside `yapfull.sh`: hook words, stutter and restart, dead air, caption, seam, receipts, retention (with `--keeps`, so pause cuts do not count as events), drift, frame zero | the gate prints the fix and its `YAP_*` override; a scripted run with a garbled caption fixes it in corrections and reruns with `YAP_FROM_CUT=1` | `gates.sh` header |
+| 5. Cut | | `yapcut.py` (flags fixed in yapfull.sh; `--grade` rides inside the segment pass). A format with tighter pauses or faster speech sets `YAP_CUT_ARGS` and `YAP_SPEED` (yapfull.sh header), never a re-cut script of its own | black frames are a canary; `seam_qa.py` is the fatal check | "Why yapcut", CHANGELOG 2.3 |
+| 6. Gates | `<out>_script.txt` (required: without it the caption gate fails; `YAP_UNSCRIPTED=1` only for a take with no script), `<out>_corrections.json` (yapfull runs `script_fix.py` first: every word the script also says takes its case, punctuation and spelling, so "fineman" is Feynman before the gate sees it; your hand entries always win), `<out>_capqa_ok.json`, `<out>_overlays.json` | inside `yapfull.sh`: hook words, stutter and restart, dead air, caption, seam, receipts, retention (with `--keeps`, so pause cuts do not count as events), drift, frame zero | the gate prints the fix and its `YAP_*` override; a scripted run with a garbled caption fixes it in corrections and reruns with `YAP_FROM_CUT=1` | `gates.sh` header |
 | 7. Captions, hook, CTA | the hook (9 words or fewer, first line static at frame zero, `|` breaks at about 16 characters a line) and the spark word | `yapfull.sh <workdir> <clauses> <out> "<hook|line two>" "<spark>"`; a `minimal` hook whose later line is longer than line 1 is drawn `outline` | hook too long: cut words, never shrink type | `hook_styles.py` for a designed hook; gotchas.md "Captions" |
 | 8. Compose, receipts, cover | `<out>_overlays.json` pip entries; cover title and kicker (from `series`) | `compose_ass.sh`, `burn_pips.py` (inside yapfull), `cover.py --video <caption-free cut> --contact-sheet`, then `--frame N --title` | loudness is measured and printed; check the line | `references/receipts.md`, 8c below |
 | 8b. Variants and platforms | a second hook | `hook_variant.sh <workdir> <clauses> <out> "<hook B>" "<spark B>"`; `YAP_PLATFORM=linkedin yapfull.sh ...` re-composes from the cut | outside the platform's length band: a warning | brand config `platforms` |
 | 9. Finalize | the Radar item id, pillar, episode | `finalize.sh <final> <footage_dir> <name> --radar-id <id>` (or `--standalone`) | refuses without an id: the edit record is the point | Contract in the script header |
 | 10. Measure | | the Radar's `log_perf.py --edits <output dir>`, `--posted <id> <url>` | | outlier-radar SKILL.md |
+
+### Batches
+
+`scripts/yapbatch.py <batch.json>` runs a batch: each video through `yapfull.sh`, then its
+`after` step (the HyperFrames render) only once its gates pass, one render at a time. A red gate
+stops that video, names the gate and its fix in `<workdir>/batch_status.txt`, and the queue goes
+on; fix it and rerun with `--only <name>` (`--from-cut` when the cut is unchanged). The restart
+scan's take windows are decoded ahead in a background lane (`xwin_scan.py --prescan`), so the
+scan is mostly done before a video reaches its gates, and a re-cut of the same takes decodes only
+its joins. `--status` prints where every video is and an ETA; answer "done?" from it. The batch
+file format and every flag are in the script's header.
 
 ### Notes that survive from the incident history
 
@@ -390,4 +402,4 @@ batch needs a manual SDR conversion; the cut log prints an `hdr:` line for each 
 ## Hard rules
 
 Editorial hard rules (no AI-generated footage or evidence, the icon kit excepted; no dashes; receipts on every claim) are Part 1.
-Operational: run the batch sequentially in one process and never build ahead of the gates.
+Operational: run a batch through `yapbatch.py`, sequentially, and never build ahead of the gates.

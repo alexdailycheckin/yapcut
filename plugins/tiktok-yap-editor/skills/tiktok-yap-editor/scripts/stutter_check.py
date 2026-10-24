@@ -18,8 +18,13 @@ Usage:
   python3 stutter_check.py --words words.json
       [--emit-corrections fix.json]   # merge {"drop":{"<idx>":{"from":word}}} for captions
       [--accept-file <out>_stutter_ok.json]
+      [--script <out>_script.txt] [--free-from <opinion start s>]
       [--max-phrase 6] [--gap 3] [--strict]
 Exit code: 0 = clean, 2 = something needs a decision (so a QA gate can fail).
+
+The script settles a repeat it says itself (3.8.0, yaplib/script.py): printed "script", never
+dropped, never gating. The accept-file takes bare keys (clear a MEDIUM) and
+{"key": ..., "why": ...} entries (clear a HIGH too, because a reason was written down).
 
 It KEEPS the later (usually cleaner) delivery and drops the earlier repeat.
 Function-word dups and >=3x runs are HIGH confidence; a one-off content-word
@@ -42,6 +47,7 @@ import argparse, json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yaplib import words as ywords  # noqa: E402
+from yaplib import script as yscript  # noqa: E402
 
 FUNCTION = {"the", "a", "an", "i", "you", "we", "they", "it", "to", "and",
             "of", "that", "this", "is", "in", "on", "so", "but", "for", "my",
@@ -73,13 +79,65 @@ def accept_key(text):
     return " ".join(k for k in (norm(t) for t in text.split()) if k)
 
 
-def load_accepted(path):
+def _accept_entries(path):
     if not path:
-        return set()
+        return []
     try:
-        return {accept_key(str(x)) for x in json.load(open(path))}
+        d = json.load(open(path))
     except Exception:
-        return set()
+        return []
+    return d if isinstance(d, list) else []
+
+
+def load_accepted(path):
+    """Every key in the accept-file. An entry is a bare string (clears a MEDIUM) or
+    {"key": "...", "why": "..."} (3.8.0: also clears a HIGH, see load_accepted_high)."""
+    out = set()
+    for x in _accept_entries(path):
+        k = x.get("key", "") if isinstance(x, dict) else str(x)
+        if k:
+            out.add(accept_key(k))
+    return out
+
+
+def load_accepted_high(path):
+    """Keys that clear a HIGH: only entries that carry a written reason. A HIGH used to be
+    clearable only by YAP_ALLOW_STUTTER=1, which silenced all three detectors for the whole
+    video (three of five 2026-10-23 cuts shipped that way, for one deliberate callback each).
+    A reason per repeat keeps every other repeat gated."""
+    return {accept_key(x["key"]) for x in _accept_entries(path)
+            if isinstance(x, dict) and x.get("key") and str(x.get("why", "")).strip()}
+
+
+def scripted(flag, w, script, free=None):
+    """Why the script settles this flag, or "". w is the word list the flag indexes into
+    ((t0, t1, text, norm) tuples); script is yaplib.script.load() output. A repeat counts as
+    scripted only when the script says it as many times, as close together, as the take does;
+    nothing after the opinion slot's start (free) is settled by the script."""
+    if not script:
+        return ""
+    st, en, kind, conf, text, t0, t1 = flag
+    if free is not None and t0 >= free:
+        return ""
+    tok = [yscript.norm(x[2]) for x in w]
+    m = re.match(r"repeat x(\d+)", kind)
+    if m:
+        n = int(m.group(1))
+        return f"the script says it {n} times in a row" if yscript.says_run(script, tok[st], n) else ""
+    m = re.match(r"restart (\d+)w(?: \+(\d+) filler)?", kind)
+    if m:
+        L, g = int(m.group(1)), int(m.group(2) or 0)
+        unit = tok[st:st + L]
+        return ("the script says it twice here" if yscript.says_twice_near(script, unit, L + g + 2) else "")
+    m = re.match(r"re-read (\d+)w", kind)
+    if m:
+        L = int(m.group(1))
+        unit = tok[st:st + L]
+        heard_in = tok if free is None else [t for t, x in zip(tok, w) if x[0] < free]
+        said, heard = yscript.count(script, unit), yscript.count(heard_in, unit)
+        if said >= 2 and heard <= said:
+            return f"the script says it {said} times, the take {heard}"
+    return ""
 
 
 def load_words(path):
@@ -213,14 +271,23 @@ def main():
                     help="JSON list of repeats already listened to and judged "
                          "deliberate. An unlisted MEDIUM fails the gate: MEDIUM "
                          "is a decision to make, not a note to skim.")
+    ap.add_argument("--script", default="",
+                    help="<out>_script.txt: a repeat the script says as often, as close together, "
+                         "is the script and needs no decision (3.8.0)")
+    ap.add_argument("--free-from", type=float, default=None,
+                    help="seconds where the unscripted opinion slot starts: the script settles nothing after it")
     a = ap.parse_args()
 
     w = load_words(a.words)
     flags = find_flags(w, a.max_phrase, a.gap)
-    keep = [f for f in flags if a.strict or f[3] == "HIGH"]
+    script = yscript.load(a.script)
+    why = {f: scripted(f, w, script, a.free_from) for f in flags}
     accepted = load_accepted(a.accept_file)
+    accepted_high = load_accepted_high(a.accept_file)
+    settled = {f for f in flags if why[f] or (f[3] == "HIGH" and accept_key(f[4]) in accepted_high)}
+    keep = [f for f in flags if (a.strict or f[3] == "HIGH") and f not in settled]
     unjudged = [f for f in flags
-                if f[3] != "HIGH" and not a.strict
+                if f[3] != "HIGH" and not a.strict and f not in settled
                 and accept_key(f[4]) not in accepted]
 
     if not flags:
@@ -229,15 +296,20 @@ def main():
 
     print(f"found {len(flags)} stutter/restart span(s) "
           f"({sum(1 for f in flags if f[3]=='HIGH')} HIGH):\n")
-    for st, en, kind, conf, text, t0, t1 in flags:
-        if conf == "HIGH" or a.strict:
+    for f in flags:
+        st, en, kind, conf, text, t0, t1 = f
+        if why[f]:
+            act = "script"
+        elif f in settled:
+            act = "ok'd"
+        elif conf == "HIGH" or a.strict:
             act = "DROP"
         elif accept_key(text) in accepted:
             act = "ok'd"
         else:
             act = "JUDGE"
         print(f"  [{conf:6}] {t0:6.2f}-{t1:6.2f}s  {kind:20} {act:6} "
-              f"words {st}-{en-1}  | \"{text}\"")
+              f"words {st}-{en-1}  | \"{text}\"" + (f"  ({why[f]})" if why[f] else ""))
 
     drop = sorted({k for f in keep for k in range(f[0], f[1])})
     print(f"\ncaption drop indices ({len(drop)} words): {drop}")
@@ -269,7 +341,11 @@ def main():
               + (f" ({a.accept_file})" if a.accept_file else " (--accept-file)") + ":")
         print(json.dumps(sorted({accept_key(f[4]) for f in unjudged}), indent=2))
 
-    sys.exit(2 if (any(f[3] == "HIGH" for f in flags) or unjudged) else 0)
+    if keep and any(f[3] == "HIGH" for f in keep):
+        print("\nA HIGH is a real restart until shown otherwise: cut it via the clause plan. If you "
+              "listened and it is deliberate, add {\"key\": \"<its words>\", \"why\": \"<what you heard>\"} "
+              "to the accept-file; a bare key clears a MEDIUM only.")
+    sys.exit(2 if (any(f[3] == "HIGH" for f in keep) or unjudged) else 0)
 
 
 if __name__ == "__main__":

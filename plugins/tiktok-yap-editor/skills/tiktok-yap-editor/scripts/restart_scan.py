@@ -13,7 +13,10 @@ inside at least one window together.
 
 Usage: restart_scan.py --video cut.mp4 [--win 30] [--hop 15]
                        [--accept-file <out>_stutter_ok.json]
-Exit: 0 clean or every MEDIUM accepted, 2 something needs a decision.
+                       [--script <out>_script.txt] [--free-from <opinion start s>]
+Exit: 0 clean or every MEDIUM accepted, 2 something needs a decision. A repeat the
+script says itself is settled (3.8.0, stutter_check.scripted), and a HIGH is cleared
+by an accept-file entry that carries a reason ({"key": ..., "why": ...}).
 
 MEDIUM is not advisory here either (2026-08-27): this scan flagged "Toronto's
 local... Toronto's local news" on the 08-24 CBRE episode, in both runs, and the
@@ -21,12 +24,13 @@ build passed anyway because MEDIUM only exited 1 and yapfull fails on 2. It now
 shares stutter_check's accept-file, so one file records every repeat a human has
 actually listened to and cleared.
 """
-import argparse, json, math, os, struct, subprocess, sys, tempfile, wave
+import argparse, hashlib, json, math, os, struct, subprocess, sys, tempfile, wave
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from stutter_check import find_flags, norm, accept_key, load_accepted  # noqa: E402
+from stutter_check import find_flags, norm, accept_key, load_accepted, load_accepted_high, scripted  # noqa: E402
 from yaplib import media  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
+from yaplib import script as yscript  # noqa: E402
 
 MODEL = ywords.whisper_model()   # the same model as the cut's words
 
@@ -44,6 +48,17 @@ def window_tokens(video, t0, t1, tmpdir):
             continue
         out.append((s, e, t, norm(t)))
     return out
+
+def audio_sig(video, args):
+    """The cut's audio plus every setting that changes the findings: a rerun on the same cut
+    (YAP_FROM_CUT=1, a caption fix, a platform variant) reads its findings from the cache."""
+    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", video, "-vn", "-ar", "16000",
+                        "-ac", "1", "-f", "s16le", "-"], capture_output=True, check=True)
+    h = hashlib.sha1(r.stdout)
+    h.update(json.dumps([args.win, args.hop, args.short_win, args.short_hop,
+                         os.path.basename(MODEL), 1]).encode())
+    return h.hexdigest()
+
 
 def has_double_take_dip(video, t0, t1, tmpdir):
     """The acoustic signature of a restart: a >=0.22s quiet dip inside the
@@ -99,10 +114,37 @@ def main():
                     help="JSON list of repeats already listened to and judged "
                          "deliberate (shared with stutter_check.py). An unlisted "
                          "MEDIUM fails the gate.")
+    ap.add_argument("--script", default="",
+                    help="<out>_script.txt: a repeat the script says itself needs no decision (3.8.0)")
+    ap.add_argument("--cache", default="",
+                    help="findings keyed on the cut's audio (restart_<out>.json): an unchanged cut is not rescanned")
+    ap.add_argument("--free-from", type=float, default=None,
+                    help="seconds where the unscripted opinion slot starts")
     a = ap.parse_args()
+    script = yscript.load(a.script)
     dur = media.probe_duration(a.video)
     found = []   # (t0, t1, kind, conf, text)
-    with tempfile.TemporaryDirectory() as td:
+    by_script = {}   # (t0, text) -> why the script settles it
+    ctx = {}         # (t0, text) -> (flag, the window's words): what scripted() reads, cached
+    sig = audio_sig(a.video, a) if a.cache else ""
+    cached = None
+    if sig and os.path.isfile(a.cache):
+        try:
+            c = json.load(open(a.cache))
+            if c.get("sig") == sig:
+                cached = c
+        except (OSError, ValueError):
+            pass
+    if cached is not None:
+        print(f"  windowed scan: cached ({os.path.basename(a.cache)})")
+        found = [tuple(f) for f in cached["found"]]
+        # the script is applied on every run (it can change while the cut does not), against
+        # the same window words the fresh scan judged it on
+        for c in cached.get("ctx", []):
+            fl, w = tuple(c["flag"]), [(s0, s1, t, norm(t)) for s0, s1, t in c["words"]]
+            ctx[(fl[5], fl[4])] = (fl, w)
+    else:
+     with tempfile.TemporaryDirectory() as td:
       # TWO TIERS, and the narrow one is not optional (added 2026-08-28).
       # A 30s window is short compared to a whole file but it is NOT short
       # enough to stay literal: whisper still tidies an aborted restart into
@@ -116,42 +158,59 @@ def main():
         t = 0.0
         while t < dur - 1.0:
             w = window_tokens(a.video, t, min(dur, t + win), td)
-            for (_i, _j, kind, conf, text, t0, t1) in find_flags(w):
+            for fl in find_flags(w):
+                _i, _j, kind, conf, text, t0, t1 = fl
                 # dedupe across overlapping windows by time+text
                 if any(abs(t0 - f[0]) < 0.8 and norm(text)[:24] == norm(f[4])[:24]
                        for f in found):
                     continue
                 found.append((t0, t1, kind, conf, text))
+                ctx[(t0, text)] = (fl, w)
             t += hop
       # HIGH must reproduce in a tight re-transcription or it is demoted.
       # Runs once, after BOTH tiers have contributed.
       verified = []
       for t0, t1, kind, conf, text in found:
-          if conf == "HIGH" and not verify_flag(a.video, t0, t1, text, td):
+          fl, w = ctx[(t0, text)]
+          if conf == "HIGH" and not scripted(fl, w, script, a.free_from) and not verify_flag(a.video, t0, t1, text, td):
               conf = "MEDIUM"
               kind += " (unverified)"
           verified.append((t0, t1, kind, conf, text))
       found = verified
+      if sig:
+          json.dump({"sig": sig, "video": os.path.abspath(a.video), "found": found,
+                     "ctx": [{"flag": list(fl), "words": [[x[0], x[1], x[2]] for x in w]}
+                             for fl, w in ctx.values()]}, open(a.cache, "w"), indent=0)
+    for (t0, text), (fl, w) in ctx.items():
+        why = scripted(fl, w, script, a.free_from)
+        if why:
+            by_script[(t0, text)] = why
     if not found:
         print("clean: no repetition found in windowed scan")
         return
     found.sort()
     accepted = load_accepted(a.accept_file)
+    accepted_high = load_accepted_high(a.accept_file)
+    settled = {f for f in found if (f[0], f[4]) in by_script
+               or (f[3] == "HIGH" and accept_key(f[4]) in accepted_high)}
     unjudged = [f for f in found
-                if f[3] != "HIGH" and accept_key(f[4]) not in accepted]
+                if f[3] != "HIGH" and f not in settled and accept_key(f[4]) not in accepted]
     print(f"windowed scan found {len(found)} repetition span(s) "
           f"({sum(1 for f in found if f[3]=='HIGH')} HIGH):")
-    for t0, t1, kind, conf, text in found:
-        act = "DROP" if conf == "HIGH" else (
-            "ok'd" if accept_key(text) in accepted else "JUDGE")
-        print(f"  [{conf:6}] {t0:6.2f}-{t1:6.2f}s  {kind:24} {act:6} | \"{text}\"")
+    for f in found:
+        t0, t1, kind, conf, text = f
+        why = by_script.get((t0, text), "")
+        act = "script" if why else ("ok'd" if f in settled else "DROP" if conf == "HIGH" else (
+            "ok'd" if accept_key(text) in accepted else "JUDGE"))
+        print(f"  [{conf:6}] {t0:6.2f}-{t1:6.2f}s  {kind:24} {act:6} | \"{text}\""
+              + (f"  ({why})" if why else ""))
     if unjudged:
         print(f"\n{len(unjudged)} repeat(s) need a decision. LISTEN to each span, then "
               "either cut it out via the clause plan, or, if it is deliberate, add "
               "its key to the accept-file"
               + (f" ({a.accept_file})" if a.accept_file else " (--accept-file)") + ":")
         print(json.dumps(sorted({accept_key(f[4]) for f in unjudged}), indent=2))
-    sys.exit(2 if (any(f[3] == "HIGH" for f in found) or unjudged) else 0)
+    sys.exit(2 if (any(f[3] == "HIGH" and f not in settled for f in found) or unjudged) else 0)
 
 if __name__ == "__main__":
     main()

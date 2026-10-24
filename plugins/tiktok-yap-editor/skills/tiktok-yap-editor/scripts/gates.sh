@@ -123,23 +123,44 @@ PY
 
 # --- repetition: transcript detector, windowed audio scan, cross-window scan ----
 # Three detectors, one gate, one accept-file. The third (xwin_scan.py, 2026-09-30) reads
-# 1.1s and 1.6s windows for a restart the other two read as one phrase; it caches its
-# window decodes as xwin_<cut>.json beside the accept-file, so YAP_FROM_CUT=1 reuses them.
-gate_stutter_restart() {             # gate_stutter_restart <words.json> <video> <accept-file>
-  local words="$1" video="$2" accept="$3" r1=0 r2=0 r3=0 rc=0 base
+# 1.1s and 1.6s windows for a restart the other two read as one phrase.
+# 3.8.0: all three read the script (<out>_script.txt) and settle a repeat the script says itself;
+# the accept-file takes {"key", "why"} entries that clear a HIGH, so one deliberate callback no
+# longer needs YAP_ALLOW_STUTTER=1 (which silences all three). With a keeps file, xwin_scan decodes
+# the windows inside each keep from the source take, cached per take in xwin_src/, so a re-cut
+# decodes only its joins; restart_scan caches its findings on the cut's audio.
+gate_stutter_restart() {             # gate_stutter_restart <words.json> <video> <accept-file> [keeps.json] [script.txt]
+  local words="$1" video="$2" accept="$3" keeps="${4:-}" script="${5:-}" r1=0 r2=0 r3=0 rc=0 base wd op free=()
+  local sargs=() kargs=()
   echo "--- gate stutter_restart ---"
   [ -f "$accept" ] || echo '[]' > "$accept"
-  base="$(basename "${accept%_stutter_ok.json}")"
-  python3 "$SCRIPTS/stutter_check.py" --words "$words" --accept-file "$accept" || r1=$?
-  python3 "$SCRIPTS/restart_scan.py" --video "$video" --accept-file "$accept" || r2=$?
+  base="$(basename "${accept%_stutter_ok.json}")"; wd="$(dirname "$accept")"
+  op="${accept%_stutter_ok.json}_opinion.json"
+  if [ -f "$op" ]; then
+    local t; t=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("start",""))' "$op" 2>/dev/null || true)
+    [ -n "$t" ] && free=(--free-from "$t")
+  fi
+  [ -n "$script" ] && [ -f "$script" ] && sargs=(--script "$script" ${free[@]+"${free[@]}"})
+  [ -n "$keeps" ] && [ -f "$keeps" ] && kargs=(--keeps "$keeps" --speed "${YAP_SPEED:-1}" --workdir "$wd")
+  python3 "$SCRIPTS/stutter_check.py" --words "$words" --accept-file "$accept" ${sargs[@]+"${sargs[@]}"} || r1=$?
+  python3 "$SCRIPTS/restart_scan.py" --video "$video" --accept-file "$accept" \
+    --cache "$wd/restart_${base}.json" ${sargs[@]+"${sargs[@]}"} || r2=$?
+  # yapbatch prescans the take windows in a background lane; wait for this video's, so the two
+  # never decode the same windows (the marker appears even when the prescan failed)
+  if [ -n "${YAP_XWIN_WAIT:-}" ] && [ ! -e "$YAP_XWIN_WAIT" ]; then
+    echo "  waiting for the take prescan ($(basename "$YAP_XWIN_WAIT"))"
+    local waited=0
+    while [ ! -e "$YAP_XWIN_WAIT" ] && [ "$waited" -lt 3600 ]; do sleep 2; waited=$((waited + 2)); done
+  fi
   python3 "$SCRIPTS/xwin_scan.py" --video "$video" --words "$words" --accept-file "$accept" \
-    --cache "$(dirname "$accept")/xwin_${base}.json" || r3=$?
+    --cache "$wd/xwin_${base}.json" --store-dir "$wd/xwin_src" \
+    ${kargs[@]+"${kargs[@]}"} ${sargs[@]+"${sargs[@]}"} || r3=$?
   gate_meta_json repetition "{\"stutter_check\": $r1, \"restart_scan\": $r2, \"xwin_scan\": $r3}"
   rc=$(( r1 > r2 ? r1 : r2 )); rc=$(( r3 > rc ? r3 : rc ))
   if [ "$rc" -eq 2 ] && [ "${YAP_ALLOW_STUTTER:-0}" = "1" ]; then
     echo "  repetition findings overridden by YAP_ALLOW_STUTTER=1"; rc=1
   fi
-  gate_finish stutter_restart "$rc" "A real restart: cut it via the clause plan. A deliberate repeat: add its printed key to $(basename "$accept")."
+  gate_finish stutter_restart "$rc" "A real restart: cut it via the clause plan. A deliberate repeat: add its printed key to $(basename "$accept") ({\"key\": ..., \"why\": ...} for a HIGH)."
 }
 
 # --- dead air: pauses that survived the cut (transcript-measured) --------------

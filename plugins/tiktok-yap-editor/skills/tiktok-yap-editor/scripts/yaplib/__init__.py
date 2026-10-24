@@ -19,5 +19,6 @@ Modules:
   ass     hex to ASS colour, ASS time formatter
   fonts   FONT_DIRS + find_font(family, weight_hint)
   rules   the skill's rules.json: every number the Mac and phone editors share
+  script  the take's script as evidence: the repeats it says itself, read by every detector
 """
-__all__ = ["home", "brand", "media", "words", "ass", "fonts", "rules"]
+__all__ = ["home", "brand", "media", "words", "ass", "fonts", "rules", "script"]

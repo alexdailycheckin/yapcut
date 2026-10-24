@@ -180,6 +180,43 @@ sys.exit(1 if bad else 0)
 PY
 grep -E "^(REPATH|reconcile:|stamped|edit record|delivered)" "$TMP/finalize.log" | sed 's/^/        /'
 
+step "5. yapbatch.py (a queue: one passes, one stops at a gate, a from-cut rerun reuses its words)"
+WD5="$TMP/batch"; mkdir -p "$WD5"
+cp "$FX/clauses.json" "$WD5/clauses_good.json"; cp "$FX/clauses.json" "$WD5/clauses_longhook.json"
+cp "$FX/script.txt" "$WD5/good_script.txt"; cp "$FX/script.txt" "$WD5/longhook_script.txt"
+# step 1's cut and its scan caches, as a batch rerun on cut takes has them: the restart scans read
+# their caches by audio, so nothing is decoded twice and the stage stays short
+cp "$WD/full_fixture.mp4" "$WD5/full_good.mp4"; cp "$WD/keeps_full_fixture.json" "$WD5/keeps_full_good.json"
+cp -R "$WD/xwin_src" "$WD5/" 2>/dev/null; cp "$WD/restart_fixture.json" "$WD5/restart_good.json" 2>/dev/null
+python3 - "$WD5" "$HOOK" "$SPARK" <<'PY'
+import json, sys
+wd, hook, spark = sys.argv[1:4]
+json.dump({"workdir": wd, "out": "{workdir}/out/{name}.mp4", "after": "test -s {out}",
+           "videos": [{"name": "good", "hook": hook, "spark": spark, "from_cut": True},
+                      {"name": "longhook", "hook": "one two three four five six seven eight nine ten eleven twelve",
+                       "spark": "twelve"}]}, open(f"{wd}/batch.json", "w"))
+PY
+python3 "$SCRIPTS/yapbatch.py" "$WD5/batch.json" > "$TMP/batch.log" 2>&1; BRC=$?
+python3 "$SCRIPTS/yapbatch.py" "$WD5/batch.json" --only good --from-cut > "$TMP/batch2.log" 2>&1; BRC2=$?
+python3 - "$WD5" "$BRC" "$BRC2" <<'PY'
+import json, sys
+wd, rc, rc2 = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+st = json.load(open(f"{wd}/batch_status.json"))["videos"]
+bad = 0
+def check(c, m):
+    global bad
+    print(("  PASS  " if c else "  FAIL  ") + "[yapbatch] " + m); bad += 0 if c else 1
+check(rc == 2, f"a batch with a stopped video exits 2 (rc {rc})")
+check(st["good"]["state"] == "done", f"the good video ran its gates and its after step: {st['good']['state']}")
+check(st["longhook"]["state"] == "gate-failed" and st["longhook"]["gate"] == "hook_words",
+      f"the 12-word hook stopped at its gate and the queue went on: {st['longhook']}")
+check(rc2 == 0 and "reusing transcript" in open(f"{wd}/log_good.txt").read(),
+      "a --from-cut rerun reuses the transcript made from that cut")
+check("script_fix:" in open(f"{wd}/log_good.txt").read(), "yapfull runs script_fix on a scripted take")
+sys.exit(1 if bad else 0)
+PY
+[ $? = 0 ] || FAILS=$((FAILS + 1))
+
 step "done"
 ELAPSED=$(( $(date +%s) - T0 ))
 echo

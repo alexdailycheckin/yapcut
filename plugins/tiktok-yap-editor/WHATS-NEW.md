@@ -4,6 +4,23 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.8.0: faster batches, fewer false alarms
+
+**What's new.** Three changes aimed at the hours a batch used to take:
+
+- The script settles its own repeats. When your script says "they poke at it" twice, the
+  repetition checks no longer stop the build for it, and a deliberate repeat you listened to can
+  be cleared with a reason instead of switching the whole check off.
+- Captions take the script's spelling, case and punctuation for every word you said from it,
+  so "fineman" comes out Feynman before the caption check runs. Words you ad-libbed still come to
+  you for a yes.
+- A batch runs as one queue (`yapbatch.py`): each video is cut, checked and rendered in turn, a
+  video that fails a check is set aside with the reason while the rest carry on, and
+  `batch_status.txt` shows where everything is with an ETA. The slowest check now reuses its work
+  across re-cuts of the same takes, so a re-cut costs about two minutes of it instead of 13 to 22.
+
+**What you need to do.** Nothing. Your next batch uses all three.
+
 ## 3.7.13: one word at a time
 
 **What's new.** A packaged video can show its captions one word at a time, each word on screen
