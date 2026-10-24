@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.23.1: the setup check finds HeyGen's audio script again
+
+**What's new.** The session-start check looks for the script that lowers music under your voice in
+HeyGen's media-use skill, where it moved, so it stops telling you to install something you have.
+
+**To get it.** Nothing. If the check lists the media-use skill as missing, run
+`npx skills add heygen-com/hyperframes -s media-use -g -a claude-code`.
+
 ## 3.23.0: pause a campaign, rename the moments lane
 
 **What's new.** You can take a campaign off the dashboard without deleting it, and give the moments

@@ -2,6 +2,13 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.23.1 (outlier-radar)
+
+**The what's-new check finds carve.mjs in media-use.** Both plugins ship the same
+`hooks/whats_new.py`, so the media-use path from tiktok-yap-editor 3.7.12 lands here too: the
+HyperFrames packaging row looks in `~/.claude/skills/media-use/audio/scripts/` first and the old
+hyperframes-audio folder second, and names the one-skill install.
+
 ## What's new in 3.7.12 (tiktok-yap-editor)
 
 **The music bed ducks under the voice again.** HeyGen folded the hyperframes-audio skill into its
