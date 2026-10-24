@@ -109,6 +109,8 @@ class Episode:
         self.bed, self.core = bed, core
         self.cards, self.js, self.sfx, self.images, self.pushes, self.snaps = [], [], [], {}, [], []
         self._hook, self._n = None, 0
+        # words per caption group: 3 by default; 1 shows each word alone on its own beat (spec: ep.cap_words = 1)
+        self.cap_words = 3
 
     # ------------------------------------------------------------ anchors
     def _at(self, phrase, after=0):
@@ -531,7 +533,7 @@ class Episode:
         groups, cur, chars = [], [], 0
         for i, w in enumerate(W):
             n = len(re.sub(r"[.,;:]+$", "", w["w"]))
-            if cur and (len(cur) >= 3 or chars + n + 1 > 16):
+            if cur and (len(cur) >= self.cap_words or chars + n + 1 > 16):
                 groups.append(cur); cur, chars = [], 0
             cur.append(i); chars += n + 1
             if w["w"].rstrip()[-1:] in ".?!":

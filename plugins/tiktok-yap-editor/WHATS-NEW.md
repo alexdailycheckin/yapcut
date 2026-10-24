@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.13: one word at a time
+
+**What's new.** A packaged video can show its captions one word at a time, each word on screen
+exactly while you say it.
+
+**What you need to do.** Nothing for your current videos. Add `ep.cap_words = 1` to a spec to get
+single-word captions.
+
 ## 3.7.12: the music ducks under your voice again
 
 **What's new.** HeyGen moved the script that lowers the music under your voice into its media-use

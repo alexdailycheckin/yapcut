@@ -2,6 +2,15 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.13 (tiktok-yap-editor)
+
+**Captions can show one word at a time.** HyperFrames captions grouped up to three words or 16
+characters, hard-coded in `Episode._captions`. `Episode.cap_words` now sets the group size; it
+defaults to 3, so every existing spec builds as before, and `ep.cap_words = 1` puts each word on
+screen alone from 0.02s before it is said until the next word starts (or 0.6s after it ends, at a
+pause). Asked for by the creator on 2026-10-24: "one word at a time and make sure it's obviously
+in line with what I'm saying".
+
 ## What's new in 3.23.1 (outlier-radar)
 
 **The what's-new check finds carve.mjs in media-use.** Both plugins ship the same
