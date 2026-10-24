@@ -31,7 +31,10 @@ def budget(home):
     try:
         cfg = json.load(open(os.path.join(home, "radar-config.json")))
         show = cfg.get("show") or {}
-        return int(show.get("word_ceiling") or DEFAULT_CEILING), float(show.get("words_per_second") or DEFAULT_WPS)
+        wps = float(show.get("words_per_second") or DEFAULT_WPS)
+        if show.get("word_ceiling") is False:  # no ceiling: the story runs as long as it needs
+            return None, wps
+        return int(show.get("word_ceiling") or DEFAULT_CEILING), wps
     except (OSError, ValueError, TypeError):
         return DEFAULT_CEILING, DEFAULT_WPS
 
@@ -98,7 +101,7 @@ def episode_block(it, wps, ceiling, cfg=None):
     ep = it.get("episode")
     company = it.get("company") or it.get("subject") or ""
     head = f"## Ep{ep}: {company}" if ep and company else f"## {title}"
-    over = f"  OVER THE {ceiling} CEILING" if n > ceiling else ""
+    over = f"  OVER THE {ceiling} CEILING" if ceiling and n > ceiling else ""
     lines = [head, "", f"_{title}_", "",
              f"_{n} words, about {n / wps:.0f} seconds.{over}_"]
     if it.get("text_hook"):

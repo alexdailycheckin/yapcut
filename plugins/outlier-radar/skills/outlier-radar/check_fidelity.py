@@ -779,7 +779,8 @@ DEFAULT_CEILING, DEFAULT_WPS = rules.get("script.word_ceiling"), rules.get("scri
 
 
 def _show_budget():
-    """(word_ceiling, words_per_second) from radar-config.json show block."""
+    """(word_ceiling, words_per_second) from radar-config.json show block. A word_ceiling of
+    false means no ceiling: the story runs as long as it needs (3.24.0)."""
     if not RADAR:
         return DEFAULT_CEILING, DEFAULT_WPS
     try:
@@ -788,6 +789,8 @@ def _show_budget():
         return DEFAULT_CEILING, DEFAULT_WPS
     show = cfg.get("show") or {}
     try:
+        if show.get("word_ceiling") is False:
+            return None, float(show.get("words_per_second") or DEFAULT_WPS)
         return (int(show.get("word_ceiling") or DEFAULT_CEILING),
                 float(show.get("words_per_second") or DEFAULT_WPS))
     except (TypeError, ValueError):
@@ -813,7 +816,7 @@ def check_length(it, where, fails, warns):
     n = len(spoken)
     if not n:
         return
-    if n > ceiling:
+    if ceiling and n > ceiling:
         fails.append(f"{where}: {n} spoken words against a {ceiling} ceiling, about "
                      f"{n / wps:.0f} seconds. Cut a whole beat, or move it into the take prompts "
                      f"(opinion.ideas); never squeeze the words that make the story flow")

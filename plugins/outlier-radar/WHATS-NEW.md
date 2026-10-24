@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.24.0: a show with no word limit
+
+**What's new.** You can turn off the word limit on your show's scripts. With it off, the checks
+stop failing a long script and the filming pack just tells you how long it runs.
+
+**To get it.** Nothing, unless you want it: set `"word_ceiling": false` in the `show` block of
+`radar-config.json`. Leave it as a number to keep a limit.
+
 ## 3.23.1: the setup check finds HeyGen's audio script again
 
 **What's new.** The session-start check looks for the script that lowers music under your voice in

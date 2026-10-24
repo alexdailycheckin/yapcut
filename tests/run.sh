@@ -294,6 +294,27 @@ SYNC
 [ $? = 0 ] && ok "anima_sync.py seals to the shared vector and pushes a changed week once" || bad "anima sync contract"
 rm -rf "$SWS"
 
+# the word ceiling: a long script fails against a number, and show.word_ceiling false means no
+# ceiling at all, in the gate and in the filming pack (3.24.0)
+CWS="$(mktemp -d /tmp/yapcut-ceil.XXXXXX)"
+mkdir -p "$CWS/weeks" "$CWS/performance" "$CWS/voice-corpus"
+cp "$RADAR/radar-config.example.json" "$CWS/radar-config.json"
+python3 - "$CWS" "$RADAR" <<'CEIL'
+import json, sys
+ws, radar = sys.argv[1:]
+d = json.load(open(f"{radar}/weeks/0000-00-00-example.json"))
+d["distribution"][0]["script"] = (d["distribution"][0]["script"] + " ") * 12
+json.dump(d, open(f"{ws}/weeks/0000-00-00-long.json", "w"))
+CEIL
+python3 "$RADAR/check_fidelity.py" --dir "$CWS" --week "$CWS/weeks/0000-00-00-long.json" --schema-only >"$CWS/on.log" 2>&1
+grep -q "spoken words against" "$CWS/on.log" && ok "a long script fails the word ceiling" || bad "a long script passed the word ceiling"
+python3 -c "import json,sys; p=sys.argv[1]; c=json.load(open(p)); c.setdefault('show',{})['word_ceiling']=False; json.dump(c,open(p,'w'))" "$CWS/radar-config.json"
+python3 "$RADAR/check_fidelity.py" --dir "$CWS" --week "$CWS/weeks/0000-00-00-long.json" --schema-only >"$CWS/off.log" 2>&1
+grep -q "spoken words against" "$CWS/off.log" && bad "word_ceiling false still caps the script" || ok "word_ceiling false means no ceiling in the gate"
+python3 "$RADAR/build_pack.py" --dir "$CWS" --week "$CWS/weeks/0000-00-00-long.json" --out "$CWS/pack.md" >/dev/null 2>&1 \
+  && ! grep -q "CEILING" "$CWS/pack.md" && ok "word_ceiling false renders the pack with no ceiling" || bad "pack with word_ceiling false"
+rm -rf "$CWS"
+
 # Stage 3: the dashboard builds and renders cards.
 echo "[3] dashboard"
 python3 "$RADAR/build_dashboard.py" --dir "$WS" >/tmp/yapcut-dash.log 2>&1 && ok "build_dashboard.py" || { bad "build_dashboard.py"; tail -5 /tmp/yapcut-dash.log; }

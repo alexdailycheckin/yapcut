@@ -2,6 +2,15 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.24.0 (outlier-radar)
+
+**The show can run with no word ceiling.** `show.word_ceiling` in `radar-config.json` set to
+`false` now means no ceiling: `check_fidelity.py` stops failing a long script, and the filming pack
+prints the word count and seconds without an OVER THE CEILING flag. A number still caps the written
+part as before, and a missing or empty value still falls back to the rulebook's
+`script.word_ceiling`. Asked for by the creator on 2026-10-24, about a ten-beat episode shape: "I
+just don't want you to put 200, 260. Just do whatever it needs to tell the right story."
+
 ## What's new in 3.7.13 (tiktok-yap-editor)
 
 **Captions can show one word at a time.** HyperFrames captions grouped up to three words or 16
