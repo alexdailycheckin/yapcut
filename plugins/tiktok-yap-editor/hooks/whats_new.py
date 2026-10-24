@@ -102,8 +102,11 @@ def ready_editor():
         rows.append((heygen, "HeyGen CLI (for the sound library)",
                      "curl -fsSL https://static.heygen.ai/cli/install.sh | bash, then heygen auth login (a free account)"))
     rows.append((lib, "the YapCut sound library", "python3 scripts/hfkit/sfx_library.py fetch (needs the HeyGen CLI) or offline (no account)"))
-    rows.append((os.path.exists(os.path.expanduser("~/.claude/skills/hyperframes-audio/scripts/carve.mjs")),
-                 "HeyGen's HyperFrames skills (optional: ducks the music under your voice)", "npx skills add heygen-com/hyperframes"))
+    sk = os.path.expanduser("~/.claude/skills")
+    carve = any(os.path.exists(os.path.join(sk, *p)) for p in (("media-use", "audio", "scripts", "carve.mjs"),
+                                                               ("hyperframes-audio", "scripts", "carve.mjs")))
+    rows.append((carve, "HeyGen's HyperFrames media-use skill (optional: ducks the music under your voice)",
+                 "npx skills add heygen-com/hyperframes -s media-use -g -a claude-code"))
     return "HyperFrames packaging", rows
 
 

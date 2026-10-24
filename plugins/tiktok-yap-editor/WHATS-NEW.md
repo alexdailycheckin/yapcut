@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.7.12: the music ducks under your voice again
+
+**What's new.** HeyGen moved the script that lowers the music under your voice into its media-use
+skill. The editor now finds it there, so the music bed drops under your voice again instead of
+playing at one flat level.
+
+**What you need to do.** If your music has been playing flat, install the skill once:
+`npx skills add heygen-com/hyperframes -s media-use -g -a claude-code`, then rebuild the video.
+
 ## 3.7.11: HDR clips look the way your phone shows them
 
 **What's new.** 3.7.10 converted HDR clips too bright: faces came out flat and pinkish. The

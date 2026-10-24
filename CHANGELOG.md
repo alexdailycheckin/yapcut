@@ -2,6 +2,18 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.7.12 (tiktok-yap-editor)
+
+**The music bed ducks under the voice again.** HeyGen folded the hyperframes-audio skill into its
+media-use skill, so `carve.mjs` moved from `~/.claude/skills/hyperframes-audio/scripts/` to
+`~/.claude/skills/media-use/audio/scripts/`, and a fresh install of HeyGen's skills no longer has
+the old path. HyperFrames packaging then printed "hyperframes-audio skill not installed" and
+rendered every bed flat at the theme volume. `Episode.carve` and the what's-new check now look in
+media-use first and the old folder second, and both name the one-skill install
+(`npx skills add heygen-com/hyperframes -s media-use -g -a claude-code`). The script's interface
+is unchanged (`--comp --bed --voice --core`); a dry run against @hyperframes/core 0.8.96 on a
+90-second talking head writes six band dips and a 170-point level envelope, as before.
+
 ## What's new in 3.7.11 (tiktok-yap-editor)
 
 **HDR clips now look the way Apple shows them.** 3.7.10's mobius curve at npl=100 was wrong,

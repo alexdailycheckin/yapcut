@@ -632,11 +632,15 @@ class Episode:
 
     def carve(self, version="0.8.96"):
         """Carve the music bed around the voice once; the carved tag is kept for every rebuild.
-        Needs the hyperframes-audio skill (npx skills add heygen-com/hyperframes) and @hyperframes/core,
-        which is installed into the project on first use. Without them the bed stays flat and low."""
-        script = os.path.expanduser("~/.claude/skills/hyperframes-audio/scripts/carve.mjs")
-        if not os.path.exists(script):
-            print("carve: hyperframes-audio skill not installed, bed stays flat at the theme volume")
+        Needs carve.mjs from HyperFrames' media-use skill (npx skills add heygen-com/hyperframes -s media-use
+        -g -a claude-code), which absorbed the old hyperframes-audio skill, and @hyperframes/core, which is
+        installed into the project on first use. Without them the bed stays flat and low."""
+        skills = os.path.expanduser("~/.claude/skills")
+        script = next((p for p in (os.path.join(skills, "media-use", "audio", "scripts", "carve.mjs"),
+                                   os.path.join(skills, "hyperframes-audio", "scripts", "carve.mjs")) if os.path.exists(p)), None)
+        if not script:
+            print("carve: no carve.mjs (npx skills add heygen-com/hyperframes -s media-use -g -a claude-code), "
+                  "bed stays flat at the theme volume")
             return False
         core = self.core
         if not core:
