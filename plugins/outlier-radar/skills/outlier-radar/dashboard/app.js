@@ -171,12 +171,13 @@ function findItem(id){
   return it || null;
 }
 function weekStartOf(w){ if(!w||!isIso(w.week)) return null; const s=String(w.week).slice(0,10); return dow(s)==="Sunday" ? addDays(s,1) : s; }
-function weekLabel(w){
-  if(isExample(w)) return "Example week";
-  const s=weekStartOf(w); if(!s) return String(w.week);
-  const d=daysBetween(s, todayIso());
-  if(d>=0&&d<7) return "This week"; if(d>=7&&d<14) return "Last week"; if(d>=14&&d<21) return "2 weeks ago";
-  return spoken(s);
+/* Every week is named by its dates. Relative names ("This week") broke when a batch is written on
+   Sunday for the week that starts Monday: the newest week read as a bare date beside an older one
+   labelled "This week". */
+function weekName(w){
+  if(isExample(w)) return "Example week, sample data";
+  const s=weekStartOf(w);
+  return s ? "Week of "+rangeText(s, addDays(s,6)) : "Week "+w.week;
 }
 const cleanTitle = x => String(x.title||x.text_hook||x.mechanic||"Untitled").replace(/^.*?\bEp\s?\d+:\s*/i,"");
 /* A calendar cell has to say WHICH post, and a solo post carries no title: fall through to the
@@ -300,7 +301,7 @@ function laneStat(L){
 const strip = (posted, filmed, total) => `<span class="strip" role="img" aria-label="${posted} posted, ${filmed} filmed, ${total-posted-filmed} to film">${posted?`<span class="p" style="flex:${posted}"></span>`:""}${filmed?`<span class="f" style="flex:${filmed}"></span>`:""}${total-posted-filmed>0?`<span style="flex:${total-posted-filmed}"></span>`:""}</span>`;
 function queue(){
   const ls=lanes();
-  const pick = LANE==="all" ? ls.filter(L=>!L.camp) : ls.filter(L=>L.k===LANE);
+  const pick = LANE==="all" ? ls : ls.filter(L=>L.k===LANE);
   return pick.flatMap(L=>L.items.map(x=>({x, L}))).filter(({x})=>SHOW_DONE || isOpen(x));
 }
 function promisesBlock(w){
@@ -314,10 +315,12 @@ function renderFilm(){
   const w=W(); if(!w){ $("p-film").innerHTML=`<div class="empty">No week data yet. Run the radar to generate your first slate.</div>`; return; }
   const ls=lanes().map(laneStat);
   if(LANE!=="all" && !ls.some(L=>L.k===LANE)) LANE="all";
-  const wk=ls.filter(L=>!L.camp), sum=k=>wk.reduce((a,L)=>a+L[k],0);
-  const tiles=[{k:"all", label:"All lanes", help:"Every lane this week.", left:sum("left"), total:sum("total"), posted:sum("posted"), filmed:sum("filmed"), done:sum("done")}].concat(ls);
+  /* All lanes counts the campaigns too: a tile named "All" that skipped them read 21 beside a
+     24 in Archetypes. */
+  const sum=k=>ls.reduce((a,L)=>a+L[k],0);
+  const tiles=[{k:"all", label:"All lanes", help:"Every lane this week, campaigns included.", left:sum("left"), total:sum("total"), posted:sum("posted"), filmed:sum("filmed"), done:sum("done")}].concat(ls);
   const cur=tiles.find(L=>L.k===LANE)||tiles[0];
-  const inLane=(LANE==="all"?wk:ls.filter(L=>L.k===LANE)).flatMap(L=>L.items);
+  const inLane=(LANE==="all"?ls:ls.filter(L=>L.k===LANE)).flatMap(L=>L.items);
   const doneN=inLane.filter(isDone).length, ignN=inLane.filter(x=>t(x.id).status==="ignored").length;
   const parts=String(w.positioning||"").split(/This week's lens:\s*/i);
   const lens=parts[1] ? `<b>This week's lens.</b> ${esc(parts[1].charAt(0).toUpperCase()+parts[1].slice(1))}` : (w.positioning?`<b>This week.</b> ${esc(w.positioning)}`:"");
@@ -783,7 +786,6 @@ function act(a){
 document.addEventListener("click", e=>{
   const b=e.target.closest("button, a"); if(!b) return;
   if(b.closest(".x")&&b.closest("#drawer")) return closeDrawer();
-  if(b.dataset.w!==undefined){ WI=+b.dataset.w; OPEN.clear(); renderAll(); return; }
   if(b.dataset.lane){ LANE=b.dataset.lane; renderFilm(); return; }
   if(b.id==="exportBtn") return exportDrawer();
   if(b.id==="theme") return applyTheme(document.documentElement.dataset.mode==="dark"?"light":"dark");
@@ -799,7 +801,7 @@ document.addEventListener("click", e=>{
 });
 document.addEventListener("change", e=>{
   if(e.target.id==="showDone"){ SHOW_DONE=e.target.checked; renderFilm(); }
-  if(e.target.id==="olderSel"&&e.target.value!==""){ WI=+e.target.value; OPEN.clear(); renderAll(); }
+  if(e.target.id==="weekSel"){ WI=+e.target.value; OPEN.clear(); renderAll(); }
 });
 document.addEventListener("input", e=>{ const i=e.target; if(i.dataset&&i.dataset.field) setQuiet(i.dataset.id, {[i.dataset.field]:i.value}); });
 $("dbg").addEventListener("click", closeDrawer);
@@ -826,15 +828,8 @@ function applyTheme(mode){
   drawResults();
 }
 function renderWeekCtl(){
-  const w=W(); if(!w) return;
-  $("weekSeg").innerHTML=WEEKS.slice(0,3).map((wk,i)=>`<button type="button" data-w="${i}" aria-pressed="${i===WI}">${esc(weekLabel(wk))}</button>`).join("");
-  const older=$("olderSel");
-  if(WEEKS.length>3){
-    older.hidden=false;
-    older.innerHTML=`<option value="">Older weeks</option>`+WEEKS.slice(3).map((wk,j)=>`<option value="${j+3}"${WI===j+3?" selected":""}>${esc(isIso(wk.week)?"Week of "+spoken(wk.week):String(wk.week))}</option>`).join("");
-  }
-  const s=weekStartOf(w);
-  $("range").textContent = isExample(w) ? "Example week, sample data" : s ? "Week of "+rangeText(s, addDays(s,6)) : "Week "+w.week;
+  if(!W()) return;
+  $("weekSel").innerHTML=WEEKS.map((wk,i)=>`<option value="${i}"${i===WI?" selected":""}>${esc(weekName(wk))}</option>`).join("");
 }
 function renderAll(){
   renderWeekCtl(); renderFilm(); renderPost(); renderResults();

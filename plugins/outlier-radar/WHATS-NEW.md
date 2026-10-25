@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.24.1: pick a week by its dates
+
+**What's new.** The dashboard's week control is one dropdown that names each week by its dates,
+"Week of October 26th to November 1st", in place of "This week" and "Last week". The All lanes tile
+now counts your campaign lanes too, so its number is the sum of the tiles beside it.
+
+**To get it.** Rebuild the dashboard: `python3 build_dashboard.py --open`.
+
 ## 3.24.0: a show with no word limit
 
 **What's new.** You can turn off the word limit on your show's scripts. With it off, the checks

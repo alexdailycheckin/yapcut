@@ -2,6 +2,17 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.24.1 (outlier-radar)
+
+**The dashboard names every week by its dates, and All lanes counts the campaigns.** The week
+control was three relative buttons ("This week", "Last week") plus an Older weeks dropdown. A batch
+written on Sunday for the week that starts Monday broke it: on 2026-10-25 the newest week read as a
+bare "October 26th" beside an older week labelled "This week". It is now one dropdown, each option
+"Week of October 26th to November 1st". The All lanes tile summed only the week's own lanes, so it
+read 21 to film beside a campaign lane with 24; it now sums every tile on the row, campaigns
+included, and its queue shows their scripts too. Asked for by the creator on 2026-10-25: "Should
+just be like week of ... You chose a date."
+
 ## What's new in 3.8.1 (tiktok-yap-editor)
 
 **Pauses under wind are cut, and the dead-air gate sees them.** On the 2026-10-23 terrace take

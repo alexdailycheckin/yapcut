@@ -78,16 +78,15 @@ a { color: var(--blue); }
 .avatar { width: 52px; height: 52px; border-radius: 50%; flex: none; object-fit: cover; }
 h1 { font: 500 clamp(24px, 2.8vw, 34px)/1.15 var(--serif); letter-spacing: -.01em; text-wrap: pretty; }
 h1 span { color: var(--ink-3); }
-.period { flex: none; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.range { font: 500 13px/1 var(--sans); color: var(--ink-2); }
+.period { flex: none; display: flex; align-items: center; }
+.weekpick { min-height: 40px; border: 1px solid var(--band-line); background: var(--band); padding: 0 12px; font: 600 14px/1 var(--sans); color: var(--ink); cursor: pointer; max-width: 100%; }
 .seg { display: inline-grid; grid-auto-flow: column; border: 1px solid var(--band-line); }
 .seg button { border: 0; background: none; padding: 0 14px; min-height: 36px; font: 500 13px/1 var(--sans); color: var(--ink-2); cursor: pointer; white-space: nowrap; }
 .seg button + button { border-left: 1px solid var(--band-line); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--canvas); font-weight: 600; }
 .card .seg { border-color: var(--line); } .card .seg button + button { border-color: var(--line); }
-.older { min-height: 38px; border: 1px solid var(--band-line); background: var(--band); padding: 0 10px; font-size: 13px; color: var(--ink-2); }
 @media (max-width: 720px) { .nav { flex-wrap: wrap; padding-block: 12px; } .tabs { order: 3; width: 100%; } .tabs button { flex: 1; padding: 0 8px; } .partner { border-right: 0; padding-right: 0; } }
-@media (max-width: 600px) { .period { flex: 1 1 100%; } }
+@media (max-width: 600px) { .period { flex: 1 1 100%; } .weekpick { width: 100%; } }
 
 /* Main */
 main { padding-block: 32px 64px; }
