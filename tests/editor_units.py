@@ -550,6 +550,41 @@ check(ygaps.GapConfirm.real([(70.0, 72.9, "physicist"), (74.4, 74.6, "for")], 71
       "a last word dragged into the pause only shrinks the gap: still confirmed")
 check(not ygaps.GapConfirm.real([(70.0, 71.18, "x")], 71.18, 74.36), "a window that never hears the next word does not confirm")
 
+
+class _Counted(ygaps.GapConfirm):
+    """GapConfirm with whisper replaced by a log of the windows it would transcribe."""
+    def __init__(self):
+        super().__init__({SRC: "unused.wav"}, "")
+        self.calls = []
+
+    def window_words(self, src, t0, t1):
+        self.calls.append((t0, t1))
+        return []
+
+
+g = _Counted()
+near = [(41.2, 42.0), (44.5, 45.3), (47.1, 47.9), (50.0, 50.8)]
+wins = {gap: [] for gap in near}
+for e1, s2 in near:
+    n = len(g.calls)
+    g._windows(SRC, e1, s2)
+    wins[(e1, s2)] = g.calls[n:]
+spans = sorted({w for w in g.calls})
+check(len(g.calls) < 2 * len(near),
+      f"four pauses inside 10s share grid windows instead of two windows each: {len(g.calls)} transcriptions")
+ctx = ygaps.WG["confirm_pad_s"] * 0.75
+grid = [(a, b) for a, b in spans if b - a == ygaps.WG.get("confirm_window_s", 28.0)]
+check(all(sum(1 for a, b in grid if a <= e1 - ctx and b >= s2 + ctx) >= 2 for e1, s2 in near),
+      f"every pause sits inside two grid windows with confirm context on both sides: {grid}")
+g2 = _Counted()
+g2._windows(SRC, 60.0, 75.0)
+check(len(g2.calls) == 2 and all(b - a < 28.0 for a, b in g2.calls[-1:]),
+      f"a 15s gap no two grid windows can hold falls back to the per-gap windows: {g2.calls}")
+g3 = _Counted()
+g3._windows(SRC, 1.0, 1.8)
+check(len(g3.calls) == 2 and g3.calls[0][0] == 0.0,
+      f"a gap in the first seconds of the take, before any grid window has context, uses the per-gap windows: {g3.calls}")
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)

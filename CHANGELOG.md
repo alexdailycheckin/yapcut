@@ -2,6 +2,23 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.2 (tiktok-yap-editor)
+
+**The word-gap pass confirms pauses about twice as fast.** On the 2026-10-25 batch a 3-minute
+episode's cut spent most of 25 minutes confirming 47 pauses, two window re-transcriptions each,
+94 whisper calls. Whisper pads every input to 30 seconds, so a 6s window took 6.6s and a 24s one
+10.4s: the short per-gap windows paid for audio they never held.
+
+- `GapConfirm` now takes each pause's two windows from a grid of 28s windows every 8s
+  (`cut.word_gaps.confirm_window_s`, `confirm_stride_s`), each transcribed once and shared by
+  every pause inside it, on the cut and on any re-cut of the same take (cached in
+  `audio/word_gaps.json`). A pause still needs two windows at different offsets with at least
+  0.75 x `confirm_pad_s` of context on both sides; one too long or too close to the take's start
+  for two grid windows falls back to the per-gap windows.
+- Measured on eight decided pauses of the 2026-10-25 Warhound take: 9 transcriptions instead of
+  16, and 7 of 8 verdicts the same. The eighth went the safe way: a grid window timed the start of
+  the word before the pause 2.3s late, so that pause is kept rather than cut.
+
 ## What's new in 3.24.1 (outlier-radar)
 
 **The dashboard names every week by its dates, and All lanes counts the campaigns.** The week

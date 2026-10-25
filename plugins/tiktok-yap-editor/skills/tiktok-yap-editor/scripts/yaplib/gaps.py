@@ -106,10 +106,33 @@ class GapConfirm:
                 and any(abs(x[0] - s2) <= edge for x in words)
                 and not any(e1 + 0.1 < x[0] < s2 - edge for x in words))
 
+    def _grid_words(self, src, a, b):
+        """A grid window's words, transcribed once per take and kept in the cache: every gap inside it
+        shares the one transcription, on this cut and on any re-cut of the same take."""
+        key = f"win:{os.path.basename(src)}@{a:.3f}-{b:.3f}"
+        if key not in self.d:
+            self.d[key] = self.window_words(src, a, b)
+        return [tuple(x) for x in self.d[key]]
+
     def _windows(self, src, e1, s2):
+        """Two windows that each hear the gap with at least 0.75 x confirm_pad_s of context on both
+        sides, starting at different offsets. Grid windows first (3.8.2): whisper pads every input to
+        30s, so on 2026-10-25 a 6s window took 6.6s and a 24s one 10.4s, and a take's per-gap windows
+        (two for each of 47 pauses on a 3-minute episode) cost about twice what one 28s window every
+        8s does. A gap too long for two grid windows to hold falls back to the per-gap windows."""
         pad = WG["confirm_pad_s"]
-        return [self.window_words(src, max(0.0, e1 - lead), s2 + tail)
-                for lead, tail in ((pad, pad), (pad * 1.5, pad * 0.75))]
+        ctx = pad * 0.75
+        L, S = WG.get("confirm_window_s", 28.0), WG.get("confirm_stride_s", 8.0)
+        wins = []
+        k = max(0, int((s2 + ctx - L) // S))
+        while k * S <= e1 - ctx and len(wins) < 2:
+            a = k * S
+            if a + L >= s2 + ctx:
+                wins.append(self._grid_words(src, a, a + L))
+            k += 1
+        for lead, tail in ((pad, pad), (pad * 1.5, pad * 0.75))[len(wins):]:
+            wins.append(self.window_words(src, max(0.0, e1 - lead), s2 + tail))
+        return wins
 
     def __call__(self, src, e1, s2):
         key = f"{os.path.basename(src)}@{e1:.3f}-{s2:.3f}"
