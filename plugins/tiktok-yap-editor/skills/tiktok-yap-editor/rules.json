@@ -47,18 +47,23 @@
       "decay_db": -60.0
     },
     "forward_merge_max_s": 1.0,
-  "word_gaps": {
-   "_about": "3.8.1: a pause the envelope cannot see (wind, fans, room tone as loud as the voice) is cut where the take's own word transcript and a window re-transcription both hear no speech.",
-   "enabled": true,
-   "min_gap_s": 0.6,
-   "pad_after_s": 0.12,
-   "pad_before_s": 0.08,
-   "confirm_pad_s": 4.0,
-   "confirm_edge_s": 0.5,
-   "confirm_window_s": 28.0,
-   "confirm_stride_s": 8.0
-  },
-    "crop_alternation": [1.0, 1.06],
+    "word_gaps": {
+      "_about": "3.8.1: a pause the envelope cannot see (wind, fans, room tone as loud as the voice) is cut where the take's own word transcript and a window re-transcription both hear no speech. 3.9.0: on a take whose voice sits mic_separation_db over the room tone, a candidate as loud as the voice (within mic_veto_under_voice_db) is dropped words, never cut; a candidate whose cut would remove under cut.min_cut_s is not confirmed.",
+      "enabled": true,
+      "min_gap_s": 0.6,
+      "pad_after_s": 0.12,
+      "pad_before_s": 0.08,
+      "confirm_pad_s": 4.0,
+      "confirm_edge_s": 0.5,
+      "confirm_window_s": 28.0,
+      "confirm_stride_s": 8.0,
+      "mic_separation_db": 15.0,
+      "mic_veto_under_voice_db": 3.0
+    },
+    "crop_alternation": [
+      1.0,
+      1.06
+    ],
     "audio_edge_fade_s": 0.004
   },
   "captions": {
@@ -155,16 +160,21 @@
     "max_static_s": 5.0,
     "max_static_long_s": 6.0,
     "long_video_s": 60.0,
-    "rehook_window_s": [0.3, 3.5],
+    "rehook_window_s": [
+      0.3,
+      3.5
+    ],
     "scene_threshold": 0.1,
     "join_exclusion_s": 0.2
   },
   "dead_air": {
-    "_about": "gap_check.py via gates.sh: pauses that survived the cut.",
+    "_about": "gap_check.py via gates.sh: pauses that survived the cut. mic_separation_db: when the voice sits this far over the cut's quietest frames the microphone measures each pause itself and no whisper runs (3.9.0); a frame more than pause_under_voice_db under the voice is a pause.",
     "fail_s": 0.8,
     "warn_s": 0.6,
     "first_word_max_s": 0.8,
-    "tail_warn_s": 1.2
+    "tail_warn_s": 1.2,
+    "mic_separation_db": 15.0,
+    "pause_under_voice_db": 20.0
   },
   "loudness": {
     "_about": "compose_ass.sh.",
@@ -178,13 +188,64 @@
     "limiter": 0.841
   },
   "platforms": {
-    "tiktok": {"len": [25, 40], "hook_anim": "none"},
-    "reels": {"len": [25, 40]},
-    "shorts": {"len": [25, 60]},
-    "linkedin": {"len": [30, 60], "hook_anim": "none", "static_first_frame": true}
+    "tiktok": {
+      "len": [
+        25,
+        40
+      ],
+      "hook_anim": "none"
+    },
+    "reels": {
+      "len": [
+        25,
+        40
+      ]
+    },
+    "shorts": {
+      "len": [
+        25,
+        60
+      ]
+    },
+    "linkedin": {
+      "len": [
+        30,
+        60
+      ],
+      "hook_anim": "none",
+      "static_first_frame": true
+    }
   },
   "edit_record": {
     "_about": "finalize.sh writes <name>.edit.json; the phone writes the same shape so log_perf.py --edits joins either.",
     "version": 1
+  },
+  "repetition": {
+    "_about": "The repetition gate. acoustic: yaplib/repeats.py finds the same audio twice (a ridge of MFCC self-similarity at one lag) and the cross-window scan decodes whisper windows only there (3.9.0). windows: the short windows xwin_scan.py decodes around each candidate.",
+    "acoustic": {
+      "hop_s": 0.01,
+      "window_s": 0.025,
+      "speech_over_floor_db": 8.0,
+      "min_lag_s": 0.25,
+      "max_lag_s": 3.5,
+      "take_max_lag_s": 8.0,
+      "similarity_base": 0.55,
+      "lag_step_every_frames": 4,
+      "smooth_frames": 3,
+      "event_score": 8.0,
+      "min_run_s": 0.3,
+      "merge_lag_s": 0.15,
+      "window_pad_s": 0.6,
+      "min_specificity": 0.15,
+      "min_novelty": 0.1
+    },
+    "windows": {
+      "sizes_s": [
+        1.1,
+        1.6
+      ],
+      "hop_s": 0.45,
+      "max_start_gap_s": 3.0
+    }
   }
 }

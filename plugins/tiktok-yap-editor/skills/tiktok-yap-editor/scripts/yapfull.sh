@@ -30,6 +30,15 @@
 #   YAP_SCRIPT=<path>  verbatim script for the caption gate (default $WD/<base>_script.txt);
 #       missing, the caption gate fails unless YAP_UNSCRIPTED=1
 #   plus the gate overrides documented in gates.sh.
+#
+# THE ORDER (3.9.0). Everything a person has to rule on comes first and at once: the hook's
+# length, the repeats the transcript shows, the caption words the script never said. The
+# build stops after those three with every decision printed, so one rerun carries them all
+# (on 2026-10-25 the Anthropic episode took six). The slow audio scans, the dead-air gate and
+# the compose run after, and each one is cached on the cut: a rerun with YAP_FROM_CUT=1 whose
+# captions did not change skips the compose and the file gates read their caches, so it is
+# seconds, not minutes.
+#
 # Writes $WD/<final-base>_gates.json (every gate's rc, hook, platform, paths);
 # finalize.sh turns that into the edit record.
 set -euo pipefail
@@ -65,15 +74,20 @@ gate_meta_json paths "$(python3 -c 'import json,sys; print(json.dumps(dict(zip(s
   clauses "$CLAUSES" cut "$CUT" words "$WORDS" keeps "$KEEPS" ass "$ASS" corrections "$CORR" \
   overlays "$OVRFILE" script "$SCRIPTFILE" stutter_ok "$STUTOK" capqa_ok "$CAPOK" brand "$CFG")"
 
+# every decision gate below is deferred: the build stops after the last of them (gates_settle)
+gates_defer
+
 # 0. HOOK WORDS GATE, before any rendering: a hook that needs shrinking to fit
 # is a hook the muted viewer cannot read in one fixation.
 gate_hook_words "$HOOK" "$HOOKWORD" "$HANIM" "$HSTYLE" "$HOOK_SECS"
 
 # 1. single-pass cut (clean CFR, dead-air, tight tails, anti-stutter crop-alt)
+FRESH_CUT=0
 if [ "${YAP_FROM_CUT:-0}" != "1" ]; then
   # every cut number comes from rules.json (cut.*); YAP_CUT_ARGS is the per-format exception
   # shellcheck disable=SC2086
   python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$CUT" ${YAP_CUT_ARGS:-}
+  FRESH_CUT=1
   rm -f "$CUT.speed"
   if [ -n "${YAP_SPEED:-}" ] && [ "${YAP_SPEED}" != "1" ]; then
     mv "$CUT" "${CUT%.mp4}.1x.mp4"; cp "$KEEPS" "${KEEPS%.json}.1x.json"
@@ -99,9 +113,7 @@ else
 fi
 export YAP_SPEED="${YAP_SPEED:-1}"
 gate_meta_json cut "$(python3 -c 'import json,sys; print(json.dumps({"speed": float(sys.argv[1]), "args": sys.argv[2]}))' "$YAP_SPEED" "${YAP_CUT_ARGS:-}")"
-echo "--- blackdetect (cut) ---"
-ffmpeg -nostdin -i "$CUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
-  | grep -i black_start || echo "  NO black frames"
+[ "$FRESH_CUT" = 1 ] && black_check "$CUT" "cut"
 DUR=$(python3 "$SCRIPTS/yaplib/media.py" duration "$CUT")
 echo "--- dur: $DUR ---"
 
@@ -132,12 +144,9 @@ if [ -f "$SCRIPTFILE" ] && [ "${YAP_UNSCRIPTED:-0}" != "1" ]; then
     ${OPFREE[@]+"${OPFREE[@]}"}
 fi
 
-# 2b. REPETITION GATE: two detectors (transcript + windowed audio scan). MEDIUM
-# is a decision, not a note: unlisted MEDIUM fails, list judged ones in $STUTOK.
-gate_stutter_restart "$WORDS" "$CUT" "$STUTOK" "$KEEPS" "$SCRIPTFILE"
-
-# 2c. DEAD-AIR GATE: pauses that survived the cut, transcript-measured.
-gate_dead_air "$CUT" "$WORDS"
+# 2b. REPETITION GATE, the transcript half: MEDIUM is a decision, not a note: an unlisted
+# MEDIUM fails, list judged ones in $STUTOK. The audio half runs after the decisions.
+gate_stutter_transcript "$WORDS" "$STUTOK" "$SCRIPTFILE"
 
 # 3. captions + hook in the brand style, then the CTA contact block
 python3 "$SCRIPTS/build_ass.py" --words "$WORDS" --out "$ASS" \
@@ -149,26 +158,43 @@ python3 "$SCRIPTS/cta_block.py" --ass "$ASS" --dur "$DUR" --handle "$HANDLE" --c
   --font "$HFONT" --accent "$ACCENT" --base "$BASE" --ink "$INK" --lead 9.7
 
 # 3b. CAPTION GATE (scripted runs): no burned word the script never said.
-gate_caption "$ASS" "$SCRIPTFILE" "$CFG" "$OVRFILE" "$CAPOK"
+gate_caption "$ASS" "$SCRIPTFILE" "$CFG" "$OVRFILE" "$CAPOK" "$WORDS" "$CORR"
 
-# 4. compose: burn captions, loudness to -14 (measured, corrected, verified), clean CFR
-bash "$SCRIPTS/compose_ass.sh" "$CUT" "$ASS" "$OUT"
+# every decision is on the screen: stop here if any gate above went red
+gates_settle
 
-# 4a. burn image PiPs (logos, article/headline screenshots). libass cannot
-# composite raster, so build_ass only drew the text overlays; the `pip` entries
-# are burned here so they never silently drop. Real screenshots/logos only.
-if [ -n "$OVRFILE" ] && [ -f "$OVRFILE" ]; then
-  python3 "$SCRIPTS/burn_pips.py" --video "$OUT" --overlays "$OVRFILE" --workdir "$WD" \
-    --meta "$ASS.meta.json" --out "$OUT.pips.mp4"
-  [ -f "$OUT.pips.mp4" ] && mv "$OUT.pips.mp4" "$OUT"
+# 2c. REPETITION GATE, the audio half (cached on the cut and on the takes' windows)
+gate_stutter_audio "$WORDS" "$CUT" "$STUTOK" "$KEEPS" "$SCRIPTFILE"
+
+# 2d. DEAD-AIR GATE: pauses that survived the cut, measured by the microphone or the words.
+gate_dead_air "$CUT" "$WORDS"
+
+# 4. compose: burn captions, loudness to -14 (measured, corrected, verified), clean CFR.
+# Skipped when the cut, the captions and the overlays are the ones the file was made from.
+SIG="$(compose_sig "$CUTSIG" "$ASS" "$OVRFILE")"
+if [ -f "$OUT" ] && [ "$(cat "$OUT.sig" 2>/dev/null)" = "$SIG" ]; then
+  echo "reusing composed file: $OUT (cut, captions and overlays unchanged)"
+  FRESH_OUT=0
+else
+  rm -f "$OUT.sig"
+  bash "$SCRIPTS/compose_ass.sh" "$CUT" "$ASS" "$OUT"
+  # 4a. burn image PiPs (logos, article/headline screenshots). libass cannot
+  # composite raster, so build_ass only drew the text overlays; the `pip` entries
+  # are burned here so they never silently drop. Real screenshots/logos only.
+  if [ -n "$OVRFILE" ] && [ -f "$OVRFILE" ]; then
+    python3 "$SCRIPTS/burn_pips.py" --video "$OUT" --overlays "$OVRFILE" --workdir "$WD" \
+      --meta "$ASS.meta.json" --out "$OUT.pips.mp4"
+    [ -f "$OUT.pips.mp4" ] && mv "$OUT.pips.mp4" "$OUT"
+  fi
+  echo "$SIG" > "$OUT.sig"
+  FRESH_OUT=1
 fi
-ffmpeg -nostdin -i "$OUT" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
-  | grep -i black_start || echo "  FINAL: NO black frames"
+[ "$FRESH_OUT" = 1 ] && black_check "$OUT" "final"
 
 # 4b-4e. gates on the FINISHED file
 gate_seam "$KEEPS" "$OUT"
 gate_receipts "$WORDS" "$OVRFILE" "$CORR" "$PIPSTRICT"
-gate_retention "$OUT" "$OVRFILE" "$ASS" "$DUR" "$KEEPS"
+gate_retention "$OUT" "$OVRFILE" "$ASS" "$DUR" "$KEEPS" "$WD/scenes_${FINALBASE}.json"
 gate_drift "$OUT"
 gate_frame0 "$ASS" "$HOOK"
 FDUR=$(python3 "$SCRIPTS/yaplib/media.py" duration "$OUT")

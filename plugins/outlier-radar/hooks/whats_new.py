@@ -83,6 +83,11 @@ def ready_editor():
     """HyperFrames packaging on this machine. Fast: no network, no npx."""
     rows = [(_node_major() >= 22, "Node 22 or newer", "install it (on a Mac: brew install node)"),
             (bool(shutil.which("ffmpeg")), "ffmpeg", "install it (on a Mac: brew install ffmpeg)")]
+    try:                          # 3.9.0: the acoustic repeat finder and the envelope are numpy
+        import numpy  # noqa: F401
+        rows.append((True, "numpy (the restart scan hears repeats in the audio, 3.9.0)", ""))
+    except Exception:
+        rows.append((False, "numpy (the restart scan hears repeats in the audio, 3.9.0)", "pip3 install numpy"))
     if shutil.which("ffmpeg"):   # 3.7.10: the cut tone-maps HDR iPhone clips with these two filters
         try:
             f = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True, timeout=3).stdout

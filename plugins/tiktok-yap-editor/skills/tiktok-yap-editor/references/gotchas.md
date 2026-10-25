@@ -208,9 +208,45 @@ the transcript says it twice too (the script's own repeated noun, "the work ... 
 work"), the transcript never says it (a mis-decode), or it carries a number or a
 letter (short windows decode "28th, 2027" as "28th, 20th, 20th"). Clear a MEDIUM like
 any other: cut the first pass in the clause plan, or listen and add its printed key
-to `<out>_stutter_ok.json`. A fresh scan costs about 1s of whisper per window
-(about 4 minutes on a 55s cut); the decodes are cached in `xwin_<out>.json`, so a
-`YAP_FROM_CUT=1` rebuild reuses them.
+to `<out>_stutter_ok.json`. A window costs about 1s of whisper, and since 3.9.0 the
+scan decodes only the windows around what the audio itself says twice (`yaplib/repeats.py`: the
+same phrase twice is a ridge of MFCC self-similarity at one lag; about 50 windows a video instead
+of 500 to 900); the decodes are cached per take in `xwin_src/` and per cut in `xwin_<out>.json`,
+so a `YAP_FROM_CUT=1` rebuild decodes nothing. `--everywhere` brings the blanket grid back for a
+scan the finder cannot be trusted on (a dub, a sung line).
+
+## One whisper decode at a time, in order
+
+whisper.cpp runs on the GPU and two decodes side by side are slower than one after the other, so
+every whisper call the editor makes goes through `yaplib/whisper.py`: a per-user lock
+(`~/.cache/yapcut/whisper.lock`) with a ticket queue, first come first served. The per-build lock
+of 3.8 was unfair (a prescan took it back the instant it let go, and a gate's decode once waited
+over an hour behind one). A script that calls whisper-cli itself must wrap it:
+`python3 yaplib/whisper.py run -- whisper-cli ...`. "waiting for another whisper decode to finish
+(3 in the queue)" in a log is this lock, not a stall; a dead owner is cleared by the next waiter.
+
+## Whisper's long-file timing collapses, and drops lines
+
+On a take of several minutes whisper sometimes stacks a whole line's words inside a few
+hundredths of a second (twenty words between 132.06 and 132.74 on the 2026-10-25 Warhound take)
+or drops a line into a gap (123.3 to 135.2 on the 2026-10-23 terrace take). `yaplib/take.py`
+(what `yapprep.py` and `clauses_from_script.py` read) re-decodes a stacked run in a window around
+it and decodes a run of speech with no word inside it on its own, then puts the words back; a
+plan written from `tx/<take>.txt` sees the repaired transcript. A hand-written plan from a raw
+full-file transcript does not, which is one more reason its boundaries come from the runs.
+
+## The caption gate and the lexicon
+
+Since 3.9.0 the gate accepts an ad-lib that is an ordinary English word in its ordinary spelling
+and prints it; a word in no dictionary, a capitalised word mid-sentence (whisper's own sign it
+heard a name), a number the script never said and a dash still ask. Three lists decide
+(`yaplib/lexicon.py`): the system word list with inflections and contractions folded, a short
+modern list with the irregular verb forms, and the creator's `caption-lexicon.json` in the
+workspace, which grows with every passed gate and every script. On a fresh workspace, seed it
+from old builds: `python3 yaplib/lexicon.py seed <workspace>/input`. `caption_qa.py --no-lexicon`
+is the old gate. The residual risk is a lowercase common word whisper put in a name's place that
+sits in no 1:1 position with the script (those are fixed by `script_fix.py` first): read the
+accepted ad-libs line in the log during the line audit.
 
 ## Caption corrections are position-keyed, so a recut invalidates them
 

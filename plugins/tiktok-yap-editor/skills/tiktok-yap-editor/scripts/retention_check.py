@@ -41,8 +41,29 @@ from yaplib import media, rules  # noqa: E402
 RT = rules.get("retention")   # the thresholds the phone's retention gate reads too
 
 
-def scene_events(video: str, threshold: float) -> list:
-    """Timestamps where the frame changes hard (cuts, punch-ins, PiP pops)."""
+def _file_sig(path):
+    import hashlib
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def scene_events(video: str, threshold: float, cache: str = "") -> list:
+    """Timestamps where the frame changes hard (cuts, punch-ins, PiP pops). With `cache` (a json
+    path) the detection is kept by the file's content, so a rerun on the same final reads it
+    (3.9.0: one full decode of the finished video less per rerun)."""
+    sig = ""
+    if cache:
+        sig = _file_sig(video) + f":{threshold}"
+        try:
+            c = json.load(open(cache))
+            if c.get("sig") == sig:
+                print(f"scenes: cached ({os.path.basename(cache)})")
+                return [float(t) for t in c["times"]]
+        except (OSError, ValueError, KeyError):
+            pass
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tf:
         meta_path = tf.name
     vf = f"select='gt(scene,{threshold})',metadata=print:file={meta_path}"
@@ -54,6 +75,8 @@ def scene_events(video: str, threshold: float) -> list:
         if m:
             times.append(float(m.group(1)))
     Path(meta_path).unlink(missing_ok=True)
+    if cache:
+        json.dump({"sig": sig, "times": times}, open(cache, "w"))
     return times
 
 
@@ -95,10 +118,11 @@ def main() -> int:
                     help="re-hook window: need an event between 0.3s and this")
     ap.add_argument("--scene", type=float, default=RT["scene_threshold"],
                     help="ffmpeg scene-change threshold")
+    ap.add_argument("--cache", default="", help="json file the scene detection is kept in, by the video's content")
     args = ap.parse_args()
 
     dur = media.probe_duration(args.video)
-    scenes = scene_events(args.video, args.scene)
+    scenes = scene_events(args.video, args.scene, args.cache)
     discarded = 0
     if args.keeps and Path(args.keeps).exists():
         joins = join_times(args.keeps)

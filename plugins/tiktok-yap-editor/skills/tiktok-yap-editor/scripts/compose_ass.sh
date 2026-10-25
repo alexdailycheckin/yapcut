@@ -64,11 +64,13 @@ ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:
 # does real work at these gains, so pass 2 renders the audio and MEASURES it,
 # then pass 3 corrects the residue. Landing on target is verified, not assumed.
 LIM="alimiter=limit=${LIMV}:attack=5:release=60:level=disabled"
+# every measurement pass reads the audio only (-vn): without it ffmpeg decoded the whole
+# picture three times over for numbers that never look at it (3.9.0)
 measure_i() {   # integrated LUFS of $CUT through filter chain $1
-  ffmpeg -nostdin -i "$CUT" -af "$1,ebur128=framelog=quiet" -f null - 2>&1 \
+  ffmpeg -nostdin -vn -i "$CUT" -af "$1,ebur128=framelog=quiet" -f null - 2>&1 \
     | awk '/Integrated loudness/{f=1} f&&/I:/{print $2; exit}' || true
 }
-G1=$(ffmpeg -nostdin -i "$CUT" -af "${LOUDNORM}:print_format=json" \
+G1=$(ffmpeg -nostdin -vn -i "$CUT" -af "${LOUDNORM}:print_format=json" \
        -f null - 2>&1 | python3 -c '
 import sys,json,re
 t=sys.stdin.read()
@@ -112,7 +114,7 @@ ffmpeg -nostdin -y -i "$CUT" \
 
 echo "wrote $OUT"
 echo "--- QA: loudness (target ~${LUFS} LUFS) ---"
-ffmpeg -nostdin -i "$OUT" -af ebur128=peak=true -f null - 2>&1 \
+ffmpeg -nostdin -vn -i "$OUT" -af ebur128=peak=true -f null - 2>&1 \
   | grep -A1 "Integrated loudness" | tail -2
 ffprobe -v error -show_entries format=duration:stream=r_frame_rate \
   -select_streams v:0 -of default=noprint_wrappers=1 "$OUT"

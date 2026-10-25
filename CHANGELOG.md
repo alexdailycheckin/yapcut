@@ -2,6 +2,92 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.0 (tiktok-yap-editor)
+
+**The audio says where the repeats are, every decision comes at once, and a rerun is seconds.** On
+2026-10-25 a nine-video batch spent 10 to 43 minutes of gates on each 50-second cut, most of it a
+restart scan decoding every 0.45 seconds of the take in 1.1s and 1.6s whisper windows (500 to 900
+windows a video, a prescan lane half an hour ahead of each cut), and then stopped: four cuts on
+caption words that were the creator's own ad-libs (80 on Warhound, 78 of them ordinary words),
+three on repeats, each stop a full rerun, six runs for the Anthropic episode. Measured on the same
+takes with the GPU shared with that batch still running: the Adidas episode's cold first pass went
+from 9m23s of gates plus 10m53s of prescan and a stop at the caption gate to 9m08s with every gate
+green; its rerun after a decision from 3m23s to 29 seconds; the Anthropic restart scan from 884
+windows to 56.
+
+- **The restart scan reads the audio first.** `yaplib/repeats.py` finds the same phrase said twice
+  as a ridge of MFCC self-similarity at one lag (numpy, about two seconds for a five-minute take, no
+  whisper), with the stationary-sound ridges of wind and fans rejected by their lack of lag
+  specificity. On the Anthropic take it finds every restart the transcript shows and the one the
+  transcript merged ("OpenAI's vice president of" twice, with a 3.4s hole in the words); on the
+  synthetic voice in the tests, a phrase said twice at 10% more speed. `xwin_scan.py` decodes its
+  1.1s and 1.6s windows only around those stretches, heard in the takes inside the keeps (a sped-up
+  cut blurs a short repeat; a restart split by a join sits whole in the take), plus the cut's first
+  and last window. The join windows and the blanket grid are gone (`--everywhere` brings the grid
+  back). `restart_scan.py` writes every 6s window first and decodes them in one whisper-cli call,
+  and its 30s tier, which read the same tidied text the whole file does, is gone. The numbers live
+  in `rules.json` under `repetition`.
+- **One whisper at a time, in arrival order.** Every whisper call the editor makes goes through
+  `yaplib/whisper.py`, a per-user lock (`~/.cache/yapcut/whisper.lock`) with a ticket queue: the
+  oldest live waiter gets it next, a dead owner or ticket is cleared by whoever finds it. The old
+  per-build lock was unfair: a prescan took it back the instant it let go, and on 2026-10-25 a
+  gate's decode waited behind one for over an hour until the prescan was killed by hand. The
+  shell scripts call `python3 yaplib/whisper.py run -- whisper-cli ...`.
+- **The caption gate asks only about what can be a garble.** An ad-lib that is an ordinary English
+  word in its ordinary spelling (the system word list with inflections and contractions, a short
+  modern list, the irregular verb forms, and the creator's own lexicon in
+  `<workspace>/caption-lexicon.json`, which grows with every passed gate and every script, or at
+  once from old builds with `python3 yaplib/lexicon.py seed <folder>`) is accepted and printed for
+  the line audit. A word in no dictionary, a capitalised word mid-sentence, a number the script never
+  said and a dash still need a ruling. Warhound: 80 flags to 2 (two ad-libbed numbers).
+  `caption_qa.py --no-lexicon` is the old gate. `script_fix.py` now fixes a name the way the
+  script spells it wherever whisper heard it, by sound (`lexicon.phonetic`: "Lamb", "Lucky" and
+  "Andriel" became Lamm, Luckey and Anduril in every occurrence on Warhound), no longer mistakes
+  "lam" for an inflection of "lamm", and lowers a capital whisper gave an ad-lib after a sentence
+  end the script's punctuation removed ("now. Besides" to "now, besides").
+- **Decisions at once.** `gates.sh` has `gates_defer` and `gates_settle`: the hook gate, the
+  transcript half of the repetition gate (`stutter_check.py`) and the caption gate run first and a
+  red one is recorded and printed, not acted on, until `gates_settle` stops the build with every
+  decision listed. The audio half (`restart_scan.py`, `xwin_scan.py`), the dead-air gate and the
+  compose run after. `yapbatch.py` names every deferred gate that failed, with every fix.
+- **A rerun costs nothing twice.** The compose is skipped when the cut, the captions and the
+  overlays are the ones the file was made from (`<out>.sig`); the retention gate keeps its scene
+  detection by the file's content (`scenes_<out>.json`); blackdetect runs only on a fresh cut or a
+  fresh compose; the loudness passes read the audio only (`-vn`, they decoded the picture three
+  times over); the dead-air gate no longer transcribes the cut a second time.
+- **The dead-air gate listens to the microphone first.** With the cut's aligned words it measures
+  each candidate pause as the longest stretch under the voice level in the envelope
+  (`yaplib/envelope.py`) when the cut's quietest frames sit 15 dB or more under the voice, and only a
+  noisy cut goes to the window re-transcriptions (`dead_air.mic_separation_db`,
+  `pause_under_voice_db`). One second instead of a minute on today's cuts.
+- **The cut is faster and clips nothing.** The envelope is numpy (`yaplib/envelope.py`, bit for bit
+  the loop it replaces, 0.13s for a five-minute take). Segments decode the 4K source with
+  VideoToolbox (half the time) and encode with VideoToolbox H.264 at constant quality 80 (47 dB
+  PSNR against a lossless reference, 2.4x faster than libx264 veryfast crf 12 at 49 dB; the segment
+  is re-encoded at the concat anyway); `YAP_NO_HWACCEL=1` keeps the software path, and the final
+  mux is libx264 as before. The word-gap pass no longer confirms a gap whose cut would remove less
+  than `cut.min_cut_s` (fifteen of Anthropic's 27 "removed" pauses were under a tenth of a second,
+  two whisper windows each), and on a take whose voice sits 15 dB over the room tone it refuses a
+  candidate as loud as the voice (`cut.word_gaps.mic_separation_db`, `mic_veto_under_voice_db`):
+  that is speech the transcript dropped, which is how "Congratulations" lost its first half on
+  2026-10-25.
+- **The take is read once, and the plan is proposed.** `yapprep.py <footage>` leaves every take's
+  aligned words (the lines whisper dropped put back, the words its long-file decode stacked inside
+  a few hundredths of a second re-decoded in a window), its runs of speech and what it says twice in
+  `audio/<take>.take.json`, readable in `tx/<take>.txt` (the repeats at the top) and
+  `seg/<take>.txt` (the runs); `--scripts` names the script each take reads.
+  `clauses_from_script.py --src <take> --script <name>_script.txt` writes the clause plan: for every
+  script sentence the last complete attempt, the earlier attempts cut, a restart inside a line cut
+  when the words say it twice where the script says it once (HIGH) and listed when it is a
+  two-word call (MEDIUM, the 2026-08-27 ruling), the earlier of two passes the transcript merged cut
+  when the audio heard both, a fragment said again after a pause cut, a line said out of script
+  order taken where it is, the creator's own words kept, whisper's breath words dropped, and every
+  boundary on the quietest frame between the two words. `clauses_<name>.proposed.md` says what was
+  kept and cut and why, sentence by sentence, with the places to listen to. On the Anthropic take
+  the proposal cuts the same six restarts the hand plan did, plus the merged "vice president of",
+  and keeps every aside.
+- `numpy` joins `requirements.txt`; the what's-new check names it.
+
 ## What's new in 3.8.3 (tiktok-yap-editor)
 
 **The video at its gates no longer waits on the prescans of the videos behind it.** `yapbatch.py`'s

@@ -46,6 +46,9 @@ gate_meta_json paths "$(python3 -c 'import json,sys; print(json.dumps(dict(zip(s
   picture "$PIC" vo "$VO" picvo "$PV" words "$WORDS" keeps "$KEEPS" ass "$ASS" corrections "$CORR" \
   overlays "$OVRFILE" script "$SCRIPTFILE" stutter_ok "$STUTOK" capqa_ok "$CAPOK" sfx "$SFX" brand "$CFG")"
 
+# every decision gate is deferred (gates.sh, 3.9.0): the build stops after the last of them
+gates_defer
+
 # 0. HOOK WORDS GATE
 gate_hook_words "$HOOK" "$HOOKWORD" "$HANIM" "$HSTYLE" "$HOOK_SECS"
 
@@ -76,9 +79,8 @@ else
   bash "$SCRIPTS/transcribe.sh" "$PV" "$WD/w_${CUTBASE}" --words >/dev/null 2>&1
 fi
 
-# 2b/2c. REPETITION + DEAD-AIR GATES on the VO
-gate_stutter_restart "$WORDS" "$PV" "$STUTOK" "" "$SCRIPTFILE"
-gate_dead_air "$PV" "$WORDS"
+# 2b. REPETITION GATE on the VO, the transcript half (the audio half after the decisions)
+gate_stutter_transcript "$WORDS" "$STUTOK" "$SCRIPTFILE"
 
 # 3. captions + hook in the brand style, then the CTA contact block
 python3 "$SCRIPTS/build_ass.py" --words "$WORDS" --out "$ASS" \
@@ -90,7 +92,14 @@ python3 "$SCRIPTS/cta_block.py" --ass "$ASS" --dur "$DUR" --handle "$HANDLE" --c
   --font "$HFONT" --accent "$ACCENT" --base "$BASE" --ink "$INK" --lead 6.0
 
 # 3b. CAPTION GATE (scripted runs)
-gate_caption "$ASS" "$SCRIPTFILE" "$CFG" "$OVRFILE" "$CAPOK"
+gate_caption "$ASS" "$SCRIPTFILE" "$CFG" "$OVRFILE" "$CAPOK" "$WORDS" "$CORR"
+
+# every decision is on the screen: stop here if any gate above went red
+gates_settle
+
+# 2c/2d. the audio half of the repetition gate, then dead air, on the VO
+gate_stutter_audio "$WORDS" "$PV" "$STUTOK" "" "$SCRIPTFILE"
+gate_dead_air "$PV" "$WORDS"
 
 # 4. compose: burn captions, loudness to -14, clean CFR re-encode
 bash "$SCRIPTS/compose_ass.sh" "$PV" "$ASS" "$CAPPED"
@@ -112,7 +121,7 @@ fi
 # 6. gates on the FINISHED file (same ladder as Mode A)
 gate_seam "$KEEPS" "$OUT"
 gate_receipts "$WORDS" "$OVRFILE" "$CORR" "$PIPSTRICT"
-gate_retention "$OUT" "$OVRFILE" "$ASS" "$DUR" "$KEEPS"
+gate_retention "$OUT" "$OVRFILE" "$ASS" "$DUR" "$KEEPS" "$WD/scenes_${FINALBASE}.json"
 gate_drift "$OUT"
 gate_frame0 "$ASS" "$HOOK"
 FDUR=$(python3 "$SCRIPTS/yaplib/media.py" duration "$OUT")

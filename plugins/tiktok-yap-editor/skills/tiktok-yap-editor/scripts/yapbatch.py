@@ -13,7 +13,9 @@ reinventing, with the pipeline's rules built in:
     moves on to the next video; nothing ever sets a YAP_ALLOW_* override for you
   - the restart scan's take windows are decoded ahead (xwin_scan.py --prescan) in one
     background lane, so a video's cut and the previous video's render overlap the scan; the
-    gate waits for its own video's prescan, and a lock keeps whisper to one decode at a time
+    gate waits for its own video's prescan, and a fair lock keeps whisper to one decode at a
+    time (since 3.9.0 the scan decodes only around what the audio says twice, so the prescan
+    is a minute or two a take)
   - <workdir>/batch_status.json and batch_status.txt say where every video is, why a failed
     one failed, and an ETA from the steps already timed. `yapbatch.py <batch> --status` prints it.
 
@@ -138,13 +140,16 @@ def fill(tpl, **kw):
 
 
 def failing_gate(log):
-    """('dead_air', 'the fix message') from yapfull's 'GATE x FAILED (rc 2). msg' line."""
-    m = None
+    """('dead_air', 'the fix message') from yapfull's 'GATE x FAILED (rc 2). msg' lines. Since 3.9.0 the
+    decision gates are deferred and several can fail in one run: every one is named, with every fix."""
+    found = []
     for line in open(log, errors="ignore"):
         mm = re.match(r"GATE (\S+) FAILED \(rc 2\)\.\s*(.*)", line.strip())
-        if mm:
-            m = mm
-    return (m.group(1), m.group(2)) if m else (None, None)
+        if mm and mm.group(1) not in [g for g, _ in found]:
+            found.append((mm.group(1), mm.group(2)))
+    if not found:
+        return (None, None)
+    return ("+".join(g for g, _ in found), " | ".join(f"{g}: {fix}" for g, fix in found) if len(found) > 1 else found[0][1])
 
 
 def run_logged(cmd, log, env, cwd=None, shell=False):

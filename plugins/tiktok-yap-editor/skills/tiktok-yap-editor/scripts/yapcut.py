@@ -66,6 +66,7 @@ import argparse, json, math, os, re, shutil, struct, subprocess, sys, wave as wa
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yaplib import media, rules  # noqa: E402
+from yaplib import envelope as yenvelope  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
 from yaplib.gaps import word_gap_candidates, span_words, GapConfirm  # noqa: E402
 
@@ -76,22 +77,11 @@ SCRIPTS=os.path.dirname(os.path.realpath(__file__))
 
 def envelope(wav):
     # Median-smoothed RMS envelope in dB: 30ms windows, 10ms hop, 5-tap median
-    # (cut.envelope in rules.json).
-    # Computed ONCE per source and reused by silences(), estimate_floor(),
-    # head_onset() and audible_edge() - they all want the same series, and this
-    # per-sample loop is the expensive part of a cut.
-    w=wavmod.open(wav,"rb"); fr=w.getframerate()
-    raw=w.readframes(w.getnframes()); w.close()
-    sm=struct.unpack(f"<{len(raw)//2}h",raw)
-    E=C["envelope"]; win=int(E["window_s"]*fr); hop=int(HOP*fr); h=E["median_taps"]//2
-    raw_db=[]
-    for i in range(0,len(sm)-win,hop):
-        c=sm[i:i+win]
-        r=math.sqrt(sum(x*x for x in c)/len(c))/32768.0
-        raw_db.append(20*math.log10(r) if r>0 else E["zero_db"])
-    n=len(raw_db)
-    return [sorted(raw_db[max(0,i-h):min(n,i+h+1)])[(min(n,i+h+1)-max(0,i-h))//2]
-            for i in range(n)]
+    # (cut.envelope in rules.json), computed ONCE per source and reused by silences(),
+    # estimate_floor(), head_onset() and audible_edge(). yaplib/envelope.py (3.9.0) is the
+    # per-sample loop this function used to be, in numpy and bit-identical: 0.13s for a
+    # five-minute take instead of the slowest step of a cut.
+    return yenvelope.of_file(wav)
 
 def silences(dbs, thr, d):
     # Pause detection on the median-smoothed envelope, NOT an instantaneous gate
@@ -402,13 +392,20 @@ def plan(clauses, ENV, a):
         merged.append((src,A,B,g))
     return [(s,A,B,g) for s,A,B,g in merged if B-A>=a.min_keep]
 
-def split_at_word_gaps(keeps, clauses, cands, confirm, a):
+def split_at_word_gaps(keeps, clauses, cands, confirm, a, loud=None):
     """keeps [(src,A,B,g)] with every confirmed word gap taken out. cands {src: [(e1,s2,w1,w2)]};
     confirm(src,e1,s2) -> (e1,s2) when a window re-transcription agrees, else None. The cut runs
     from pad_after_s past the last word to pad_before_s before the next, and works on any keep
     the gap touches: one that holds it is split, one that starts or ends inside it (the envelope
     found part of the pause) is trimmed to the word, and one that lies wholly inside it is wind
-    and is dropped. keep_whole clauses are never touched. Returns (keeps, [(src,g0,g1,w1,w2)])."""
+    and is dropped. keep_whole clauses are never touched. Returns (keeps, [(src,g0,g1,w1,w2)]).
+
+    Two things cost no confirmation (3.9.0): a gap whose cut would remove less than min_cut
+    from the keeps (the envelope already took most of it; on 2026-10-25 fifteen of Anthropic's
+    27 "removed" pauses were under a tenth of a second, two whisper windows each), and, where
+    loud(src, g0, g1) says so, a gap on a quiet-floor take that is as loud as the voice inside:
+    that is speech the transcript dropped ("Congratulations" lost its first half that day,
+    its DTW start 0.65s late), never a pause."""
     whole=[(c["src"],float(c["start"])-a.padl,float(c["end"])) for c in clauses if c.get("keep_whole")]
     gaps={}
     out,made=[],[]
@@ -419,7 +416,12 @@ def split_at_word_gaps(keeps, clauses, cands, confirm, a):
             while todo:
                 e1,s2,w1,w2=todo.pop(0)
                 g0,g1=e1+WG["pad_after_s"],s2-WG["pad_before_s"]
-                if g1-g0<=a.min_cut or not any(x<g1 and g0<y for x,y in pieces):
+                would=sum(min(g1,y)-max(g0,x) for x,y in pieces if x<g1 and g0<y)
+                if would<=a.min_cut:
+                    continue
+                if loud is not None and loud(src,g0,g1):
+                    print(f"  kept {g1-g0:.2f}s at {os.path.basename(src)} {g0:.2f}s: as loud as the voice, "
+                          f"the transcript dropped words here  (...{w1} | {w2}...)")
                     continue
                 if (src,e1,s2) not in gaps:
                     gaps[(src,e1,s2)]=confirm(src,e1,s2)
@@ -452,7 +454,7 @@ def main():
     for src in {c["src"] for c in clauses}:
         wav=f"{wd}/audio/{os.path.splitext(os.path.basename(src))[0]}.wav"
         if not os.path.exists(wav):
-            subprocess.run(["ffmpeg","-nostdin","-y","-i",src,"-ar","16000","-ac","1",
+            subprocess.run(["ffmpeg","-nostdin","-y","-i",src,"-vn","-ar","16000","-ac","1",
                 wav,"-hide_banner","-loglevel","error"],check=True)
         ENV[src]=envelope(wav)
     keeps=plan(clauses,ENV,a)
@@ -471,7 +473,13 @@ def main():
                 # only gaps a keep still touches cost a confirmation
                 if any(s==src and A<g[1] and g[0]<B for s,A,B,_g in keeps) and g not in held[src]:
                     held[src].append(g)
-        keeps,made=split_at_word_gaps(keeps,clauses,held,GapConfirm(WAVS,f"{wd}/audio/word_gaps.json"),a)
+        # on a take whose room tone sits well under the voice, the microphone vetoes a "pause"
+        # that is as loud as speech (the words' times were loose, not the take quiet)
+        VOICE={src: yenvelope.speech_level(ENV[src], yenvelope.floor_of(ENV[src])) for src in ENV}
+        SEP={src: VOICE[src]-yenvelope.floor_of(ENV[src]) for src in ENV}
+        def loud(src,g0,g1):
+            return SEP[src]>=WG["mic_separation_db"] and yenvelope.peak(ENV[src],g0,g1)>VOICE[src]-WG["mic_veto_under_voice_db"]
+        keeps,made=split_at_word_gaps(keeps,clauses,held,GapConfirm(WAVS,f"{wd}/audio/word_gaps.json"),a,loud=loud)
         n=sum(len(v) for v in held.values())
         if n:
             print(f"word gaps: {len(made)} pause(s) cut that the envelope kept in whole or part, "
@@ -521,6 +529,17 @@ def main():
     if any(TONE.values()) and not media.has_tonemap_filters():
         sys.exit("hdr: this ffmpeg lacks the zscale/tonemap filters an HDR source needs. "
                  "brew install ffmpeg-full && brew link --overwrite --force ffmpeg-full")
+    # SEGMENT DECODE AND ENCODE (3.9.0). The source is a 4K 10-bit HEVC phone take; decoding it in
+    # software was most of a segment's cost (measured 32s for a 10s segment on an M4 under load,
+    # 14s with VideoToolbox decoding; the tone map reads the same frames, mean luma identical).
+    # The segment itself is a throwaway intermediate re-encoded at the concat, so it takes the
+    # VideoToolbox H.264 encoder at a high constant quality (47 dB PSNR against a lossless
+    # reference, 2.4x faster than libx264 veryfast crf 12 at 49 dB), with libx264 as the fallback
+    # wherever VideoToolbox is missing. The final mux below is libx264 as before.
+    HW=media.hwaccel_args()
+    SEGENC=media.intermediate_encoder()
+    if HW or SEGENC[1]!="libx264":
+        print(f"segments: {'VideoToolbox decode' if HW else 'software decode'}, {SEGENC[1]} encode")
     t_audio=0.0; f_video=0
     for i,(src,s,e,gain) in enumerate(keeps):
         ov=f"{segdir}/yc_{i:03d}.mov"; oa=f"{segdir}/ya_{i:03d}.wav"
@@ -550,13 +569,13 @@ def main():
         # -ss/-to (not -t): input -t measures from the packet where reading
         # starts, not from the seek point, and shaves ~5-10ms of AUDIO per
         # segment. -to is sample-exact.
-        subprocess.run(["ffmpeg","-nostdin","-y","-ss",f"{s+AOFF[src]:.3f}","-to",f"{e+AOFF[src]:.3f}",
+        subprocess.run(["ffmpeg","-nostdin","-y",*HW,"-ss",f"{s+AOFF[src]:.3f}","-to",f"{e+AOFF[src]:.3f}",
             "-i",src,
             "-map","0:v","-vf",vf,"-frames:v",str(nfr),
             # Segments are throwaway intermediates that get re-encoded at the
-            # concat, so crf 12 here is effectively transparent and stops the
-            # first generation eating detail the later ones can never restore.
-            "-c:v","libx264","-preset","veryfast","-crf","12","-pix_fmt","yuv420p",
+            # concat, so a high constant quality here is effectively transparent and stops
+            # the first generation eating detail the later ones can never restore.
+            *SEGENC[0],"-pix_fmt","yuv420p",
             *(media.SDR_TAGS if TONE[src] else []),
             "-video_track_timescale","30000","-an",ov,
             "-map","0:a","-af",af,"-c:a","pcm_s16le","-ar","48000","-ac","2","-vn",oa,

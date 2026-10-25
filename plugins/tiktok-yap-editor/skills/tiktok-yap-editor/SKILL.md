@@ -254,14 +254,14 @@ because of a shipped defect (why: `references/gotchas.md`, CHANGELOG).
 |---|---|---|---|---|
 | 0. Preflight | | `preflight.py` (once: `setup_fonts.sh`) | apply the printed fix hint | `requirements.txt` |
 | 1. Survey | | probe every clip; never pre-judge takes by length | | |
-| 2. Transcribe | | `transcribe.sh <clip> <out>` per clip; read all transcripts together | | |
-| 2b. Restart-heavy takes | `keep_whole` rows via `mkclauses.py` | `segmenter.py <clip>` for silence-accurate runs | | gotchas.md, "Clause boundaries": use run boundaries verbatim, never auto-fit them |
-| 2c. Stutters | `<out>_stutter_ok.json` for deliberate repeats: a bare key clears a MEDIUM, `{"key", "why"}` clears a HIGH | `stutter_check.py --words`, `restart_scan.py --video`, `xwin_scan.py --video --words --keeps` (1.1s and 1.6s windows: the restart the transcript reads once). All three read `<out>_script.txt`: a repeat the script says as often, as close together, prints `script` and needs nothing | listen; cut it via the clause plan or record its key. A MEDIUM is a decision, not a note. Never `YAP_ALLOW_STUTTER=1` for one deliberate repeat: it silences all three detectors | `references/speech-and-repetition.md`, gotchas.md "The transcript merges a short restart" |
+| 2. Read the takes | | `yapprep.py <footage> [--scripts <dir or week json>]` once per filming day: every take's words (the lines whisper dropped put back), its runs and what it says twice, in `tx/<take>.txt` (the repeats at the top) and `seg/<take>.txt`; `--scripts` names the script each take reads. Read every `tx/` file together | | one whisper decode at a time, a take read once |
+| 2b. Restart-heavy takes | `keep_whole` rows via `mkclauses.py` only when writing a plan by hand | the runs in `seg/<take>.txt` are silence-accurate (`segmenter.py` still exists) | | gotchas.md, "Clause boundaries": use run boundaries verbatim, never auto-fit them |
+| 2c. Stutters | `<out>_stutter_ok.json` for deliberate repeats: a bare key clears a MEDIUM, `{"key", "why"}` clears a HIGH | `stutter_check.py --words`, `restart_scan.py --video`, `xwin_scan.py --video --words --keeps` (1.1s and 1.6s windows around what the audio itself says twice: the restart the transcript reads once). All three read `<out>_script.txt`: a repeat the script says as often, as close together, prints `script` and needs nothing | listen; cut it via the clause plan or record its key. A MEDIUM is a decision, not a note. Never `YAP_ALLOW_STUTTER=1` for one deliberate repeat: it silences all three detectors | `references/speech-and-repetition.md`, gotchas.md "The transcript merges a short restart" |
 | 2d. Footage library | `records.json` (kind, tags, moments, `reads_as`) | `library.py prep`, `upsert`; after finalize `mark-used`, `reconcile --roots` | | `library.py --help`; data in `<home>/footage-library/` |
 | 3. Storyline | the beat sheet, with the receipt and the cutaway per line, approved by the creator | | | Part 1 |
-| 4. Clause plan | `clauses.json` with boundaries taken from a window re-transcription, never a full-file transcript | `transcribe.sh` on a trimmed window | | gotchas.md, "Boundary placement" |
+| 4. Clause plan | the beat sheet's cuts | `clauses_from_script.py --src <take> --script <name>_script.txt --workdir .yap_build --name <name>`: the last complete attempt at every script line, the earlier attempts cut, the creator's own words kept, every boundary on the quietest frame between two words; read `clauses_<name>.proposed.md`, listen where it says, then run it. By hand only with no script, with boundaries from `seg/<take>.txt` or a window re-transcription, never a full-file transcript | a line NOT FOUND is one the take never said; a LISTEN boundary has no pause to sit in | gotchas.md, "Boundary placement" |
 | 5. Cut | | `yapcut.py` (flags fixed in yapfull.sh; `--grade` rides inside the segment pass). A format with tighter pauses or faster speech sets `YAP_CUT_ARGS` and `YAP_SPEED` (yapfull.sh header), never a re-cut script of its own | black frames are a canary; `seam_qa.py` is the fatal check | "Why yapcut", CHANGELOG 2.3 |
-| 6. Gates | `<out>_script.txt` (required: without it the caption gate fails; `YAP_UNSCRIPTED=1` only for a take with no script), `<out>_corrections.json` (yapfull runs `script_fix.py` first: every word the script also says takes its case, punctuation and spelling, so "fineman" is Feynman before the gate sees it; your hand entries always win), `<out>_capqa_ok.json`, `<out>_overlays.json` | inside `yapfull.sh`: hook words, stutter and restart, dead air, caption, seam, receipts, retention (with `--keeps`, so pause cuts do not count as events), drift, frame zero | the gate prints the fix and its `YAP_*` override; a scripted run with a garbled caption fixes it in corrections and reruns with `YAP_FROM_CUT=1` | `gates.sh` header |
+| 6. Gates | `<out>_script.txt` (required: without it the caption gate fails; `YAP_UNSCRIPTED=1` only for a take with no script), `<out>_corrections.json` (yapfull runs `script_fix.py` first: every word the script also says takes its case, punctuation and spelling, so "fineman" is Feynman before the gate sees it; your hand entries always win), `<out>_capqa_ok.json`, `<out>_overlays.json` | inside `yapfull.sh`: the decision gates first and together (hook words, the transcript's repeats, captions: a red one is printed and the build stops after the last of them with every decision listed), then the audio scans, dead air, seam, receipts, retention (with `--keeps`, so pause cuts do not count as events), drift, frame zero. The caption gate accepts an ad-lib that is an ordinary word and lists it; a name, a number or a word no dictionary knows asks | the gate prints the fix and its `YAP_*` override; make every decision, then rerun once with `YAP_FROM_CUT=1` (seconds: the cut, its transcript, the scans and the compose are reused) | `gates.sh` header |
 | 7. Captions, hook, CTA | the hook (9 words or fewer, first line static at frame zero, `|` breaks at about 16 characters a line) and the spark word | `yapfull.sh <workdir> <clauses> <out> "<hook|line two>" "<spark>"`; a `minimal` hook whose later line is longer than line 1 is drawn `outline` | hook too long: cut words, never shrink type | `hook_styles.py` for a designed hook; gotchas.md "Captions" |
 | 8. Compose, receipts, cover | `<out>_overlays.json` pip entries; cover title and kicker (from `series`) | `compose_ass.sh`, `burn_pips.py` (inside yapfull), `cover.py --video <caption-free cut> --contact-sheet`, then `--frame N --title` | loudness is measured and printed; check the line | `references/receipts.md`, 8c below |
 | 8b. Variants and platforms | a second hook | `hook_variant.sh <workdir> <clauses> <out> "<hook B>" "<spark B>"`; `YAP_PLATFORM=linkedin yapfull.sh ...` re-composes from the cut | outside the platform's length band: a warning | brand config `platforms` |
@@ -277,7 +277,9 @@ on; fix it and rerun with `--only <name>` (`--from-cut` when the cut is unchange
 scan's take windows are decoded ahead in a background lane (`xwin_scan.py --prescan`), so the
 scan is mostly done before a video reaches its gates, and a re-cut of the same takes decodes only
 its joins. `--status` prints where every video is and an ETA; answer "done?" from it. The batch
-file format and every flag are in the script's header.
+file format and every flag are in the script's header. Since 3.9.0 the scan decodes only around what
+the audio says twice, so the prescan is a minute or two a take and the whisper lock is first come
+first served (`yaplib/whisper.py`).
 
 ### Notes that survive from the incident history
 
@@ -286,10 +288,11 @@ file format and every flag are in the script's header.
   meant to remove. Re-transcribe a 5-second window around every intended cut.
 - **Noisy takes.** Wind or room tone as loud as the voice hides pauses from the silence gate;
   since 3.8.1 the cutter also cuts them from the take's word transcript, each one proven by two
-  window re-transcriptions, and lists them in its log (`word gaps:`). The dead-air gate reads the
-  same aligned words, so it sees those pauses too. If one still survives, read that log line,
-  then measure the floor and denoise (`afftdn`) as before (gotchas.md, "Pause trimming"). Never
-  split clauses by hand at word gaps.
+  window re-transcriptions, and lists them in its log (`word gaps:`). On a quiet take a "pause" as
+  loud as the voice is dropped words, never cut (3.9.0). The dead-air gate measures each surviving
+  pause with the microphone when the cut is quiet between words and with the words when it is
+  not. If one still survives, read that log line, then measure the floor and denoise (`afftdn`)
+  as before (gotchas.md, "Pause trimming"). Never split clauses by hand at word gaps.
 - **Loudness** is measured, corrected and verified in three passes with no round-number cap on
   the gain; the safety rail is on the input (below -45 LUFS there is no speech to lift).
 - **The hook can never be cut off** (build_ass auto-fits), and that is exactly why the word
@@ -397,7 +400,9 @@ The old flow concatenated auto-editor output and dropped a one-frame black flash
 jump cut. `yapcut.py` does everything in one clean CFR pass, cuts only at pauses of 0.5s or
 more, bridges segments under 0.45s, requires a cut to remove 0.25s to exist, finds edges by
 walking the energy envelope out to a measured margin, and paces frames against the cumulative
-audio clock so lips never slide off the voice. Zero dead space means zero DEAD space: real
+audio clock so lips never slide off the voice. Its segments decode the 4K source and encode on
+the Mac's video hardware (3.9.0; `YAP_NO_HWACCEL=1` for the software path); the final mux is
+libx264. Zero dead space means zero DEAD space: real
 pauses, restarts and stutters go; speech cadence stays. An iPhone clip shot in HDR (10-bit HLG,
 or PQ) is tone-mapped to SDR BT.709 inside the same pass and the cut is tagged bt709, so no
 batch needs a manual SDR conversion; the cut log prints an `hdr:` line for each such source.

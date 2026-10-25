@@ -6,23 +6,29 @@ the mishear verbatim: Arc -> "ARK", Rdio -> "Radio", Claude -> "clod",
 ChatGPT -> "chatgbt", "Being first and" -> "Ferguson". A human eyeballing 500
 caption events misses these; a vocabulary diff does not. For any scripted run
 (the creator read a written script), save that script next to the build and
-this gate refuses to ship a caption word the script never contained.
+this gate refuses to ship a caption word the script never contained, unless it
+is plainly an ad-lib.
 
 Numbers and money are folded to words on BOTH sides before comparing, so a
 script "fifteen dollars" matches captions "$15" and "1,600" matches itself.
 
-Creators ad-lib connective words on camera ("of these tools" for "of the
-tools"), so the gate is an ADJUDICATION list, not a dumb equality: every
-unknown word must be either fixed (corrections.json, real garble) or accepted
-(<out>_capqa_ok.json, harmless ad-lib) before the build passes. Review takes
-seconds because the list is ~15 words, and nothing brand-shaped slips.
+Creators ad-lib on camera ("bear with me, I have an opinion"), and until 3.9.0 every
+ad-libbed word was a decision: 80 on the 2026-10-25 Warhound cut, 78 of them ordinary
+words. Now an ad-lib that is an ordinary English word in its ordinary spelling (the
+system dictionary with inflections, a short modern list, and the creator's own lexicon
+of every word they ever accepted or scripted, yaplib/lexicon.py) is accepted and printed
+for the line audit. What still needs a ruling is what can be a garble: a word in no
+dictionary, a capitalised word mid-sentence (whisper's sign that it heard a name), a
+number the script never said, and a dash, which nothing clears.
 
 Usage:
-  python3 caption_qa.py --ass .yap_build/cap_<out>.ass \
-      --script .yap_build/<out>_script.txt [--brand brand-config.json] \
-      [--accept-file .yap_build/<out>_capqa_ok.json]
+  python3 caption_qa.py --ass .yap_build/cap_<out>.ass \\
+      --script .yap_build/<out>_script.txt [--brand brand-config.json] \\
+      [--accept-file .yap_build/<out>_capqa_ok.json] [--words w_<out>.json --corrections <out>_corrections.json]
 
 accept-file: JSON list of reviewed-ok caption words, e.g. ["these","tools"].
+--words and --corrections let the gate see sentence starts (a capitalised word that starts a
+sentence is not a name) and learn the creator's lexicon as it passes.
 Exit codes: 0 clean, 2 = unreviewed caption words (build-gating). A caption
 word carrying an em dash or an en dash (U+2014 / U+2013) is always flagged: the
 dash ban is a hard rule on screen, and no accept-file can clear it.
@@ -38,6 +44,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import lexicon as ylex  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
 
 ONES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight",
@@ -121,50 +128,29 @@ def caption_words(ass_path: str, free_from=None) -> list:
     return words
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--ass", required=True)
-    ap.add_argument("--script", required=True, help="the verbatim source script")
-    ap.add_argument("--brand", default="", help="brand-config.json: handle and "
-                    "contact lines are allowlisted (the CTA block is Cap-styled)")
-    ap.add_argument("--accept-file", default="",
-                    help="JSON list of reviewed-ok ad-lib words")
-    ap.add_argument("--overlays", default="",
-                    help="overlays json: counter values/labels and source-tag "
-                    "text are burned as caption-styled events, allowlist them")
-    ap.add_argument("--free-from", type=float, default=None,
-                    help="seconds into the cut where the unscripted opinion slot starts: captions "
-                    "from there on are the creator's own take and are not diffed (3.6.0)")
-    a = ap.parse_args()
+def sentence_starts(words_path, corrections_path=""):
+    """Lowercase forms of the words that begin a sentence in the cut: the first word and every
+    word after one ending in . ? or !. A capitalised caption word among them is not a name."""
+    if not words_path or not os.path.isfile(words_path):
+        return None
+    ws = [list(w) for w in ywords.load_words(words_path)]
+    if corrections_path and os.path.isfile(corrections_path):
+        ws = [list(w) for w in ywords.apply_corrections(ws, corrections_path, warn=False)]
+    out, prev_end = set(), True
+    for _s, _e, t in ws:
+        core = re.sub(r"^[^A-Za-z0-9]+", "", t)
+        if prev_end and core:
+            out.add(core.lower().strip(".,!?;:\"'"))
+        prev_end = t.rstrip().endswith((".", "?", "!"))
+    return out
 
-    vocab = set(canon(open(a.script, encoding="utf-8").read())) | GLUE
-    if a.brand:
-        try:
-            c = json.load(open(a.brand))
-            extra = " ".join([c.get("handle", "")] + c.get("contact_lines", []))
-            vocab |= set(canon(extra))
-        except Exception:
-            pass
-    if a.accept_file:
-        try:
-            for w in json.load(open(a.accept_file)):
-                vocab |= set(canon(str(w)))
-        except FileNotFoundError:
-            pass
-    if a.overlays:
-        try:
-            for o in json.load(open(a.overlays)):
-                for k in ("text", "label", "value"):
-                    if o.get(k):
-                        vocab |= set(canon(str(o[k])))
-        except FileNotFoundError:
-            pass
 
-    caps = caption_words(a.ass, a.free_from)
-    bad = []
+def judge(caps, vocab, starts, learned_words):
+    """(garbles [(word, folded)], adlibs [word]) among the caption words not in vocab."""
+    garbles, adlibs = [], []
     for i, w in enumerate(caps):
         if ywords.has_dash(w):
-            bad.append((w, ["<em/en dash on screen: banned, no accept-file clears it>"]))
+            garbles.append((w, ["<em/en dash on screen: banned, no accept-file clears it>"]))
             continue
         folded = canon(w)
         if not folded:
@@ -179,15 +165,95 @@ def main() -> int:
                     if "".join(pair) in vocab:
                         ok = True
                         break
-        if not ok:
-            bad.append((w, folded))
+        if ok:
+            continue
+        # an inflection of a script word ("Warhounds" when the script says warhound) is the script
+        if any(b in vocab for b in ylex.bases(w)):
+            continue
+        core = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9']+$", "", w)
+        if re.search(r"\d", w):
+            garbles.append((w, folded))                                     # a number the script never said
+        elif core[:1].isupper() and not (starts is not None and core.lower().strip(".,!?;:\"'") in starts) \
+                and not (starts is None and ylex.is_word(w, learned_words)):
+            garbles.append((w, folded))                                     # capitalised mid-sentence: a name
+        elif ylex.is_word(w, learned_words):
+            adlibs.append(w)
+        else:
+            garbles.append((w, folded))
+    return garbles, adlibs
 
-    if not bad:
-        print("caption_qa: burned captions match the script")
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ass", required=True)
+    ap.add_argument("--script", required=True, help="the verbatim source script")
+    ap.add_argument("--brand", default="", help="brand-config.json: handle and "
+                    "contact lines are allowlisted (the CTA block is Cap-styled)")
+    ap.add_argument("--accept-file", default="",
+                    help="JSON list of reviewed-ok ad-lib words")
+    ap.add_argument("--overlays", default="",
+                    help="overlays json: counter values/labels and source-tag "
+                    "text are burned as caption-styled events, allowlist them")
+    ap.add_argument("--free-from", type=float, default=None,
+                    help="seconds into the cut where the unscripted opinion slot starts: captions "
+                    "from there on are the creator's own take and are not diffed (3.6.0)")
+    ap.add_argument("--words", default="", help="w_<out>.json: lets the gate see sentence starts")
+    ap.add_argument("--corrections", default="", help="<out>_corrections.json, applied to --words")
+    ap.add_argument("--no-lexicon", action="store_true",
+                    help="flag every word the script lacks, as before 3.9.0")
+    a = ap.parse_args()
+
+    script_text = open(a.script, encoding="utf-8").read()
+    vocab = set(canon(script_text)) | GLUE
+    if a.brand:
+        try:
+            c = json.load(open(a.brand))
+            extra = " ".join([c.get("handle", "")] + c.get("contact_lines", []))
+            vocab |= set(canon(extra))
+        except Exception:
+            pass
+    accepted = []
+    if a.accept_file:
+        try:
+            accepted = [str(w) for w in json.load(open(a.accept_file))]
+            for w in accepted:
+                vocab |= set(canon(w))
+        except FileNotFoundError:
+            pass
+    if a.overlays:
+        try:
+            for o in json.load(open(a.overlays)):
+                for k in ("text", "label", "value"):
+                    if o.get(k):
+                        vocab |= set(canon(str(o[k])))
+        except FileNotFoundError:
+            pass
+
+    caps = caption_words(a.ass, a.free_from)
+    learned_words = set() if a.no_lexicon else ylex.learned()
+    starts = sentence_starts(a.words, a.corrections)
+    if a.no_lexicon:
+        garbles, adlibs = [], []
+        for i, w in enumerate(caps):
+            g, ad = judge([w], vocab, None, set())
+            garbles += g; garbles += [(x, canon(x)) for x in ad]
+    else:
+        garbles, adlibs = judge(caps, vocab, starts, learned_words)
+
+    if adlibs:
+        print(f"caption_qa: {len(adlibs)} ad-lib word(s) accepted as ordinary English (read them in the line audit): "
+              + ", ".join(adlibs))
+    if not garbles:
+        print("caption_qa: burned captions match the script" + (" plus the ad-libs above" if adlibs else ""))
+        # the creator's lexicon grows with every pass: the script's own words and the hand-accepted ones
+        if not a.no_lexicon:
+            n = ylex.learn([w for w in re.findall(r"[A-Za-z][A-Za-z'\u2019]*", script_text)] + accepted)
+            if n:
+                print(f"  lexicon: {n} new word(s) learned")
         return 0
-    print(f"caption_qa: {len(bad)} caption word(s) the script never contained:")
+    print(f"caption_qa: {len(garbles)} caption word(s) the script never contained and no dictionary explains:")
     pool = sorted(vocab)
-    for w, folded in bad:
+    for w, folded in garbles:
         if folded and folded[0].startswith("<"):
             print(f"  {w!r}  {folded[0]}")
             continue

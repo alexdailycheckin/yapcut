@@ -3,3 +3,4 @@
 # scripts actually use. System tools (ffmpeg with libass, whisper-cli) are
 # checked by preflight.py directly and are not pip packages.
 Pillow>=9.0
+numpy>=1.20   # yaplib/repeats.py (the acoustic repeat finder) and yaplib/envelope.py, since 3.9.0

@@ -4,6 +4,36 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.9.0: the editor hears its own restarts, and a decision costs seconds
+
+**What's new.** Four things aimed at the hours a batch took on October 25th.
+
+- The restart scan listens to the audio first: a phrase said twice is found in the sound itself,
+  in about two seconds, and whisper decodes only the windows around it. That scan was 500 to 900
+  decodes and up to half an hour a video; it is now around 50, and the lane that ran it ahead of
+  the cuts is a minute or two.
+- The caption gate no longer stops on your own ad-libs. An ordinary English word you added on
+  camera is accepted and listed for you to read; a name, a number the script never said, or a word
+  in no dictionary still asks. It learns every word you accept and every script you read, in
+  `caption-lexicon.json` in your workspace.
+- Every decision comes at once: the hook, the repeats and the caption words are on the screen
+  together before the slow scans run, and a rerun after your decisions reuses everything (the
+  compose, the scans, the dead-air check): 29 seconds on today's Adidas cut, from over three
+  minutes.
+- Whisper runs one decode at a time, in the order the jobs arrived, so a gate never waits an hour
+  behind a prescan again.
+
+Also: names are spelled the script's way everywhere whisper heard them, the cut decodes and
+encodes its segments on the Mac's video hardware, a "pause" as loud as your voice is never cut on
+a quiet take, and two new tools read a filming day for you: `yapprep.py <footage>` writes every
+take's words, runs and repeats, and `clauses_from_script.py` proposes the clause plan from the
+script, with a report of what it kept and cut and where to listen.
+
+**What you need to do.** Install numpy if the setup check asks (`pip3 install numpy`; Apple's
+Python has it). To start with a full lexicon, run once:
+`python3 <skill>/scripts/yaplib/lexicon.py seed <workspace>/input`. A batch already running keeps
+its old version until its next video; the first scan on an existing cut decodes once more.
+
 ## 3.8.3: batches stop queueing behind themselves
 
 **What's new.** In a batch, the video being checked no longer waits for the next videos'

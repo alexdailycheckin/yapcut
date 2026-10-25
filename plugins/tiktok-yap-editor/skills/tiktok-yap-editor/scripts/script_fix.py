@@ -13,6 +13,10 @@ restore them by hand. This is that step, run by yapfull.sh after every transcrip
     sides, similarity 0.6 or more, never just an inflection: "notice" for "noticed" is how it
     was said) takes the script's word; two cut words that join into one script word
     ("fine man" for "Feynman") become that word
+  - a name the script spells differently from the way whisper heard it is the script's name
+    wherever it appears (3.9.0): a capitalised cut word, or one in no dictionary, that sounds
+    like a script name (yaplib.lexicon.phonetic: "Andriel" and Anduril, "Lam" and Lamm, "clod"
+    and Claude) takes the script's spelling, in every occurrence, not only the aligned one
   - a word after a sentence end is capitalised, and "i", "i'm", "i've", "i'll", "i'd" are "I"
 
 What it never does: touch a word after the opinion slot starts (the script says nothing about
@@ -28,6 +32,7 @@ Exit 0 always (a missing script is a no-op); prints every word it replaced.
 import argparse, difflib, json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from yaplib import lexicon as ylex  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
 from yaplib import script as yscript  # noqa: E402
 
@@ -55,18 +60,50 @@ def stem(w):
     return w
 
 
+def inflection(a, b):
+    """a said for b, or b for a, as a plural, a tense or an -ly: the same word in another form.
+    "lam" for "lamm" is not one (the remainder is no suffix), so that garble gets fixed (3.9.0)."""
+    if stem(a) == stem(b) or stem(a) == b or a == stem(b):
+        return True
+    short, long_ = sorted((a, b), key=len)
+    if not long_.startswith(short) or len(short) < 3:
+        return False
+    rest = long_[len(short):]
+    if rest in SUFFIXES or rest in ("ies", "ied", "ier", "iest", "est", "'s"):
+        return True
+    return rest[:1] == short[-1:] and rest[1:] in SUFFIXES     # running / run
+
+
 def similar(a, b):
     """A garble of the script word, not another word the creator chose."""
     a, b = bare(a), bare(b)
     if len(a) < 3 or len(b) < 3 or re.search(r"\d", a + b) or a == b:
         return False
-    if stem(a) == stem(b) or a.startswith(b) or b.startswith(a):
-        return False                     # an inflection: "notice" said for "noticed", "surveys" for "surveyed"
+    if inflection(a, b):
+        return False                     # "notice" said for "noticed", "surveys" for "surveyed"
     return difflib.SequenceMatcher(None, a, b).ratio() >= MIN_RATIO
 
 
 def script_words(path):
     return [w.strip(QUOTES) for w in open(path, encoding="utf-8").read().split() if w.strip(QUOTES)]
+
+
+def script_names(script):
+    """The script's proper nouns, in the script's spelling: capitalised words that do not start a
+    sentence, mixed-case or digit-bearing words (ChatGPT, a16z) and initialisms (IPO)."""
+    names, prev_end = {}, True
+    for w in script:
+        c, tail = core_and_tail(w)
+        c = c.strip(QUOTES)
+        if not c or not re.search(r"[A-Za-z]", c):
+            prev_end = bool(tail) and tail[-1] in ".?!"
+            continue
+        is_name = ((c[:1].isupper() and not prev_end) or (len(c) > 1 and c[1:].lower() != c[1:])
+                   or (c.isupper() and len(c) > 1) or (re.search(r"\d", c) and re.search(r"[A-Za-z]", c)))
+        if is_name and not re.search(r"^\d+$", c):
+            names.setdefault(ylex.phonetic(c), c)
+        prev_end = bool(tail) and tail[-1] in ".?!"
+    return names
 
 
 def plan(words, script, locked, free=None):
@@ -88,6 +125,30 @@ def plan(words, script, locked, free=None):
             if similar(cut[i1] + cut[i1 + 1], script[j1]):
                 fix[i1] = script[j1]; drop.add(i1 + 1)
                 swapped.append((f"{cut[i1]} {cut[i1 + 1]}", script[j1]))
+    # a name whisper spelled its own way, anywhere in the cut (3.9.0): the script's spelling.
+    # Only a word whisper capitalised mid-sentence, or one no dictionary knows, can be a name;
+    # an ordinary lowercase word that merely sounds like one ("courts", Quartz) stays.
+    names = script_names(script)
+    script_bare = {bare(x) for x in script}
+    by_swap = {bare(frm): to for frm, to in swapped if " " not in frm}
+    prev_end = True
+    for i in range(n):
+        w = cut[i]
+        c, tail = core_and_tail(w)
+        b = bare(c)
+        if i not in fix and i not in drop and b and b not in script_bare and not re.search(r"\d", b):
+            to = by_swap.get(b)
+            if to is None:
+                key = ylex.phonetic(c)
+                cand = names.get(key)
+                if cand and bare(cand) != b and (((c[:1].isupper() and not prev_end) or not ylex.is_word(c))
+                                                 and not inflection(b, bare(cand))):
+                    to = cand
+            if to:
+                tc, _tt = core_and_tail(to)
+                fix[i] = tc + tail
+                swapped.append((w, fix[i]))
+        prev_end = tail.endswith((".", "?", "!")) if tail else False
     # sentence starts, then the first-person forms everywhere (the opinion slot too)
     out = [fix.get(i, w[2]) for i, w in enumerate(words)]
     prev_end = True
@@ -97,6 +158,12 @@ def plan(words, script, locked, free=None):
         w = out[i]
         if prev_end and w[:1].isalpha() and w[:1].islower() and i not in locked:
             out[i] = w[0].upper() + w[1:]
+        elif (not prev_end and i > 0 and i not in fix and i not in locked and w[:1].isupper()
+              and words[i - 1][2].rstrip().endswith((".", "?", "!")) and ylex.is_word(w)
+              and ylex.phonetic(core_and_tail(w)[0]) not in names):
+            # whisper capitalised it after a sentence end the script's punctuation just removed
+            # ("now. Besides" became "now, Besides"): an ad-lib, not a name
+            out[i] = w[0].lower() + w[1:]
         prev_end = w.endswith((".", "?", "!"))
     for i, w in enumerate(out):
         c, tail = core_and_tail(w)

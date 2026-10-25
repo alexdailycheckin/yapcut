@@ -138,6 +138,47 @@ def has_tonemap_filters():
     return " zscale " in out and " tonemap " in out
 
 
+_CAPS = {}
+
+
+def _ffmpeg_lists(flag, name):
+    """True when `ffmpeg -<flag>` lists `name` (cached per process)."""
+    key = (flag, name)
+    if key not in _CAPS:
+        try:
+            out = run(["ffmpeg", "-hide_banner", flag], what=f"ffmpeg {flag}").stdout
+        except MediaError:
+            out = ""
+        _CAPS[key] = any(line.split()[1:2] == [name] for line in out.splitlines() if line.strip())
+    return _CAPS[key]
+
+
+def hwaccel_args():
+    """['-hwaccel', 'videotoolbox'] on a Mac that has it, else []: hardware decode of the source,
+    frames handed to the filters in system memory (the tone map and the scale read them as before).
+    YAP_NO_HWACCEL=1 turns it off for one run."""
+    import os
+    if os.environ.get("YAP_NO_HWACCEL") == "1":
+        return []
+    if "hwaccels" not in _CAPS:
+        try:
+            out = run(["ffmpeg", "-hide_banner", "-hwaccels"], what="ffmpeg hwaccels").stdout
+        except MediaError:
+            out = ""
+        _CAPS["hwaccels"] = out.split()
+    return ["-hwaccel", "videotoolbox"] if "videotoolbox" in _CAPS["hwaccels"] else []
+
+
+def intermediate_encoder():
+    """(ffmpeg args, name) for a throwaway intermediate at transparent quality: VideoToolbox H.264
+    at constant quality 80 where it exists (3.9.0), else libx264 veryfast crf 12. YAP_NO_HWACCEL=1
+    keeps libx264."""
+    import os
+    if os.environ.get("YAP_NO_HWACCEL") != "1" and _ffmpeg_lists("-encoders", "h264_videotoolbox"):
+        return (["-c:v", "h264_videotoolbox", "-q:v", "80", "-allow_sw", "1"], "h264_videotoolbox")
+    return (["-c:v", "libx264", "-preset", "veryfast", "-crf", "12"], "libx264")
+
+
 def probe_streams(path):
     """{codec_type: {duration, width, height, sample_rate, r_frame_rate}} for
     the first stream of each type."""

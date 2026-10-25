@@ -9,6 +9,15 @@
 # gate does not apply to this build. finalize.sh copies that block into the
 # edit record, so a shipped file always carries the results it passed on.
 #
+# DECISIONS AT ONCE (3.9.0). The gates that ask a person for a ruling (the hook's length,
+# a repeat the transcript shows, a caption word the script never said) all read the
+# transcript, which exists a minute into the build. Until 3.9.0 the first of them to fail
+# stopped the build, and the next failure was found on the rerun: on 2026-10-25 the
+# Anthropic episode went through six runs for four decisions. Between gates_defer and
+# gates_settle a failing gate is recorded and printed, and the build goes on to the next
+# decision gate; gates_settle then exits 2 with every decision listed. The slow audio
+# scans and the compose come after, so a rerun with the decisions in costs nothing twice.
+#
 # Override env vars are unchanged from the old yapfull.sh:
 #   YAP_ALLOW_LONG_HOOK=1  hook over 9 words is a warning, not a fail
 #   YAP_ALLOW_STUTTER=1    a deliberate rhetorical repeat
@@ -25,6 +34,8 @@
 # Requires from the caller: SCRIPTS (this directory). Call gates_init first.
 
 GATE_NAMES="hook_words stutter_restart dead_air caption seam receipts retention drift frame0 length"
+GATE_DEFER=0
+GATES_DEFERRED=""
 
 gates_init() {                       # gates_init <gates_json> <platform> <out>
   GATES_JSON="$1"
@@ -63,6 +74,16 @@ d = json.load(open(p)); d[k] = json.loads(v); json.dump(d, open(p, "w"), indent=
 PY
 }
 
+gate_meta_get() {                    # gate_meta_get <dotted.key> -> prints the value ("" when missing)
+  python3 - "$GATES_JSON" "$1" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+for k in sys.argv[2].split("."):
+    d = d.get(k) if isinstance(d, dict) else None
+print("" if d is None else d)
+PY
+}
+
 # gate_hook_drawn <cap.ass.meta.json>: the hook style build_ass actually drew. gate_hook_words
 # records the brand's style before the render, and a minimal hook whose later line is longer
 # than line 1 is drawn as outline, so the edit record takes the drawn one from the sidecar.
@@ -78,12 +99,31 @@ if st and d.get("hook") and d["hook"].get("style") != st:
 PY
 }
 
-# gate_finish <name> <rc> "<fail message>": records, fails the build on 2.
+# gates_defer / gates_settle: between them a red gate is recorded and the ladder goes on, so
+# every decision is on the screen at once; settle exits 2 if any gate went red.
+gates_defer() { GATE_DEFER=1; GATES_DEFERRED=""; }
+gates_settle() {
+  GATE_DEFER=0
+  if [ -n "$GATES_DEFERRED" ]; then
+    echo "DECISIONS NEEDED (${GATES_DEFERRED// /, }): every ruling the build needs is printed above."
+    echo "  Make them all, then rerun once (YAP_FROM_CUT=1 reuses the cut and its transcript; the scans and the compose are cached)."
+    echo "  gates so far: $GATES_JSON"
+    exit 2
+  fi
+}
+
+# gate_finish <name> <rc> "<fail message>": records, fails the build on 2 (or defers it).
 gate_finish() {
   local name="$1" rc="$2" msg="${3:-}"
   gate_record "$name" "$rc"
   case "$rc" in
-    2) echo "GATE $name FAILED (rc 2). ${msg}"; echo "  gates so far: $GATES_JSON"; exit 2 ;;
+    2) echo "GATE $name FAILED (rc 2). ${msg}"
+       if [ "$GATE_DEFER" = "1" ]; then
+         GATES_DEFERRED="${GATES_DEFERRED:+$GATES_DEFERRED }$name"
+         echo "  (the other decision gates run first; the build stops after them)"
+       else
+         echo "  gates so far: $GATES_JSON"; exit 2
+       fi ;;
     1) echo "gate $name: WARN (rc 1), continuing" ;;
     0) echo "gate $name: ok" ;;
     null) echo "gate $name: not applicable" ;;
@@ -121,30 +161,49 @@ PY
   gate_finish hook_words "$rc" "Shorten the hook (7 words is the target)."
 }
 
-# --- repetition: transcript detector, windowed audio scan, cross-window scan ----
-# Three detectors, one gate, one accept-file. The third (xwin_scan.py, 2026-09-30) reads
-# 1.1s and 1.6s windows for a restart the other two read as one phrase.
-# 3.8.0: all three read the script (<out>_script.txt) and settle a repeat the script says itself;
-# the accept-file takes {"key", "why"} entries that clear a HIGH, so one deliberate callback no
-# longer needs YAP_ALLOW_STUTTER=1 (which silences all three). With a keeps file, xwin_scan decodes
-# the windows inside each keep from the source take, cached per take in xwin_src/, so a re-cut
-# decodes only its joins; restart_scan caches its findings on the cut's audio.
-gate_stutter_restart() {             # gate_stutter_restart <words.json> <video> <accept-file> [keeps.json] [script.txt]
-  local words="$1" video="$2" accept="$3" keeps="${4:-}" script="${5:-}" r1=0 r2=0 r3=0 rc=0 base wd op free=()
-  local sargs=() kargs=()
-  echo "--- gate stutter_restart ---"
-  [ -f "$accept" ] || echo '[]' > "$accept"
-  base="$(basename "${accept%_stutter_ok.json}")"; wd="$(dirname "$accept")"
+# --- repetition: transcript detector first, the two audio scans after the decisions --------
+# Three detectors, one gate, one accept-file. stutter_check.py reads the transcript (seconds);
+# restart_scan.py reads 6s windows and xwin_scan.py reads 1.1s and 1.6s windows around what
+# the audio itself says twice (minutes). 3.8.0: all three read the script (<out>_script.txt)
+# and settle a repeat the script says itself; the accept-file takes {"key", "why"} entries that
+# clear a HIGH, so one deliberate callback no longer needs YAP_ALLOW_STUTTER=1 (which silences
+# all three). 3.9.0: the transcript half runs with the other decision gates and the audio half
+# after them, so a repeat and a caption garble are both on the screen before the first rerun.
+_stutter_args() {                    # sets SARGS (script, opinion slot) for the detectors
+  local accept="$1" script="${2:-}" op t
+  SARGS=()
   op="${accept%_stutter_ok.json}_opinion.json"
   if [ -f "$op" ]; then
-    local t; t=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("start",""))' "$op" 2>/dev/null || true)
-    [ -n "$t" ] && free=(--free-from "$t")
+    t=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("start",""))' "$op" 2>/dev/null || true)
+    [ -n "$t" ] && SARGS=(--free-from "$t")
   fi
-  [ -n "$script" ] && [ -f "$script" ] && sargs=(--script "$script" ${free[@]+"${free[@]}"})
+  [ -n "$script" ] && [ -f "$script" ] && SARGS=(--script "$script" ${SARGS[@]+"${SARGS[@]}"})
+}
+
+gate_stutter_transcript() {          # gate_stutter_transcript <words.json> <accept-file> [script.txt]
+  local words="$1" accept="$2" script="${3:-}" r1=0
+  echo "--- gate stutter_restart (the transcript) ---"
+  [ -f "$accept" ] || echo '[]' > "$accept"
+  _stutter_args "$accept" "$script"
+  python3 "$SCRIPTS/stutter_check.py" --words "$words" --accept-file "$accept" ${SARGS[@]+"${SARGS[@]}"} || r1=$?
+  gate_meta_json repetition "{\"stutter_check\": $r1}"
+  if [ "$r1" -eq 2 ] && [ "${YAP_ALLOW_STUTTER:-0}" = "1" ]; then
+    echo "  repetition findings overridden by YAP_ALLOW_STUTTER=1"; r1=1
+  fi
+  gate_finish stutter_restart "$r1" "A real restart: cut it via the clause plan. A deliberate repeat: add its printed key to $(basename "$accept") ({\"key\": ..., \"why\": ...} for a HIGH)."
+}
+
+gate_stutter_audio() {               # gate_stutter_audio <words.json> <video> <accept-file> [keeps.json] [script.txt]
+  local words="$1" video="$2" accept="$3" keeps="${4:-}" script="${5:-}" r1 r2=0 r3=0 rc=0 base wd
+  local kargs=()
+  echo "--- gate stutter_restart (the audio) ---"
+  [ -f "$accept" ] || echo '[]' > "$accept"
+  base="$(basename "${accept%_stutter_ok.json}")"; wd="$(dirname "$accept")"
+  _stutter_args "$accept" "$script"
+  r1="$(gate_meta_get repetition.stutter_check)"; r1="${r1:-0}"
   [ -n "$keeps" ] && [ -f "$keeps" ] && kargs=(--keeps "$keeps" --speed "${YAP_SPEED:-1}" --workdir "$wd")
-  python3 "$SCRIPTS/stutter_check.py" --words "$words" --accept-file "$accept" ${sargs[@]+"${sargs[@]}"} || r1=$?
   python3 "$SCRIPTS/restart_scan.py" --video "$video" --accept-file "$accept" \
-    --cache "$wd/restart_${base}.json" ${sargs[@]+"${sargs[@]}"} || r2=$?
+    --cache "$wd/restart_${base}.json" ${SARGS[@]+"${SARGS[@]}"} || r2=$?
   # yapbatch prescans the take windows in a background lane; wait for this video's, so the two
   # never decode the same windows (the marker appears even when the prescan failed)
   if [ -n "${YAP_XWIN_WAIT:-}" ] && [ ! -e "$YAP_XWIN_WAIT" ]; then
@@ -154,13 +213,18 @@ gate_stutter_restart() {             # gate_stutter_restart <words.json> <video>
   fi
   python3 "$SCRIPTS/xwin_scan.py" --video "$video" --words "$words" --accept-file "$accept" \
     --cache "$wd/xwin_${base}.json" --store-dir "$wd/xwin_src" \
-    ${kargs[@]+"${kargs[@]}"} ${sargs[@]+"${sargs[@]}"} || r3=$?
+    ${kargs[@]+"${kargs[@]}"} ${SARGS[@]+"${SARGS[@]}"} || r3=$?
   gate_meta_json repetition "{\"stutter_check\": $r1, \"restart_scan\": $r2, \"xwin_scan\": $r3}"
   rc=$(( r1 > r2 ? r1 : r2 )); rc=$(( r3 > rc ? r3 : rc ))
   if [ "$rc" -eq 2 ] && [ "${YAP_ALLOW_STUTTER:-0}" = "1" ]; then
     echo "  repetition findings overridden by YAP_ALLOW_STUTTER=1"; rc=1
   fi
   gate_finish stutter_restart "$rc" "A real restart: cut it via the clause plan. A deliberate repeat: add its printed key to $(basename "$accept") ({\"key\": ..., \"why\": ...} for a HIGH)."
+}
+
+gate_stutter_restart() {             # the 3.8.x entry point: both halves in one go
+  gate_stutter_transcript "$1" "$3" "${5:-}"
+  gate_stutter_audio "$1" "$2" "$3" "${4:-}" "${5:-}"
 }
 
 # --- dead air: pauses that survived the cut (transcript-measured) --------------
@@ -177,9 +241,11 @@ gate_dead_air() {                    # gate_dead_air <video> [aligned words.json
 }
 
 # --- caption garble: burned words vs the script ---------------------------------
-gate_caption() {                     # gate_caption <cap.ass> <script.txt> <brand.json> <overlays|""> <accept-file>
-  local ass="$1" script="$2" brand="$3" ovr="$4" accept="$5" rc=0
+gate_caption() {                     # gate_caption <cap.ass> <script.txt> <brand.json> <overlays|""> <accept-file> [words.json] [corrections.json]
+  local ass="$1" script="$2" brand="$3" ovr="$4" accept="$5" words="${6:-}" corr="${7:-}" rc=0 wargs=()
   echo "--- gate caption ---"
+  [ -n "$words" ] && [ -f "$words" ] && wargs=(--words "$words")
+  [ -n "$corr" ] && [ -f "$corr" ] && wargs+=(--corrections "$corr")
   if [ ! -f "$script" ]; then
     # a missing script used to be read as "unscripted" and passed with a warning: on 2026-10-11 seven
     # scripted videos shipped unchecked that way. Unscripted is now something the run says, not a guess.
@@ -200,7 +266,7 @@ gate_caption() {                     # gate_caption <cap.ass> <script.txt> <bran
       [ -n "$t" ] && free=(--free-from "$t") && echo "  opinion slot from ${t}s: the take is unscripted, not diffed"
     fi
     python3 "$SCRIPTS/caption_qa.py" --ass "$ass" --script "$script" --brand "$brand" \
-      --overlays "$ovr" --accept-file "$accept" ${free[@]+"${free[@]}"} || rc=$?
+      --overlays "$ovr" --accept-file "$accept" ${free[@]+"${free[@]}"} ${wargs[@]+"${wargs[@]}"} || rc=$?
   fi
   gate_finish caption "$rc" "Garbles -> $(basename "${accept%_capqa_ok.json}")_corrections.json + YAP_FROM_CUT=1; ad-libs -> $(basename "$accept")."
 }
@@ -239,8 +305,8 @@ gate_receipts() {                    # gate_receipts <words.json> <overlays|""> 
 }
 
 # --- retention: re-hook + pattern-interrupt budget, joins do not count ---------
-gate_retention() {                   # gate_retention <video> <overlays|""> <cap.ass> <duration> <keeps|"">
-  local video="$1" ovr="$2" ass="$3" dur="$4" keeps="${5:-}" rc=0 hookend maxgap
+gate_retention() {                   # gate_retention <video> <overlays|""> <cap.ass> <duration> <keeps|""> [scene-cache.json]
+  local video="$1" ovr="$2" ass="$3" dur="$4" keeps="${5:-}" cache="${6:-}" rc=0 hookend maxgap
   hookend=$(python3 "$SCRIPTS/yaplib/ass.py" hook-end "$ass" 2>/dev/null || echo 2.5)
   # 5s budget for short form, 6s once the video is 60s+ (a longer video may breathe);
   # the numbers are rules.json retention.*
@@ -258,6 +324,7 @@ PY
     local args=(--video "$video" --hook-end "$hookend" --max-gap "$maxgap")
     [ -n "$ovr" ] && [ -f "$ovr" ] && args+=(--overlays "$ovr")
     [ -n "$keeps" ] && [ -f "$keeps" ] && args+=(--keeps "$keeps")
+    [ -n "$cache" ] && args+=(--cache "$cache")
     python3 "$SCRIPTS/retention_check.py" "${args[@]}" || rc=$?
   fi
   gate_finish retention "$rc" "Fill the static stretches (PiP/counter/punch-in)."
@@ -290,4 +357,37 @@ if d < lo: print(f"  {d:.1f}s is under the {sys.argv[4]} band ({lo:.0f}-{hi:.0f}
 elif d > hi: print(f"  {d:.1f}s is over the {sys.argv[4]} band ({lo:.0f}-{hi:.0f}s)"); print(1)
 else: print(f"  {d:.1f}s inside the {sys.argv[4]} band"); print(0)' "$dur" "$lo" "$hi" "$plat" | tee /dev/stderr | tail -1)
   gate_finish length "$rc"
+}
+
+# --- black frames: the canary from the old concat path, one full decode ---------
+black_check() {                      # black_check <file> <label>
+  echo "--- blackdetect ($2) ---"
+  ffmpeg -nostdin -i "$1" -vf "blackdetect=d=0.02:pic_th=0.95" -an -f null - 2>&1 \
+    | grep -i black_start || echo "  NO black frames"
+}
+
+# --- compose signature: the compose is skipped when nothing it reads has changed (3.9.0) -------
+# compose_sig <cut-hash> <cap.ass> <overlays|""> -> prints a hash of the cut, the captions, every
+# overlay entry and the files it points at, and the loudness rules.
+compose_sig() {
+  python3 - "$1" "$2" "${3:-}" "$SCRIPTS/../rules.json" <<'PY'
+import hashlib, json, os, sys
+cutsig, ass, ovr, rules = sys.argv[1:5]
+h = hashlib.sha1(cutsig.encode())
+h.update(open(ass, "rb").read())
+if ovr and os.path.isfile(ovr):
+    h.update(open(ovr, "rb").read())
+    try:
+        for o in json.load(open(ovr)):
+            f = o.get("file")
+            if f:
+                f = f if os.path.isabs(f) else os.path.join(os.path.dirname(os.path.abspath(ovr)), f)
+                st = os.stat(f) if os.path.isfile(f) else None
+                h.update(f"{f}:{st.st_size if st else 0}:{st.st_mtime if st else 0}".encode())
+    except (ValueError, OSError):
+        pass
+h.update(json.dumps(json.load(open(rules)).get("loudness"), sort_keys=True).encode())
+h.update(b"compose-v1")
+print(h.hexdigest())
+PY
 }

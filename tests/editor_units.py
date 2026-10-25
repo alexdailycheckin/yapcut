@@ -585,6 +585,257 @@ g3._windows(SRC, 1.0, 1.8)
 check(len(g3.calls) == 2 and g3.calls[0][0] == 0.0,
       f"a gap in the first seconds of the take, before any grid window has context, uses the per-gap windows: {g3.calls}")
 
+
+# =====================================================================================================
+# 3.9.0: the audio says where the repeats are, the dictionary passes the ad-libs, decisions come at
+# once, the whisper lock is fair, and the clause plan is proposed from the script
+# =====================================================================================================
+import math as _math  # noqa: E402
+import random as _random  # noqa: E402
+import wave as _wave  # noqa: E402
+import numpy as _np  # noqa: E402
+from yaplib import envelope as yenv  # noqa: E402
+from yaplib import repeats as yrep  # noqa: E402
+from yaplib import lexicon as ylex  # noqa: E402
+from yaplib import take as ytake  # noqa: E402
+from yaplib import whisper as ywhisper  # noqa: E402
+
+# --- the envelope in numpy is the loop it replaced ---------------------------------------------------
+check(yenv._self_check() == 0.0, "yaplib/envelope.py matches yapcut's per-sample loop to the last bit")
+_series = [-75.0] * 50 + [-25.0] * 100 + [-75.0] * 120 + [-26.0] * 100 + [-74.0] * 30
+check(abs(yenv.longest_quiet(_series, 1.4, 2.8, -60.0) - 1.2) < 0.02, "longest_quiet measures the pause under the level")
+check(yenv.quiet(_series, 1.5, 2.6, -60.0) and not yenv.quiet(_series, 0.4, 1.6, -60.0), "quiet() is most of the frames under the level")
+check(yenv.peak(_series, 0.5, 1.0) == -25.0 and yenv.quietest(_series) < -70, "peak and quietest read the series")
+
+
+# --- a synthetic voice: a phrase said twice is found at its lag, noise and silence are not --------------
+def _syllable(dur, f0, seed):
+    r = _random.Random(seed)
+    amps = [r.uniform(0.05, 1.0) / (k ** 0.7) for k in range(1, 25)]
+    n = int(dur * 16000)
+    t = _np.arange(n) / 16000
+    phase = 2 * _math.pi * _np.cumsum(f0 * (1 + 0.08 * _np.sin(2 * _math.pi * t / dur))) / 16000
+    x = sum(a * _np.sin(k * phase) for k, a in enumerate(amps, 1))
+    return x * _np.hanning(n) / (_np.max(_np.abs(x)) + 1e-9)
+
+
+def _phrase(seeds, rate=1.0):
+    out = []
+    for i, sd in enumerate(seeds):
+        out.append(_syllable(0.16 / rate, 130.0 * (1 + 0.1 * ((i % 3) - 1)), sd))
+        out.append(_np.zeros(int(0.04 / rate * 16000)))
+    return _np.concatenate(out)
+
+
+def _room(dur, db=-62.0, seed=1):
+    return _np.random.RandomState(seed).normal(0, 10 ** (db / 20), int(dur * 16000))
+
+
+def voice_pcm():
+    A, B, C2 = [11, 12, 13, 14, 15, 16], [21, 22, 23, 24, 25], [31, 32, 33, 34, 35, 36, 37]
+    parts = [_room(0.5), _phrase(A), _room(0.35), _phrase(A, rate=1.1), _room(1.0), _phrase(B), _room(0.3), _phrase(C2), _room(0.5)]
+    sig = _np.concatenate(parts) * 0.3
+    sig = sig + _room(len(sig) / 16000, -60, 2)
+    lenA = len(_phrase(A)) / 16000
+    return _np.clip(sig * 32768, -32768, 32767).astype(_np.int16), 0.5, lenA, 0.5 + lenA + 0.35
+
+
+_pcm, _tA1, _lenA, _tA2 = voice_pcm()
+_evs = yrep.find(_pcm, max_lag=3.5)
+check(len(_evs) == 1 and abs(_evs[0].t0 - _tA1) < 0.15 and abs(_evs[0].lag - (_tA2 - _tA1)) < 0.12,
+      f"a phrase said twice (the second pass 10% faster) is one repeat at its lag: {_evs}")
+check(yrep.find((_np.random.RandomState(5).normal(0, 0.05, 16000 * 4) * 32768).astype(_np.int16)) == [],
+      "white noise, as similar to itself at every lag, is no repeat")
+check(yrep.find(_np.zeros(16000 * 3, _np.int16)) == [], "silence is no repeat")
+check(yrep.spans_of(_evs, 0.6)[0][0] < _tA1 and yrep.spans_of(_evs, 0.6)[0][1] > _tA2 + _lenA,
+      "spans_of covers both passes with its pad")
+with tempfile.TemporaryDirectory() as t:
+    _w = os.path.join(t, "v.wav")
+    _o = _wave.open(_w, "wb"); _o.setnchannels(1); _o.setsampwidth(2); _o.setframerate(16000); _o.writeframes(_pcm.tobytes()); _o.close()
+    check(len(yrep.find_file(_w, max_lag=3.5)) == 1, "find_file reads a 16 kHz wav")
+    import xwin_scan as xs2  # noqa: E402
+    _dur = len(_pcm) / 16000
+    with contextlib.redirect_stdout(io.StringIO()):
+        _sp, _kept = xs2.heard_twice(_pcm.tobytes(), [(0.0, _dur)], 3.5)
+        _sp2, _kept2 = xs2.heard_twice(_pcm.tobytes(), [(_tA2 - 0.1, _dur)], 3.5)
+    check(len(_kept) == 1 and len(_sp) == 1, "heard_twice keeps a repeat whose passes sit in the spans")
+    check(_kept2 == [], "a repeat whose first pass the cut left out costs no window")
+    check(xs2.clip_spans([(0.0, 5.0), (8.0, 9.0)], 4.0, 8.5) == [(4.0, 5.0), (8.0, 8.5)], "clip_spans cuts spans to a keep")
+
+# --- the lexicon ---------------------------------------------------------------------------------------
+check(ylex.is_word("heard") and ylex.is_word("handling") and ylex.is_word("features") and ylex.is_word("you've"),
+      "an irregular past, an -ing with a dropped e, a plural and a contraction are ordinary words")
+check(not ylex.is_word("Warhounds") and not ylex.is_word("Andriel") and not ylex.is_word("chatgbt"),
+      "a name, a mis-heard name and a garble are not")
+check("company" in ylex.bases("companies") and "run" in ylex.bases("running"), "bases puts the -ies and the doubled consonant back")
+check(ylex.contraction_base("can't") == "can" and ylex.contraction_base("it's") == "it", "contractions fold to their base")
+for _a, _b in (("Claude", "cloud"), ("Claude", "clod"), ("Anduril", "Andriel"), ("Lamm", "Lam"), ("Feynman", "fineman"), ("ChatGPT", "chatgbt")):
+    check(ylex.phonetic(_a) == ylex.phonetic(_b), f"{_a} and {_b} share a sound key ({ylex.phonetic(_a)})")
+check(ylex.phonetic("Quartz") != ylex.phonetic("courts"), "Quartz and courts do not")
+with tempfile.TemporaryDirectory() as t:
+    check(ylex.learn(["Stealth", "opinion", "60"], home=t) == 2 and ylex.learned(home=t) == {"stealth", "opinion"},
+          "learn() keeps lowercase words, never a number, and learned() reads them back")
+    check(ylex.learn(["opinion"], home=t) == 0, "a word learned once is not new")
+    os.makedirs(os.path.join(t, "input", "b", ".yap_build"))
+    open(os.path.join(t, "input", "b", ".yap_build", "x_script.txt"), "w").write("Richard Feynman cracked the locks.")
+    json.dump(["sus", "vibe"], open(os.path.join(t, "input", "b", ".yap_build", "x_capqa_ok.json"), "w"))
+    _n, _tot = ylex.seed([os.path.join(t, "input")], home=t)
+    check({"feynman", "locks", "sus", "vibe"} <= ylex.learned(home=t), f"seed() learns every script word and accepted word ({_n} new)")
+    check(ylex.known("Feynman", learned_words=ylex.learned(home=t)), "a learned name is known afterwards")
+
+# --- the caption gate: ad-libs pass, names, numbers and garbles ask -----------------------------------
+import caption_qa as cq  # noqa: E402
+_vocab = set(cq.canon("Warhound raised money. Ben Lamm runs the company. It made $200 million.")) | cq.GLUE
+_g, _ad = cq.judge(["Warhounds", "heard", "stealth", "Andriel", "60", "Besides", "Government", "chatgbt", "you’ve"],
+                   _vocab, {"besides"}, set())
+check(set(_ad) == {"heard", "stealth", "Besides", "you’ve"}, f"ordinary words and a capital that starts a sentence are ad-libs: {_ad}")
+check([w for w, _f in _g] == ["Andriel", "60", "Government", "chatgbt"],
+      f"a name, a number, a capital mid-sentence and a garble need a ruling: {[w for w, _f in _g]}")
+check(not any(w == "Warhounds" for w, _f in _g) and "Warhounds" not in _ad, "an inflection of a script word is the script")
+_g2, _ = cq.judge(["clod—ish"], _vocab, None, set())
+check(_g2 and _g2[0][1][0].startswith("<em/en dash"), "a dash on screen is always flagged")
+with tempfile.TemporaryDirectory() as t:
+    _wj = os.path.join(t, "w.json")
+    json.dump({"transcription": [{"offsets": {"from": 0, "to": 300}, "text": " now."}, {"offsets": {"from": 300, "to": 600}, "text": " Besides"},
+                                 {"offsets": {"from": 600, "to": 900}, "text": " the"}]}, open(_wj, "w"))
+    check(cq.sentence_starts(_wj) == {"now", "besides"}, "sentence_starts reads the first word and every word after a sentence end")
+
+# --- script_fix: inflections stay, names take the script's spelling everywhere -------------------------
+import script_fix as sfx  # noqa: E402
+check(sfx.inflection("notice", "noticed") and sfx.inflection("run", "running") and sfx.inflection("survey", "surveyed"),
+      "notice/noticed, run/running and survey/surveyed are inflections")
+check(not sfx.inflection("lam", "lamm") and not sfx.inflection("andriel", "anduril"), "lam/lamm is a garble, not an inflection")
+_cut = [(i * 0.4, i * 0.4 + 0.3, w) for i, w in enumerate(
+    "Ben Lamb runs Colossal and Palmer Lucky, a founder of Andriel, says Andriel wants dogs. Lamb agrees now. Besides the dogs".split())]
+_scr = "Ben Lamm runs Colossal and Palmer Luckey, a founder of Anduril, says Anduril wants dogs. Lamm agrees now, when the dogs".split()
+_fx, _dr, _sw = sfx.plan(_cut, _scr, locked=set())
+_got = [_fx.get(i, w[2]) for i, w in enumerate(_cut)]
+check(_got.count("Lamm") == 2 and "Lamb" not in _got, f"a name is fixed at every occurrence, not only the aligned one: {_got}")
+check(_got.count("Anduril") == 1 and _got.count("Anduril,") == 1 and "Luckey," in _got, f"names inside a replace block and a trailing comma survive: {_got}")
+check(_got[_got.index("now,") + 1] == "besides", f"a capital whisper gave an ad-lib after a sentence end the script removed is lowered: {_got}")
+_cut2 = [(0, 0.3, "the"), (0.4, 0.7, "courts"), (0.8, 1.1, "said")]
+_fx2, _, _ = sfx.plan(_cut2, "The Quartz piece said".split(), locked=set())
+check(1 not in _fx2 or _fx2[1] == "courts", "an ordinary lowercase word that merely sounds like a script name stays")
+
+# --- the dead-air gate measures a pause by the microphone, no whisper ---------------------------------
+def _voice_wav(path, parts, seed=7):
+    """parts: (seconds, dB RMS, "voice" | "room"), the cutter tests' synthetic take (the name `take` is
+    a word list further up)."""
+    rng, out, n = _random.Random(seed), [], 0
+    for dur, db, kind in parts:
+        amp = 32768 * 10 ** (db / 20)
+        for _ in range(int(dur * 16000)):
+            t = n / 16000; n += 1
+            if kind == "voice":
+                out.append(amp / 0.8803 * sum(_math.sin(2 * _math.pi * 140 * k * t) / k for k in range(1, 11)))
+            else:
+                out.append(rng.gauss(0, amp))
+    with _wave.open(path, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
+        w.writeframes(b"".join(int(max(-32768, min(32767, round(x)))).to_bytes(2, "little", signed=True) for x in out))
+
+
+with tempfile.TemporaryDirectory() as t:
+    _wav = os.path.join(t, "w_x.wav")
+    _voice_wav(_wav, [(0.3, -75, "room"), (0.8, -26, "voice"), (1.2, -75, "room"), (0.8, -26, "voice"), (0.3, -75, "room")])
+    _al = os.path.join(t, "w_x.json")
+    json.dump({"transcription": [{"offsets": {"from": 300, "to": 1100}, "text": " first"},
+                                 {"offsets": {"from": 2300, "to": 3100}, "text": " second"}]}, open(_al, "w"))
+    _r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al],
+                        capture_output=True, text=True)
+    check(_r.returncode == 2 and "measured by the microphone" in _r.stdout and "DEAD AIR: 1." in _r.stdout,
+          f"a 1.2s pause between two words fails, measured by the microphone (rc {_r.returncode}): {_r.stdout.strip().splitlines()[-3:]}")
+    _r2 = subprocess.run([sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al, "--allow", "1.1"],
+                         capture_output=True, text=True)
+    check(_r2.returncode == 0 and "allowed beat" in _r2.stdout, "the same pause allowed as a beat passes")
+    json.dump({"transcription": [{"offsets": {"from": 300, "to": 1100}, "text": " first"},
+                                 {"offsets": {"from": 1500, "to": 3100}, "text": " second"}]}, open(_al, "w"))
+    _voice_wav(_wav, [(0.3, -75, "room"), (0.8, -26, "voice"), (0.4, -75, "room"), (1.6, -26, "voice"), (0.3, -75, "room")])
+    _r3 = subprocess.run([sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al],
+                         capture_output=True, text=True)
+    check(_r3.returncode == 0 and "clean" in _r3.stdout, f"a 0.4s pause is cadence (rc {_r3.returncode})")
+
+# --- gates.sh: deferred decision gates stop together; the compose signature follows its inputs ----------
+with tempfile.TemporaryDirectory() as t:
+    _sh = f"""set -u; SCRIPTS="{SCRIPTS}"; source "$SCRIPTS/gates.sh"; gates_init "{t}/g.json" tiktok out.mp4
+gates_defer; gate_finish a 2 "fix A"; gate_finish b 0; gate_finish c 2 "fix C"; echo "still here"; gates_settle; echo "never"
+"""
+    _r = subprocess.run(["bash", "-c", _sh], capture_output=True, text=True)
+    _g = json.load(open(os.path.join(t, "g.json")))["gates"]
+    check(_r.returncode == 2 and "GATE a FAILED" in _r.stdout and "GATE c FAILED" in _r.stdout and "still here" in _r.stdout
+          and "never" not in _r.stdout and "DECISIONS NEEDED (a, c)" in _r.stdout and _g == {"a": 2, "b": 0, "c": 2},
+          f"two deferred red gates are both printed, then the build stops (rc {_r.returncode})")
+    _sh2 = f"""set -u; SCRIPTS="{SCRIPTS}"; source "$SCRIPTS/gates.sh"; gates_init "{t}/g2.json" tiktok out.mp4
+gate_finish a 2 "fix A"; echo "never"
+"""
+    _r2 = subprocess.run(["bash", "-c", _sh2], capture_output=True, text=True)
+    check(_r2.returncode == 2 and "never" not in _r2.stdout, "outside defer a red gate still stops the build at once")
+    open(os.path.join(t, "cap.ass"), "w").write("Dialogue: x\n")
+    _sh3 = f"""SCRIPTS="{SCRIPTS}"; source "$SCRIPTS/gates.sh"; compose_sig abc "{t}/cap.ass" ""; compose_sig abc "{t}/cap.ass" ""; compose_sig abd "{t}/cap.ass" \"\""""
+    _out = subprocess.run(["bash", "-c", _sh3], capture_output=True, text=True).stdout.split()
+    check(len(_out) == 3 and _out[0] == _out[1] and _out[0] != _out[2], "compose_sig is stable and follows the cut's hash")
+    import yapbatch as yb  # noqa: E402
+    _log = os.path.join(t, "log.txt")
+    open(_log, "w").write("GATE stutter_restart FAILED (rc 2). cut it.\nx\nGATE caption FAILED (rc 2). fix it.\nDECISIONS NEEDED\n")
+    check(yb.failing_gate(_log) == ("stutter_restart+caption", "stutter_restart: cut it. | caption: fix it."),
+          f"yapbatch names every deferred gate that failed: {yb.failing_gate(_log)}")
+
+# --- media: the hardware paths can be switched off ------------------------------------------------------
+_env0 = os.environ.get("YAP_NO_HWACCEL")
+os.environ["YAP_NO_HWACCEL"] = "1"
+check(media.hwaccel_args() == [] and media.intermediate_encoder()[1] == "libx264", "YAP_NO_HWACCEL=1 keeps software decode and libx264")
+if _env0 is None:
+    del os.environ["YAP_NO_HWACCEL"]
+else:
+    os.environ["YAP_NO_HWACCEL"] = _env0
+
+# --- the whisper lock is first come first served ---------------------------------------------------------
+with tempfile.TemporaryDirectory() as t:
+    _worker = os.path.join(t, "w.py")
+    open(_worker, "w").write(f"""import os, sys, time
+sys.path.insert(0, {SCRIPTS!r})
+from yaplib import whisper as yw
+k, delay = sys.argv[1], float(sys.argv[2])
+time.sleep(delay)
+with yw.lock({os.path.join(t, "lock")!r}, {os.path.join(t, "q")!r}):
+    open({os.path.join(t, "order.txt")!r}, "a").write(k + "\\n"); time.sleep(0.7)
+""")
+    _ps = [subprocess.Popen([sys.executable, _worker, k, d]) for k, d in (("1", "0"), ("2", "0.25"), ("3", "0.5"))]
+    for _p in _ps:
+        _p.wait(timeout=30)
+    _order = open(os.path.join(t, "order.txt")).read().split()
+    check(_order == ["1", "2", "3"], f"three waiters take the lock in the order they arrived: {_order}")
+    check(not os.path.exists(os.path.join(t, "lock")) and not os.listdir(os.path.join(t, "q")), "the lock and the queue are left clean")
+
+# --- the take: runs of speech, and the clause plan from a script ----------------------------------------
+check(ytake.runs_of([-75.0] * 20 + [-25.0] * 50 + [-75.0] * 40 + [-25.0] * 30, -42.0, 0.1) == [(0.2, 0.7), (1.1, 1.4)],
+      "runs_of finds the speech between the silences")
+import clauses_from_script as cfs  # noqa: E402
+from yaplib import script as yscript2  # noqa: E402
+_script = "We shipped it last week. The buyers loved the new flow. That is the whole bet."
+_sents = cfs.sentences(_script)
+check(len(_sents) == 3 and _sents[0][0] == yscript2.tokens("We shipped it last week."), "sentences split the script and keep their tokens")
+_take_text = ("we shipped it we shipped it last week honestly the buyers loved the the buyers loved the new flow "
+              "loved the new flow that is the whole bet thank you")
+_wd, _t = [], 0.0
+for _i, _w in enumerate(_take_text.split()):
+    if _w in ("honestly", "that", "thank") or _i in (8 + 1,):          # a pause before and after the aside, and before the lines
+        _t += 0.5
+    _wd.append((_t, _t + 0.35, _w)); _t += 0.45
+_toks = [yscript2.norm(w[2]) for w in _wd]
+_plan = cfs.choose(_toks, _sents, 0.6)
+check(all(p for p, _o in _plan), f"every sentence is found in the take: {_plan}")
+check(_plan[0][0][0] == 3 and _plan[0][1] == [(0, 3)], f"the second pass at the first line is chosen and the aborted first pass is an earlier attempt: {_plan[0]}")
+_takeinfo = {"repeats": [], "voice": -26.0}
+_role, _why, _listen = cfs.roles_of(_wd, _toks, _sents, _plan, _takeinfo, yscript2.tokens(_script))
+check(_role[:3] == ["attempt"] * 3 and _role[3:8] == ["kept"] * 5, f"the aborted first pass is cut, the full one kept: {_role[:8]}")
+check(_role[8] == "adlib", "an ad-lib between lines stays")
+check(_role[-2:] == ["noise", "noise"], f"a 'thank you' whisper hears in a breath is noise: {_role[-2:]}")
+check(_role[15:19] == ["attempt"] * 4 and _role[19:23] == ["adlib"] * 4,
+      f"the end of a line said again right after is replaced by the later pass: {_role[9:23]}")
+check(any("said twice inside" in m for _t, m in _listen) or "attempt" in _role[9:12],
+      "a doubled 'the buyers' is a listen item or a cut")
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)
