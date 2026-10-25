@@ -45,6 +45,7 @@ import argparse, datetime, json, os, re, subprocess, sys, threading, time
 
 SCRIPTS = os.path.dirname(os.path.realpath(__file__))
 LOCK = threading.Lock()
+AT = [0]   # index of the video at its gates, read by the prescan lane
 
 
 def now():
@@ -228,13 +229,21 @@ def main():
             if os.path.exists(m):
                 os.remove(m)
         if not a.serial:
-            lane = threading.Thread(target=lambda: [prescan_one(v, wd, st, base_env, a.from_cut or v.get("from_cut"))
-                                                    for v in todo], daemon=True)
+            def ahead():
+                # one video ahead of the gates, never more (3.8.3): the lane used to prescan every queued video while
+                # the first was still at its gates, and on 2026-10-25 the video being gated waited on the whisper
+                # lock behind the prescans of the two videos after it
+                for i, v in enumerate(todo):
+                    while i > 0 and AT[0] < i - 1:
+                        time.sleep(5)
+                    prescan_one(v, wd, st, base_env, a.from_cut or v.get("from_cut"))
+            lane = threading.Thread(target=ahead, daemon=True)
             lane.start()
 
     print(f"yapbatch: {len(todo)} video(s) in {wd}; status in batch_status.txt", flush=True)
     bad = 0
-    for v in todo:
+    for i, v in enumerate(todo):
+        AT[0] = i
         env = dict(base_env)
         env.update({k: str(x) for k, x in (v.get("env") or {}).items()})
         if a.from_cut or v.get("from_cut"):

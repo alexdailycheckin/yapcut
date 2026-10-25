@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.8.3: batches stop queueing behind themselves
+
+**What's new.** In a batch, the video being checked no longer waits for the next videos'
+preparation to finish first. Each video gets through its checks sooner, and the queue finishes
+sooner.
+
+**What you need to do.** Nothing.
+
 ## 3.8.2: faster pause checks
 
 **What's new.** The step that double-checks every pause before cutting it now listens to longer

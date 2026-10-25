@@ -65,8 +65,13 @@ plugin = sys.argv[1]
 reg = json.load(open(os.path.expanduser("~/.claude/plugins/installed_plugins.json")))["plugins"].get(f"{plugin}@yapcut", [])
 if reg:
     keep = reg[0]["version"]; base = os.path.expanduser(f"~/.claude/plugins/cache/yapcut/{plugin}")
+    import subprocess
     for d in os.listdir(base) if os.path.isdir(base) else []:
         if d != keep and os.path.isdir(os.path.join(base, d)):
+            # a batch still running from the old version calls its scripts by path: on 2026-10-25 a prune mid-run
+            # took gates.sh and xwin_scan.py out from under a yapfull run. The next release prunes it.
+            if subprocess.run(["pgrep", "-f", os.path.join(base, d) + "/"], capture_output=True).returncode == 0:
+                print("kept cache", d, "(a running process still uses it)"); continue
             shutil.rmtree(os.path.join(base, d)); print("pruned cache", d)
 PY
 echo "released $PLUGIN $VERSION"

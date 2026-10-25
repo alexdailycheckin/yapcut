@@ -2,6 +2,18 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.3 (tiktok-yap-editor)
+
+**The video at its gates no longer waits on the prescans of the videos behind it.** `yapbatch.py`'s
+prescan lane decoded every queued video's restart windows while the first was still at its gates,
+and every decode takes the one whisper lock: on the 2026-10-25 batch Warhound's last restart scan
+sat at "waiting for another whisper decode to finish" behind the prescans of Anthropic and Adidas.
+The lane now runs one video ahead of the gates, never more.
+
+**`release.sh` keeps a cache version a running process still uses.** The 3.8.2 release pruned
+3.8.1 while a `yapfull.sh` run from it was mid-gates, taking its scripts away. A version still in a
+running command line is kept, and the next release prunes it.
+
 ## What's new in 3.8.2 (tiktok-yap-editor)
 
 **The word-gap pass confirms pauses about twice as fast.** On the 2026-10-25 batch a 3-minute
