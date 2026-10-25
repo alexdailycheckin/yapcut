@@ -511,6 +511,45 @@ with tempfile.TemporaryDirectory() as t:
           "a rerun on a sped-up cut: prescan the 1x keeps, never the rescaled ones")
 
 
+# --- pauses the envelope cannot see (3.8.1): 2026-10-23, wind as loud as the voice --------------------
+import yapcut as ycut  # noqa: E402
+from yaplib import gaps as ygaps  # noqa: E402
+W = [(70.0, 71.18, "physicist."), (74.36, 74.6, "For"), (74.6, 79.29, "cabinets."), (83.18, 83.54, "Because,"),
+     (83.54, 83.6, ".")]
+check([c[:2] for c in ygaps.word_gap_candidates(W)] == [(71.18, 74.36), (79.29, 83.18)],
+      "word gaps of 0.6s or more between spoken words, punctuation ignored")
+A = ycut.parse_args(["--clauses", "x", "--out", "y"])
+SRC = "take.mov"
+keeps = [(SRC, 62.2, 103.4, 0.0)]
+cands = {SRC: [(71.18, 74.36, "physicist", "for"), (79.29, 83.18, "cabinets", "because")]}
+out, made = ycut.split_at_word_gaps(keeps, [], cands, lambda s, e1, s2: (e1, s2), A)
+check([(round(x, 2), round(y, 2)) for _s, x, y, _g in out] == [(62.2, 71.3), (74.28, 79.41), (83.1, 103.4)],
+      f"a keep holding two confirmed gaps is split 0.12s after each last word, 0.08s before each next: {out}")
+out, _ = ycut.split_at_word_gaps(keeps, [], cands, lambda s, e1, s2: None, A)
+check(out == keeps, "an unconfirmed gap is never cut")
+out, _ = ycut.split_at_word_gaps(keeps, [{"src": SRC, "start": 62.3, "end": 103.4, "keep_whole": True}], cands,
+                                 lambda s, e1, s2: (e1, s2), A)
+check(out == keeps, "a keep_whole clause is never split")
+edge = [(SRC, 62.2, 71.3, 0.0), (SRC, 73.64, 79.0, 0.0), (SRC, 72.0, 73.0, 0.0)]
+out, _ = ycut.split_at_word_gaps(edge, [], {SRC: cands[SRC][:1]}, lambda s, e1, s2: (e1, s2), A)
+check([(round(x, 2), round(y, 2)) for _s, x, y, _g in out] == [(62.2, 71.3), (74.28, 79.0)],
+      f"a keep that starts inside the gap is trimmed to the word, one wholly inside it is dropped: {out}")
+class _Inner:
+    def __call__(self, s, e1, s2):
+        return None
+    def inner(self, s, e1, s2):
+        return [(133.61, 134.79, "congratulations", "I")]
+out, made = ycut.split_at_word_gaps([(SRC, 128.0, 137.1, 0.0)], [], {SRC: [(123.29, 135.18, "and", "I")]}, _Inner(), A)
+check([(round(x, 2), round(y, 2)) for _s, x, y, _g in out] == [(128.0, 133.73), (134.71, 137.1)] and len(made) == 1,
+      f"a long gap the full transcript made of dropped lines is replaced by the proven pause inside it: {out}")
+check(ygaps.GapConfirm.real([(70.0, 71.18, "physicist"), (74.4, 74.6, "for")], 71.18, 74.36),
+      "a window that hears the next word where the take does and nothing between confirms the gap")
+check(not ygaps.GapConfirm.real([(70.0, 71.18, "x"), (72.5, 72.9, "spoken"), (74.4, 74.6, "for")], 71.18, 74.36),
+      "a word starting inside the gap means the take's transcript dropped speech: rejected")
+check(ygaps.GapConfirm.real([(70.0, 72.9, "physicist"), (74.4, 74.6, "for")], 71.18, 74.36),
+      "a last word dragged into the pause only shrinks the gap: still confirmed")
+check(not ygaps.GapConfirm.real([(70.0, 71.18, "x")], 71.18, 74.36), "a window that never hears the next word does not confirm")
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)

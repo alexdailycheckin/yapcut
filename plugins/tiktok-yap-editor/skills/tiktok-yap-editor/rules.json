@@ -47,6 +47,15 @@
       "decay_db": -60.0
     },
     "forward_merge_max_s": 1.0,
+  "word_gaps": {
+   "_about": "3.8.1: a pause the envelope cannot see (wind, fans, room tone as loud as the voice) is cut where the take's own word transcript and a window re-transcription both hear no speech.",
+   "enabled": true,
+   "min_gap_s": 0.6,
+   "pad_after_s": 0.12,
+   "pad_before_s": 0.08,
+   "confirm_pad_s": 4.0,
+   "confirm_edge_s": 0.5
+  },
     "crop_alternation": [1.0, 1.06],
     "audio_edge_fade_s": 0.004
   },

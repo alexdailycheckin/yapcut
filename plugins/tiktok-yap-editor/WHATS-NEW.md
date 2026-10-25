@@ -4,6 +4,16 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.8.1: pauses under wind get cut
+
+**What's new.** Filming outside used to leave long pauses in the cut when the wind was as loud
+as your voice, and someone had to split the clips by hand. The editor now finds those pauses
+from what you said, checks each one twice before cutting it, and cuts them. The pause check now
+sees them too, with the same double check, so a cut that still has one stops there instead
+of passing.
+
+**What you need to do.** Nothing. Re-cut a windy video to get it.
+
 ## 3.8.0: faster batches, fewer false alarms
 
 **What's new.** Three changes aimed at the hours a batch used to take:

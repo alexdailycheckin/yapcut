@@ -89,6 +89,16 @@ are failures that actually happened and cost real time; each fix is proven.
   sit around -19 to -25 dB, use `--silence-db -19` (the default). If trimming
   does nothing, the threshold is too low (too negative); raise it toward -16. If
   it eats real words, lower it.
+- **Wind as loud as the voice (3.8.1).** No threshold separates a pause from a word when the
+  noise is as loud as the speech: on the 2026-10-23 terrace takes the wind sat at -24 to -28 dB
+  and the voice at -22 to -25, and one clause kept seven pauses (3.9s after "cabinets") at
+  every gate setting. `yapcut.py` now cuts these from the transcript (`--word-gaps`, on by
+  default, `cut.word_gaps` in rules.json): aligned words of the whole take and of each clause alone name every gap of 0.6s or
+  more a keep still holds, two window re-transcriptions must hear the next word where the take
+  does and no word starting inside the gap, and the keep is split 0.12s after the last word and
+  0.08s before the next. The cut log lists each one (`word gaps: ... removed`). Do not split
+  clauses by hand at word gaps any more; if a pause survives, look at that log line first. A
+  gap it rejects is one where a window heard speech, which is the safe way to be wrong.
 - **Quiet words overlap pause energy.** A softly spoken word (a fading "from"
   at the end of a line, a quiet "If" before a loud one) sits under the speech
   gate, so the gate alone calls it silence. Since 3.7.3 `yapcut.py` walks every

@@ -2,6 +2,42 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.8.1 (tiktok-yap-editor)
+
+**Pauses under wind are cut, and the dead-air gate sees them.** On the 2026-10-23 terrace take
+(Lock Picker) the wind sat at -24 to -28 dB and the voice at -22 to -25, so no silence gate
+could tell a pause from a word: the Feynman clause kept seven pauses, 3.9s after "cabinets"
+the longest, at every gate setting, and the agent split the clause by hand at the take's word
+gaps. Worse, the dead-air gate passed the uncut version: the default cut kept all seven, about
+12 seconds of wind, and `gap_check.py` called it clean, because its punct-separate transcript
+runs token spans across wind.
+
+- `yapcut.py --word-gaps` (on by default, `cut.word_gaps` in rules.json) cuts a pause the
+  envelope kept, in whole or in part, where word transcripts hear no speech. Candidates come
+  from aligned word transcripts (`transcribe.sh --words`) of the whole take and of each clause
+  alone, twice from different starts: each one misses pauses the others hear, because whisper
+  drops lines on a long file (the whole take read 123.3s to 135.2s as one gap) and drags a
+  sentence's last word into the pause after it by a different amount each time
+  ("congratulations." ended at 134.04 from a 128.0 start and at 134.76 from 127.9). Every
+  candidate is proven by two window re-transcriptions at different offsets: both must hear the
+  next word start where the transcript does and no word start inside the gap. Starts, not
+  ends, because a drag only ever shrinks a gap; a start inside one is the dangerous case,
+  speech the long transcript dropped, and that rejected the 12-second false gap above. A
+  rejected long candidate is searched for proven gaps inside it. The keep is split 0.12s after
+  the last word and 0.08s before the next, trimmed when it starts or ends inside the gap, and
+  dropped when it is nothing but wind; keep_whole clauses are never touched. Transcripts and
+  decisions are cached beside the take's audio (`<clip>.spans.json`, `word_gaps.json`).
+- `gap_check.py --aligned w_<out>.json` (passed by both modes) proves the cut's own aligned-word
+  gaps the same way (`yaplib/gaps.py`), so the gate fails a cut that still holds one.
+- On Lock Picker, from the original clause plan with default settings: 6 of the 7 pauses cut,
+  9.9s, each boundary within 0.03s of the agent's hand split, and the cut's 297 words the same
+  as the hand-split cut's (one "the" heard as "a" in one transcript). The 7th, 1.05s after a
+  drawn-out "congratulations.", survives: every transcript but one dragged the word across it,
+  so nothing proved it; that is the safe way to miss. On the uncut version the gate now fails
+  with 5 dead-air gaps and 2 warnings where it had passed; on the new cut it passes with 2
+  warnings (0.76s after "serious", and the missed pause at 0.64s), so a miss is listed for
+  the ear instead of passing silently.
+
 ## What's new in 3.8.0 (tiktok-yap-editor)
 
 **A batch is one queue, the script settles its own repeats, and a re-cut no longer pays the

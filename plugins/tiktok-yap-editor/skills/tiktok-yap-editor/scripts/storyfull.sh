@@ -78,7 +78,7 @@ fi
 
 # 2b/2c. REPETITION + DEAD-AIR GATES on the VO
 gate_stutter_restart "$WORDS" "$PV" "$STUTOK" "" "$SCRIPTFILE"
-gate_dead_air "$PV"
+gate_dead_air "$PV" "$WORDS"
 
 # 3. captions + hook in the brand style, then the CTA contact block
 python3 "$SCRIPTS/build_ass.py" --words "$WORDS" --out "$ASS" \

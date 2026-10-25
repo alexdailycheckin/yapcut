@@ -284,9 +284,12 @@ file format and every flag are in the script's header.
 - **Boundaries.** Whisper word times drift up to about 2 seconds mid-file. A boundary placed on
   drifted times once swallowed the words "Don't write" while keeping the flubbed take it was
   meant to remove. Re-transcribe a 5-second window around every intended cut.
-- **Noisy takes.** If the dead-air gate fails on a cut that should be tight, the cutter never
-  saw the pause: room tone sits above the silence gate. Measure the floor, denoise the cut
-  intermediate (`afftdn`), rebuild with `YAP_FROM_CUT=1`. Never hand-wave it (6b in gotchas.md).
+- **Noisy takes.** Wind or room tone as loud as the voice hides pauses from the silence gate;
+  since 3.8.1 the cutter also cuts them from the take's word transcript, each one proven by two
+  window re-transcriptions, and lists them in its log (`word gaps:`). The dead-air gate reads the
+  same aligned words, so it sees those pauses too. If one still survives, read that log line,
+  then measure the floor and denoise (`afftdn`) as before (gotchas.md, "Pause trimming"). Never
+  split clauses by hand at word gaps.
 - **Loudness** is measured, corrected and verified in three passes with no round-number cap on
   the gain; the safety rail is on the input (below -45 LUFS there is no speech to lift).
 - **The hook can never be cut off** (build_ass auto-fits), and that is exactly why the word

@@ -137,7 +137,7 @@ fi
 gate_stutter_restart "$WORDS" "$CUT" "$STUTOK" "$KEEPS" "$SCRIPTFILE"
 
 # 2c. DEAD-AIR GATE: pauses that survived the cut, transcript-measured.
-gate_dead_air "$CUT"
+gate_dead_air "$CUT" "$WORDS"
 
 # 3. captions + hook in the brand style, then the CTA contact block
 python3 "$SCRIPTS/build_ass.py" --words "$WORDS" --out "$ASS" \

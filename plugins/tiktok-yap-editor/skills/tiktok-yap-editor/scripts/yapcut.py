@@ -34,6 +34,17 @@ Cut-placement rules (v2 "perfect cuts" pass, 2026-07-09):
   timeline (a token's span runs to the next token's start), so "don't cut
   inside a word" degenerates to "pad every cut". Level-based boundaries with
   the decay pads above were energy-verified to clip nothing audible.
+- One exception, for a pause the envelope cannot see (3.8.1, --word-gaps). On the
+  2026-10-23 terrace takes the wind sat at -24 to -28 dB and the voice at -22 to
+  -25, so a 3.9s pause after "cabinets" read as speech at every gate setting and
+  seven pauses survived one clause; the agent split it by hand at the take's word
+  gaps. Now the cutter does that: aligned word transcripts of the whole take and of each
+  clause alone (align_words.py, whose gaps are real; each one misses pauses the other hears)
+  name every gap of word_gaps.min_gap_s or more that a keep still holds, a window re-transcription of the take has to hear the same gap
+  (gap_check.py's corroboration: full-file times drift), and the keep is split where
+  both agree no word is spoken, word_gaps.pad_after_s after the last word and
+  pad_before_s before the next. A clean take loses its pauses to the envelope
+  first, so this changes nothing there; keep_whole clauses are never split.
 
 - Segment audio is PCM with 4ms edge fades and the concatenated audio gets ONE
   continuous AAC encode: per-segment AAC + concat -c copy inserted a ~20-40ms
@@ -51,13 +62,17 @@ Writes <workdir>/keeps_<out>.json (final cut points) for the QA seam audit.
 clauses: [{"src":"/abs.MOV","start":6.5,"end":16.6,"label":"hook",
            "protect_tail":false}, ...]
 """
-import argparse, json, math, os, shutil, struct, subprocess, sys, wave as wavmod
+import argparse, json, math, os, re, shutil, struct, subprocess, sys, wave as wavmod
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yaplib import media, rules  # noqa: E402
+from yaplib import words as ywords  # noqa: E402
+from yaplib.gaps import word_gap_candidates, span_words, GapConfirm  # noqa: E402
 
 C=rules.get("cut")
 HOP=C["envelope"]["hop_s"]   # envelope hop, seconds
+WG=C["word_gaps"]
+SCRIPTS=os.path.dirname(os.path.realpath(__file__))
 
 def envelope(wav):
     # Median-smoothed RMS envelope in dB: 30ms windows, 10ms hop, 5-tap median
@@ -265,6 +280,9 @@ def parse_args(argv=None):
              "than grading the finished cut: a separate pass is an extra full "
              "lossy generation, and raising contrast on an already-compressed "
              "encode amplifies its artefacts.")
+    ap.add_argument("--word-gaps",action=argparse.BooleanOptionalAction,default=WG["enabled"],
+        help="cut a pause the envelope kept where the take's word transcript and a window "
+             "re-transcription both hear no speech (wind or room tone as loud as the voice)")
     ap.add_argument("--lead",type=float,default=C["edge"]["lead_s"],
         help="silence kept outside a measured boundary. Small on purpose: the "
              "onset is measured, so the old fixed 0.10s lead-in was audible as "
@@ -384,6 +402,46 @@ def plan(clauses, ENV, a):
         merged.append((src,A,B,g))
     return [(s,A,B,g) for s,A,B,g in merged if B-A>=a.min_keep]
 
+def split_at_word_gaps(keeps, clauses, cands, confirm, a):
+    """keeps [(src,A,B,g)] with every confirmed word gap taken out. cands {src: [(e1,s2,w1,w2)]};
+    confirm(src,e1,s2) -> (e1,s2) when a window re-transcription agrees, else None. The cut runs
+    from pad_after_s past the last word to pad_before_s before the next, and works on any keep
+    the gap touches: one that holds it is split, one that starts or ends inside it (the envelope
+    found part of the pause) is trimmed to the word, and one that lies wholly inside it is wind
+    and is dropped. keep_whole clauses are never touched. Returns (keeps, [(src,g0,g1,w1,w2)])."""
+    whole=[(c["src"],float(c["start"])-a.padl,float(c["end"])) for c in clauses if c.get("keep_whole")]
+    gaps={}
+    out,made=[],[]
+    for src,A,B,g in keeps:
+        pieces=[(A,B)]
+        if not any(s==src and ws-1e-6<=A and B<=we+1e-6 for s,ws,we in whole):
+            todo=list(cands.get(src,[]))
+            while todo:
+                e1,s2,w1,w2=todo.pop(0)
+                g0,g1=e1+WG["pad_after_s"],s2-WG["pad_before_s"]
+                if g1-g0<=a.min_cut or not any(x<g1 and g0<y for x,y in pieces):
+                    continue
+                if (src,e1,s2) not in gaps:
+                    gaps[(src,e1,s2)]=confirm(src,e1,s2)
+                    if not gaps[(src,e1,s2)] and hasattr(confirm,"inner"):
+                        for sub in confirm.inner(src,e1,s2):     # already proven by both windows
+                            gaps[(src,)+tuple(sub[:2])]=tuple(sub[:2]); todo.insert(0,tuple(sub))
+                if not gaps[(src,e1,s2)]:
+                    continue
+                nxt=[]
+                for x,y in pieces:
+                    if y<=g0 or x>=g1: nxt.append((x,y))                  # untouched
+                    elif x<g0 and g1<y: nxt+=[(x,g0),(g1,y)]              # holds it: split
+                    elif x<g0: nxt.append((x,g0))                         # ends in it
+                    elif g1<y: nxt.append((g1,y))                         # starts in it
+                    # else: wholly inside the gap, wind only: dropped
+                nxt=[(x,y) for x,y in nxt if y-x>=a.min_keep]
+                removed=sum(y-x for x,y in pieces)-sum(y-x for x,y in nxt)
+                if removed>0: made.append((src,g0,g0+removed,w1,w2))
+                pieces=nxt
+        out+=[(src,x,y,g) for x,y in pieces]
+    return out,made
+
 def main():
     a=parse_args()
     wd=a.workdir; os.makedirs(f"{wd}/audio",exist_ok=True)
@@ -398,6 +456,29 @@ def main():
                 wav,"-hide_banner","-loglevel","error"],check=True)
         ENV[src]=envelope(wav)
     keeps=plan(clauses,ENV,a)
+    if a.word_gaps:
+        WAVS={src:f"{wd}/audio/{os.path.splitext(os.path.basename(src))[0]}.wav" for src in ENV}
+        held={src:[] for src in WAVS}
+        spans=[(src,0.0,len(ENV[src])*HOP) for src in WAVS]            # the whole take
+        # and each clause alone: whisper drops lines on a long file, and a gap any transcript
+        # hears is a candidate
+        spans+=[(c["src"],max(0.0,float(c["start"])-a.padl),float(c["end"])+a.padl)
+                for c in clauses if not c.get("keep_whole")]
+        for src,cs,ce in spans:
+            if not any(s==src and A<ce and cs<B for s,A,B,_g in keeps):
+                continue
+            for g in word_gap_candidates(span_words(WAVS[src],cs,ce)):
+                # only gaps a keep still touches cost a confirmation
+                if any(s==src and A<g[1] and g[0]<B for s,A,B,_g in keeps) and g not in held[src]:
+                    held[src].append(g)
+        keeps,made=split_at_word_gaps(keeps,clauses,held,GapConfirm(WAVS,f"{wd}/audio/word_gaps.json"),a)
+        n=sum(len(v) for v in held.values())
+        if n:
+            print(f"word gaps: {len(made)} pause(s) cut that the envelope kept in whole or part, "
+                  f"{sum(g1-g0 for _s,g0,g1,_a,_b in made):.1f}s in all ({n} candidate(s); "
+                  "each one proven by two window re-transcriptions)")
+            for src,g0,g1,w1,w2 in made:
+                print(f"  removed {g1-g0:.2f}s of pause at {os.path.basename(src)} {g0:.2f}s  (...{w1} | {w2}...)")
     with open(f"{wd}/keeps_{outbase}.json","w") as f:   # QA: real cut points
         json.dump([{"src":s,"a":round(A,3),"b":round(B,3)} for s,A,B,g in keeps],f,indent=1)
 

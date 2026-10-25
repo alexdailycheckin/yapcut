@@ -164,15 +164,16 @@ gate_stutter_restart() {             # gate_stutter_restart <words.json> <video>
 }
 
 # --- dead air: pauses that survived the cut (transcript-measured) --------------
-gate_dead_air() {                    # gate_dead_air <video>
-  local video="$1" rc=0
+gate_dead_air() {                    # gate_dead_air <video> [aligned words.json]
+  local video="$1" aligned="${2:-}" rc=0 al=()
   echo "--- gate dead_air ---"
+  [ -n "$aligned" ] && [ -f "$aligned" ] && al=(--aligned "$aligned")
   if [ "${YAP_ALLOW_GAPS:-0}" = "1" ]; then
     echo "  skipped by YAP_ALLOW_GAPS=1"; rc=1
   else
-    python3 "$SCRIPTS/gap_check.py" --video "$video" --allow "${YAP_ALLOW_GAPS:-}" || rc=$?
+    python3 "$SCRIPTS/gap_check.py" --video "$video" --allow "${YAP_ALLOW_GAPS:-}" ${al[@]+"${al[@]}"} || rc=$?
   fi
-  gate_finish dead_air "$rc" "The cut is not tight: measure the floor, raise --silence-db, re-cut (SKILL.md 6b)."
+  gate_finish dead_air "$rc" "The cut is not tight: read the cut log's word gaps line, then measure the floor, raise --silence-db, re-cut (SKILL.md, Noisy takes)."
 }
 
 # --- caption garble: burned words vs the script ---------------------------------

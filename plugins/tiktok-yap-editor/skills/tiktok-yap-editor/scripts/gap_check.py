@@ -21,8 +21,15 @@ boundary rule exists for) and can FABRICATE a gap, so every candidate fail is
 corroborated by re-transcribing a tight window around it (window timings are
 accurate); only window-confirmed gaps fail the build.
 
+WIND (3.8.1): on a take where wind or room tone is as loud as the voice, the punct-separate
+transcript's token spans run across the pauses too: the 2026-10-23 terrace cut kept seven
+pauses, 12 seconds in all, and this gate called it clean. --aligned reads the cut's aligned
+word transcript as well (w_<out>.json, which yapfull already makes), whose gaps are real, and
+proves each one with two window re-transcriptions (yaplib/gaps.py, the same check yapcut.py
+cuts by). A gap either path confirms counts.
+
 Usage:
-  python3 gap_check.py --video cut.mp4 [--words no_sow_words.json] \
+  python3 gap_check.py --video cut.mp4 [--words no_sow_words.json] [--aligned w_<out>.json] \
       [--fail 0.8] [--warn 0.6] [--lead 0.8] [--allow "6.9,41.2"]
 
 --allow: comma-separated timestamps (s) of deliberate beats to permit (+/-0.3s).
@@ -99,6 +106,8 @@ def main() -> int:
                     help="gaps between warn and fail are printed for the ear pass")
     ap.add_argument("--lead", type=float, default=D["first_word_max_s"],
                     help="max silence before the first word (cold-open rule)")
+    ap.add_argument("--aligned", default="",
+                    help="the cut's aligned word json (w_<out>.json): its gaps are proven and gated too")
     ap.add_argument("--allow", default="",
                     help="comma-separated gap timestamps to permit (+/-0.3s)")
     a = ap.parse_args()
@@ -145,10 +154,34 @@ def main() -> int:
                   f"{s2 - e1:.2f}s, window measured {g:.2f}s, not gating")
     fails = confirmed
 
+    if a.aligned and os.path.isfile(a.aligned):
+        from yaplib import gaps as ygaps
+        wav = a.aligned[:-5] + ".wav"
+        if not os.path.isfile(wav):
+            wav = os.path.join(tempfile.mkdtemp(prefix="gapchk_"), "cut.wav")
+            subprocess.run(["ffmpeg", "-nostdin", "-y", "-v", "error", "-i", a.video, "-ar", "16000",
+                            "-ac", "1", "-c:a", "pcm_s16le", wav], check=True)
+        confirm = ygaps.GapConfirm({a.video: wav}, os.path.join(os.path.dirname(os.path.abspath(a.aligned)),
+                                                               "gapcheck_" + os.path.basename(a.aligned)))
+        seen = [(e1, s2) for e1, s2, _t1, _t2 in fails + warns]
+        for e1, s2, t1, t2 in ygaps.word_gap_candidates(ywords.load_words(a.aligned), a.warn):
+            if any(x < s2 and e1 < y for x, y in seen) or any(abs(e1 - t) <= 0.3 for t in allow):
+                continue
+            if not confirm(a.video, e1, s2):
+                continue
+            g = s2 - e1
+            if g >= a.fail:
+                fails.append((e1, s2, t1, t2))
+                print(f"  DEAD AIR: {g:.2f}s @ {e1:.2f}s (aligned words, window-confirmed)  (...{t1} | {t2}...)")
+            else:
+                print(f"  warn: {g:.2f}s gap @ {e1:.2f}s (aligned words)  (...{t1} | {t2}...)")
+                warns.append((e1, s2, t1, t2))
+
     if fails:
         print(f"gap_check: {len(fails)} dead-air gap(s) survived the cut. "
-              "The cut never saw them: measure the real pause floor, raise "
-              "--silence-db (see SKILL.md 6b), re-cut. Deliberate beat? --allow <t>.")
+              "Read the cut log's 'word gaps:' line first (yapcut.py cuts proven word gaps "
+              "since 3.8.1; a gap it rejected heard speech in a window). Otherwise measure the "
+              "pause floor, raise --silence-db (SKILL.md, Noisy takes), re-cut. Deliberate beat? --allow <t>.")
         return 2
     if warns:
         print(f"gap_check: {len(warns)} borderline gap(s), listen before shipping")
