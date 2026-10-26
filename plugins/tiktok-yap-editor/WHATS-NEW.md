@@ -4,6 +4,12 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.9.2: a whisper abort no longer kills a cut
+
+whisper.cpp now and then aborts while timing words (exit 134). The word-gap pass retries it up to
+three times; if it still fails, that span adds no pauses to cut and the cut carries on. Nothing to
+do: update the plugin.
+
 ## 3.9.1: your own "don't" stays "don't"
 
 **What's new.** 3.9.0 could rewrite a word you said off script into the script's form of the same

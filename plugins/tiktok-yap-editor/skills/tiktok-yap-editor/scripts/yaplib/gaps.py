@@ -11,6 +11,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 
 from . import rules
@@ -32,10 +33,23 @@ def word_gap_candidates(words, min_gap=WG["min_gap_s"]):
     return [(x[1], y[0], x[2], y[2]) for x, y in zip(toks, toks[1:]) if y[0] - x[1] >= min_gap]
 
 
-def aligned_words(wav, base):
-    """transcribe.sh --words on a 16 kHz wav into <base>.json; the scratch it leaves is removed."""
-    subprocess.run(["bash", os.path.join(SCRIPTS, "transcribe.sh"), wav, base, "--words"], check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+class TranscribeFailed(RuntimeError):
+    """transcribe.sh failed on every try."""
+
+
+def aligned_words(wav, base, tries=3):
+    """transcribe.sh --words on a 16 kHz wav into <base>.json; the scratch it leaves is removed.
+
+    whisper.cpp aborts now and then in its DTW median filter (SIGABRT, exit 134): on 2026-10-26 the
+    Magic take's cut died there twice in a row, and every one of its spans transcribed clean when
+    run again one at a time. A failed run is retried; after `tries` it raises TranscribeFailed."""
+    for n in range(tries):
+        r = subprocess.run(["bash", os.path.join(SCRIPTS, "transcribe.sh"), wav, base, "--words"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if r.returncode == 0:
+            break
+    else:
+        raise TranscribeFailed(f"transcribe.sh exit {r.returncode} on {tries} tries")
     for junk in (base + ".wav", base + ".full.json"):
         if os.path.exists(junk):
             os.remove(junk)
@@ -63,7 +77,12 @@ def span_words(wav, t0, t1):
             w = os.path.join(td, "in.wav")
             subprocess.run(["ffmpeg", "-nostdin", "-y", "-v", "error", "-ss", f"{t0:.3f}", "-to", f"{t1:.3f}",
                             "-i", wav, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", w], check=True)
-            words = [(a + t0, b + t0, t) for a, b, t in aligned_words(w, os.path.join(td, "x"))]
+            try:
+                words = [(a + t0, b + t0, t) for a, b, t in aligned_words(w, os.path.join(td, "x"))]
+            except TranscribeFailed as e:
+                # a span only adds gap candidates: the cut goes on without them, and nothing is cached
+                print(f"word gaps: span {key} of {os.path.basename(wav)} skipped ({e})", file=sys.stderr)
+                return []
         d.setdefault("spans", {})[key] = words
         d["model"] = model
         json.dump(d, open(cache, "w"), indent=0)
@@ -85,6 +104,7 @@ class GapConfirm:
 
     def __init__(self, wavs, cache):
         self.wavs, self.path = wavs, cache
+        self.failed = False             # set when a window of the current decision could not be transcribed
         model = os.path.basename(ywords.whisper_model())
         try:
             d = json.load(open(cache))
@@ -97,7 +117,12 @@ class GapConfirm:
             w = os.path.join(td, "w.wav")
             subprocess.run(["ffmpeg", "-nostdin", "-y", "-v", "error", "-ss", f"{t0:.3f}", "-to", f"{t1:.3f}",
                             "-i", self.wavs[src], "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", w], check=True)
-            return [(a + t0, b + t0, t) for a, b, t in spoken(aligned_words(w, os.path.join(td, "x")))]
+            try:
+                return [(a + t0, b + t0, t) for a, b, t in spoken(aligned_words(w, os.path.join(td, "x")))]
+            except TranscribeFailed as e:
+                # no words confirms no gap, so the pause stays: safe, and not cached
+                print(f"word gaps: window {t0:.2f}-{t1:.2f} skipped ({e})", file=sys.stderr)
+                return None
 
     @staticmethod
     def real(words, e1, s2):
@@ -111,7 +136,11 @@ class GapConfirm:
         shares the one transcription, on this cut and on any re-cut of the same take."""
         key = f"win:{os.path.basename(src)}@{a:.3f}-{b:.3f}"
         if key not in self.d:
-            self.d[key] = self.window_words(src, a, b)
+            words = self.window_words(src, a, b)
+            if words is None:
+                self.failed = True
+                return []
+            self.d[key] = words
         return [tuple(x) for x in self.d[key]]
 
     def _windows(self, src, e1, s2):
@@ -131,14 +160,19 @@ class GapConfirm:
                 wins.append(self._grid_words(src, a, a + L))
             k += 1
         for lead, tail in ((pad, pad), (pad * 1.5, pad * 0.75))[len(wins):]:
-            wins.append(self.window_words(src, max(0.0, e1 - lead), s2 + tail))
+            words = self.window_words(src, max(0.0, e1 - lead), s2 + tail)
+            self.failed |= words is None
+            wins.append(words or [])
         return wins
 
     def __call__(self, src, e1, s2):
         key = f"{os.path.basename(src)}@{e1:.3f}-{s2:.3f}"
         if key not in self.d:
+            self.failed = False
             wins = self._windows(src, e1, s2)
             ok = all(self.real(w, e1, s2) for w in wins)
+            if self.failed:
+                return None             # a window whisper could not transcribe proves nothing: kept, not cached
             self.d[key] = [e1, s2] if ok else None
             if not ok:
                 # the full transcript can drop spoken lines and report them as one long gap (on

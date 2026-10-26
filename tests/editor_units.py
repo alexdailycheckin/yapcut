@@ -849,6 +849,38 @@ check(_role[15:19] == ["attempt"] * 4 and _role[19:23] == ["adlib"] * 4,
 check(any("said twice inside" in m for _t, m in _listen) or "attempt" in _role[9:12],
       "a doubled 'the buyers' is a listen item or a cut")
 
+# 3.9.2: whisper.cpp now and then aborts in its DTW median filter (exit 134); the cut survives it
+class _Run:
+    def __init__(self, codes): self.codes, self.n = list(codes), 0
+    def __call__(self, *a, **k):
+        self.n += 1
+        return type("R", (), {"returncode": self.codes.pop(0)})()
+_real_run, _real_load = ygaps.subprocess.run, ygaps.ywords.load_words
+ygaps.ywords.load_words = lambda path: [(0.0, 0.4, "hello")]
+ygaps.subprocess.run = _r = _Run([134, 0])
+check(ygaps.aligned_words("x.wav", "/nonexistent/x") == [(0.0, 0.4, "hello")] and _r.n == 2,
+      "a transcription that aborts once is retried and its words come back")
+ygaps.subprocess.run = _r = _Run([134, 134, 134])
+try:
+    ygaps.aligned_words("x.wav", "/nonexistent/x"); _raised = False
+except ygaps.TranscribeFailed:
+    _raised = True
+check(_raised and _r.n == 3, "three aborts in a row raise TranscribeFailed")
+ygaps.subprocess.run, ygaps.ywords.load_words = _real_run, _real_load
+
+
+class _Aborts(ygaps.GapConfirm):
+    def __init__(self):
+        super().__init__({SRC: "unused.wav"}, "")
+    def window_words(self, src, t0, t1):
+        return None
+
+
+_g = _Aborts()
+check(_g(SRC, 71.18, 74.36) is None and not any(k.startswith(os.path.basename(SRC) + "@") for k in _g.d)
+      and not any(k.startswith("win:") for k in _g.d),
+      "a gap whose windows whisper could not transcribe is kept, and nothing about it is cached")
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)

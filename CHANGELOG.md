@@ -2,6 +2,16 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.2 (tiktok-yap-editor)
+
+**A whisper abort no longer kills a cut.** On 2026-10-26 the Magic take's re-cut died twice in a
+row inside the word-gap pass: whisper.cpp aborted in its DTW median filter (SIGABRT, exit 134),
+and every span of the same take transcribed clean when run again one at a time. Now
+`yaplib.gaps.aligned_words` retries a failed transcription up to three times and then raises
+`TranscribeFailed`. A clause span that still fails adds no gap candidates and the cut goes on; a
+confirmation window that still fails confirms nothing, so that pause stays. Neither result is
+cached, so the next run tries again.
+
 ## What's new in 3.9.1 (tiktok-yap-editor)
 
 **A form of the script's word is how it was said, never a garble of it.** On the first night of
