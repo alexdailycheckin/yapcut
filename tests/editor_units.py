@@ -713,6 +713,19 @@ _got = [_fx.get(i, w[2]) for i, w in enumerate(_cut)]
 check(_got.count("Lamm") == 2 and "Lamb" not in _got, f"a name is fixed at every occurrence, not only the aligned one: {_got}")
 check(_got.count("Anduril") == 1 and _got.count("Anduril,") == 1 and "Luckey," in _got, f"names inside a replace block and a trailing comma survive: {_got}")
 check(_got[_got.index("now,") + 1] == "besides", f"a capital whisper gave an ad-lib after a sentence end the script removed is lowered: {_got}")
+# 3.9.1: a form of the script's word is how it was said. On Ep48 (2026-10-25) "don't" became "doesn't"
+# twice, off script, because the two are 0.8 alike by letters and the swap then spread everywhere.
+check(sfx.same_family("don't", "doesn't") and sfx.same_family("compute.", "computing,") and not sfx.same_family("Lamb", "Lamm"),
+      "don't and doesn't, compute and computing are one word; Lamb and Lamm are not")
+check(not sfx.similar("don't", "doesn't") and not sfx.similar("compute", "computing") and sfx.similar("fineman", "Feynman"),
+      "a form of the script's word is never a garble; a mis-spelled name still is")
+check(not sfx.similar("making", "keeping") and not sfx.similar("has", "had") and sfx.similar("clod", "Claude") and sfx.similar("logs", "locks"),
+      "two ordinary words only somewhat alike are a paraphrase; a name or a close garble is still fixed")
+_cut3 = [(i * 0.4, i * 0.4 + 0.3, w) for i, w in enumerate("it doesn't matter, they don't really try, I don't know.".split())]
+_fx3, _, _sw3 = sfx.plan(_cut3, "It don't matter, they doesn't really try.".split(), locked=set())
+_got3 = [_fx3.get(i, w[2]) for i, w in enumerate(_cut3)]
+check("doesn't" in _got3[1] and _got3[4] == "don't" and _got3[8] == "don't",
+      f"an aligned don't/doesn't pair is left as said, and nothing spreads to the other occurrences: {_got3}")
 _cut2 = [(0, 0.3, "the"), (0.4, 0.7, "courts"), (0.8, 1.1, "said")]
 _fx2, _, _ = sfx.plan(_cut2, "The Quartz piece said".split(), locked=set())
 check(1 not in _fx2 or _fx2[1] == "courts", "an ordinary lowercase word that merely sounds like a script name stays")

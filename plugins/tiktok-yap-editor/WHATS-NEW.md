@@ -4,6 +4,17 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.9.1: your own "don't" stays "don't"
+
+**What's new.** 3.9.0 could rewrite a word you said off script into the script's form of the same
+word ("don't" into "doesn't", "compute" into "computing") and then spread it to every place you
+said it. Two forms of one word are now left as you said them, and so is a paraphrase ("making" where
+the script says "keeping"); only a name's spelling, a word no dictionary knows, or a word that
+sounds like the script's ("logs" for "locks") is corrected.
+
+**What you need to do.** Nothing. Check any video cut on 3.9.0 for a contraction that reads wrong
+in its captions; a hand entry in `<name>_corrections.json` wins either way.
+
 ## 3.9.0: the editor hears its own restarts, and a decision costs seconds
 
 **What's new.** Four things aimed at the hours a batch took on October 25th.

@@ -2,6 +2,21 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.1 (tiktok-yap-editor)
+
+**A form of the script's word is how it was said, never a garble of it.** On the first night of
+3.9.0 (Ep48, 2026-10-25) `script_fix.py` rewrote an off-script "don't" as "doesn't" twice, giving
+"they doesn't really try". Two things did it: the positional swap has always taken "don't" for a
+garble of "doesn't" (0.8 alike by letters, and no suffix rule joins them), and 3.9.0's new rule
+that spreads a learned swap to the word's other occurrences carried it off script. Now two words
+with a base form in common (`yaplib.lexicon.bases`, apostrophes read: don't and doesn't both come
+down to do, compute is a base of computing) are never swapped, and a swap spreads only when it is a
+name's spelling or the heard form is no word at all. "Lamb" still becomes Lamm everywhere;
+"compute" said for the script's "computing" stays compute. The same pass also leaves a paraphrase
+alone: two ordinary words only somewhat alike by letters are swapped only when they sound alike
+("logs" for "locks" is a mishearing; "making" for "keeping" and "has" for "had" are what was said).
+Found and worked around by hand by the editing session that night; tests pin every case.
+
 ## What's new in 3.9.0 (tiktok-yap-editor)
 
 **The audio says where the repeats are, every decision comes at once, and a rerun is seconds.** On

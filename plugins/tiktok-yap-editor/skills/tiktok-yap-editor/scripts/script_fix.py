@@ -74,14 +74,31 @@ def inflection(a, b):
     return rest[:1] == short[-1:] and rest[1:] in SUFFIXES     # running / run
 
 
+def same_family(a, b):
+    """Two forms of one word: a contraction, a tense, a plural, an -ing ("don't" and "doesn't" both
+    come down to "do"; "compute" is a base of "computing"). yaplib.lexicon.bases reads the raw
+    words, apostrophes included, so this runs before bare(). On 2026-10-25 (3.9.0) an off-script
+    "don't" became "doesn't" twice on Ep48: the two are 0.8 alike by letters and no suffix rule
+    joined them. A form of the script's word is how it was said, never a garble of it."""
+    return bool(set(ylex.bases(a)) & set(ylex.bases(b)))
+
+
 def similar(a, b):
     """A garble of the script word, not another word the creator chose."""
+    if same_family(a, b):
+        return False                     # "don't" said for "doesn't", "compute" for "computing"
     a, b = bare(a), bare(b)
     if len(a) < 3 or len(b) < 3 or re.search(r"\d", a + b) or a == b:
         return False
     if inflection(a, b):
         return False                     # "notice" said for "noticed", "surveys" for "surveyed"
-    return difflib.SequenceMatcher(None, a, b).ratio() >= MIN_RATIO
+    r = difflib.SequenceMatcher(None, a, b).ratio()
+    # two ordinary words only somewhat alike by letters are a mishearing when they sound alike
+    # ("logs" for "locks") and a paraphrase when they do not ("making" for "keeping", "has" for
+    # "had"): the paraphrase is what was said and stays. A name or a non-word at 0.6 is still fixed
+    if r < 0.7 and ylex.is_word(a) and ylex.is_word(b) and ylex.phonetic(a) != ylex.phonetic(b):
+        return False
+    return r >= MIN_RATIO
 
 
 def script_words(path):
@@ -130,7 +147,12 @@ def plan(words, script, locked, free=None):
     # an ordinary lowercase word that merely sounds like one ("courts", Quartz) stays.
     names = script_names(script)
     script_bare = {bare(x) for x in script}
-    by_swap = {bare(frm): to for frm, to in swapped if " " not in frm}
+    # a swap spreads to the word's other occurrences only when it is a name's spelling or the
+    # heard form is no word at all: an ordinary word swapped at one aligned spot ("don't" for
+    # "doesn't" was one, until same_family stopped it) must never rewrite the same word elsewhere
+    name_forms = {bare(v) for v in names.values()}
+    by_swap = {bare(frm): to for frm, to in swapped
+               if " " not in frm and (bare(core_and_tail(to)[0]) in name_forms or not ylex.is_word(frm))}
     prev_end = True
     for i in range(n):
         w = cut[i]
