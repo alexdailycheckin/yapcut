@@ -99,6 +99,15 @@ are failures that actually happened and cost real time; each fix is proven.
   0.08s before the next. The cut log lists each one (`word gaps: ... removed`). Do not split
   clauses by hand at word gaps any more; if a pause survives, look at that log line first. A
   gap it rejects is one where a window heard speech, which is the safe way to be wrong.
+- **A murmur between two lines is a pause (3.9.4).** No caption over it means nothing is said.
+  On the 2026-10-29 Honest Genius a 1.6s murmur after "nothing." peaked 3 dB under the voice,
+  and until 3.9.4 the cutter kept it as "dropped words" and the dead-air gate measured it as no
+  pause, so it shipped as a 1.3s hole. The words decide now: a gap two windows prove is cut
+  between the voice's edges (`cut.word_gaps.edge_under_voice_db`). A gap only the cut's captions
+  show (the take's transcript stretched the word before it) is mapped back to the take into
+  `<clauses>.trims.json` and the video is cut again once; the gate fails what is left. A
+  restart the captions merged ("in the near, in the coming years" captioned once) is a MEDIUM
+  from `xwin_scan.py` marked `take`: cut the first pass in the clause plan.
 - **Quiet words overlap pause energy.** A softly spoken word (a fading "from"
   at the end of a line, a quiet "If" before a loud one) sits under the speech
   gate, so the gate alone calls it silence. Since 3.7.3 `yapcut.py` walks every

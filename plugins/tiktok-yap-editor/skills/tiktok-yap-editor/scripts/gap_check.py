@@ -13,9 +13,10 @@ THE ALIGNED PATH (3.9.0, the one both modes use). The cut's own aligned word tra
 every gap of 0.6s or more between two spoken words. Each one is then proven, cheapest proof
 first:
   - the microphone: on a take whose room tone sits well under the voice, the cut's envelope
-    (yaplib/envelope.py) says how long the stretch under the floor really is; that is the
-    gap, measured, and no whisper runs. A transcript gap the envelope cannot find is the
-    words' loose end times, not a pause.
+    (yaplib/envelope.py) moves each edge of the gap from the words' loose times to where the
+    voice really ends and starts (3.9.4, the cutter's rule); what is left between them is the
+    pause, measured, and no whisper runs. A murmur, a breath or room tone between two words is
+    pause: no caption covers it.
   - the words: on a noisy take (wind, a fan, room tone as loud as the voice) two window
     re-transcriptions at different offsets must both hear the next word where the transcript
     does and no word starting inside the gap (yaplib/gaps.py, the same proof yapcut.py cuts
@@ -33,7 +34,8 @@ Usage:
   python3 gap_check.py --video cut.mp4 [--words no_sow_words.json]      (legacy)
 
 --allow: comma-separated timestamps (s) of deliberate beats to permit (+/-0.3s).
-Exit codes: 0 clean, 1 warnings only, 2 dead air found (build-gating).
+Exit codes: 0 clean, 1 warnings only, 2 dead air found (build-gating), 3 new trims written
+(--trims-out: the take spans the captions leave without a word, for yapfull to cut again).
 """
 import argparse
 import os
@@ -45,6 +47,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yaplib import media, rules  # noqa: E402
 
 D = rules.get("dead_air")   # the thresholds the phone's dead-air gate reads too
+WG = rules.get("cut")["word_gaps"]   # where a word's voice ends: the cutter's edge rule
 from yaplib import words as ywords  # noqa: E402
 from yaplib import whisper as ywhisper  # noqa: E402
 
@@ -124,18 +127,26 @@ def aligned_gate(a, allow, dur):
     if lead > a.lead:
         g = yenv.longest_quiet(env, 0.0, lead, level) if mic_sees else lead
         if g > a.lead:
-            fails.append((0.0, lead, "<start>", toks[0][2]))
+            fails.append((0.0, lead, "<start>", toks[0][2], 0.0, lead))
     for e1, s2, t1, t2 in ygaps.word_gap_candidates(words, a.warn):
         if any(abs(e1 - t) <= 0.3 for t in allow):
             print(f"  allowed beat: {s2 - e1:.2f}s @ {e1:.2f}s  (...{t1} | {t2}...)")
             continue
         g = s2 - e1
+        v1, v2 = e1, s2
         if mic_sees:
-            # the measured pause: the longest stretch under the floor around the transcript's gap
-            # (a word's end time is loose by a few tenths; the microphone is not)
-            g = yenv.longest_quiet(env, e1 - 0.15, s2 + 0.15, level)
-            how = "measured by the microphone"
+            # the words decide, the microphone places the edges (3.9.4): each edge walks from the
+            # transcript's time to where the voice really ends or starts, at most confirm_edge_s.
+            # Until 3.9.4 the pause was the longest stretch under voice - 20 dB, so a murmur 6 dB
+            # under the voice measured as no pause and the 2026-10-29 Honest Genius shipped with a
+            # 1.33s gap between "nothing." and "Yes," that the gate had found and then dropped
+            v1 = yenv.voiced_edge(env, e1, +1, voice - WG["edge_under_voice_db"], s2, WG["confirm_edge_s"])
+            v2 = yenv.voiced_edge(env, s2, -1, voice - WG["edge_under_voice_db"], v1, WG["confirm_edge_s"])
+            g = v2 - v1
+            how = "between the words' voiced edges"
             if g < a.warn:
+                print(f"  not a pause @ {e1:.2f}s: the voice runs into the {s2 - e1:.2f}s the transcript "
+                      f"left, {g:.2f}s between its edges (...{t1} | {t2}...)")
                 continue
         elif yenv.quiet(env, e1, s2, level):
             how = "the microphone hears nothing"
@@ -146,16 +157,52 @@ def aligned_gate(a, allow, dur):
                   f"left (...{t1} | {t2}...)")
             continue
         if g >= a.fail:
-            fails.append((e1, s2, t1, t2))
+            fails.append((e1, s2, t1, t2, v1, v2))
             print(f"  DEAD AIR: {g:.2f}s @ {e1:.2f}s ({how})  (...{t1} | {t2}...)")
         else:
             warns.append((e1, s2, t1, t2))
             print(f"  warn: {g:.2f}s gap @ {e1:.2f}s ({how})  (...{t1} | {t2}...)")
+    if a.trims_out and a.keeps and fails:
+        added = write_trims(fails, a)
+        if added:
+            print(f"gap_check: {added} take span(s) the captions leave without a word added to "
+                  f"{os.path.basename(a.trims_out)}: cut again")
+            return 3
     tail = dur - toks[-1][1]
     if dur and tail > D["tail_warn_s"]:
         warns.append((toks[-1][1], dur, toks[-1][2], "<end>"))
         print(f"  warn: {tail:.2f}s after the last word")
     return verdict(fails, warns, len(toks), a)
+
+
+def write_trims(fails, a):
+    """The dead air on the cut's clock, mapped through the keeps to the takes and appended to
+    --trims-out, which yapcut.py cuts on every run (3.9.4: the captions decide). keeps carry
+    source a and b = a + the keep's length in the cut, as yapfull writes them. A gap across a
+    join gives one span per keep. Returns how many spans were new."""
+    import json
+    keeps = json.load(open(a.keeps))
+    try:
+        trims = json.load(open(a.trims_out))
+    except (OSError, ValueError):
+        trims = []
+    added = 0
+    for _e1, _s2, t1, t2, v1, v2 in fails:
+        g0, g1 = v1 + WG["pad_after_s"] / a.speed, v2 - WG["pad_before_s"] / a.speed
+        c = 0.0
+        for k in keeps:
+            ka, clen = float(k["a"]), float(k["b"]) - float(k["a"])
+            lo, hi = max(g0, c), min(g1, c + clen)
+            if hi - lo > 0.02:
+                t = {"src": k["src"], "a": round(ka + (lo - c) * a.speed, 3),
+                     "b": round(ka + (hi - c) * a.speed, 3), "between": f"{t1} | {t2}"}
+                if not any(x["src"] == t["src"] and x["a"] < t["b"] and t["a"] < x["b"] for x in trims):
+                    trims.append(t); added += 1
+                    print(f"  trim: {t['b'] - t['a']:.2f}s at {os.path.basename(t['src'])} {t['a']:.2f}s  (...{t1} | {t2}...)")
+            c += clen
+    if added:
+        json.dump(trims, open(a.trims_out, "w"), indent=1)
+    return added
 
 
 def verdict(fails, warns, nwords, a):
@@ -185,6 +232,11 @@ def main() -> int:
                     help="max silence before the first word (cold-open rule)")
     ap.add_argument("--aligned", default="",
                     help="the cut's aligned word json (w_<out>.json): the gate reads its gaps and proves each")
+    ap.add_argument("--keeps", default="", help="keeps_full_<out>.json, for --trims-out")
+    ap.add_argument("--speed", type=float, default=1.0, help="the cut's playback rate (YAP_SPEED)")
+    ap.add_argument("--trims-out", default="",
+                    help="append the dead air, mapped to the takes, to this trims json and exit 3 "
+                         "when a span is new (yapfull cuts again once with it)")
     ap.add_argument("--allow", default="",
                     help="comma-separated gap timestamps to permit (+/-0.3s)")
     a = ap.parse_args()
@@ -215,6 +267,12 @@ def main() -> int:
             continue
         (fails if g >= a.fail else warns).append((e1, s2, t1, t2))
 
+    if a.trims_out and a.keeps and fails:
+        added = write_trims(fails, a)
+        if added:
+            print(f"gap_check: {added} take span(s) the captions leave without a word added to "
+                  f"{os.path.basename(a.trims_out)}: cut again")
+            return 3
     tail = dur - toks[-1][1]
     if dur and tail > D["tail_warn_s"]:
         warns.append((toks[-1][1], dur, toks[-1][2], "<end>"))

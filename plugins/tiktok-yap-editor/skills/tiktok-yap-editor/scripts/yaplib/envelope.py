@@ -114,6 +114,36 @@ def peak(dbs, t0, t1):
     return max(seg) if seg else -99.0
 
 
+def voiced_edge(dbs, t, direction, level, stop_at, max_s, gap_s=0.09):
+    """From a word's transcript time `t`, walk `direction` (+1 from a word's end, -1 from a
+    word's start) while the frames stay above `level`, bridging gap_s of quiet (a stop
+    consonant's closure), never past `stop_at` or max_s from `t`, and return where the voice
+    really ends or starts.
+
+    The words decide where a pause is; this only corrects their times (3.9.4). Until 3.9.4 the
+    cutter and the dead-air gate let the microphone overrule the words: on the 2026-10-29 Honest
+    Genius take three transcripts heard no word for 1.8s after "nothing.", but a murmur peaked
+    3 dB under the voice, so the cutter kept it as "dropped words" and the gate measured no
+    pause, and the video shipped with a 1.3s hole at 7s."""
+    n = len(dbs)
+    j = int(round(t / HOP))
+    if not 0 <= j < n:
+        return t
+    lim = int(round((t + direction * max_s) / HOP))
+    lim = max(lim, int(round(stop_at / HOP))) if direction < 0 else min(lim, int(round(stop_at / HOP)))
+    tol = max(1, int(gap_s / HOP))
+    good, quiet, k = j, 0, j
+    while 0 <= k + direction < n and (k + direction - lim) * direction <= 0:
+        k += direction
+        if dbs[k] > level:
+            good, quiet = k, 0
+        else:
+            quiet += 1
+            if quiet > tol:
+                break
+    return good * HOP
+
+
 def duration_s(dbs):
     return len(dbs) * HOP
 

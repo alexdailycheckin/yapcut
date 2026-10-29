@@ -273,6 +273,9 @@ def parse_args(argv=None):
     ap.add_argument("--word-gaps",action=argparse.BooleanOptionalAction,default=WG["enabled"],
         help="cut a pause the envelope kept where the take's word transcript and a window "
              "re-transcription both hear no speech (wind or room tone as loud as the voice)")
+    ap.add_argument("--trims",default="",
+        help="<clauses>.trims.json: take spans the cut's captions left without a word (gap_check.py "
+             "--trims-out writes them, 3.9.4); each one is cut on every run")
     ap.add_argument("--lead",type=float,default=C["edge"]["lead_s"],
         help="silence kept outside a measured boundary. Small on purpose: the "
              "onset is measured, so the old fixed 0.10s lead-in was audible as "
@@ -392,7 +395,27 @@ def plan(clauses, ENV, a):
         merged.append((src,A,B,g))
     return [(s,A,B,g) for s,A,B,g in merged if B-A>=a.min_keep]
 
-def split_at_word_gaps(keeps, clauses, cands, confirm, a, loud=None):
+def apply_trims(keeps, trims, min_keep):
+    """keeps [(src,A,B,g)] less every trim {"src","a","b"}: take spans the cut's own captions left
+    without a word (3.9.4). The take's transcripts can stretch a word over the pause after it
+    (the 2026-10-29 Wanderer take read "years?" from 3.86 to 5.81s, the voice ended at 4.2), so
+    the cutter never sees that gap; the captions of the cut do, and gap_check.py hands it back
+    here as a take span. Returns (keeps, seconds removed)."""
+    out,removed=[],0.0
+    for src,A,B,g in keeps:
+        pieces=[(A,B)]
+        for t in trims:
+            if t["src"]!=src: continue
+            nxt=[]
+            for x,y in pieces:
+                if y<=t["a"] or x>=t["b"]: nxt.append((x,y)); continue
+                nxt+=[p for p in ((x,t["a"]),(t["b"],y)) if p[1]-p[0]>=min_keep]
+            pieces=nxt
+        removed+=(B-A)-sum(y-x for x,y in pieces)
+        out+=[(src,x,y,g) for x,y in pieces]
+    return out,removed
+
+def split_at_word_gaps(keeps, clauses, cands, confirm, a, edges=None):
     """keeps [(src,A,B,g)] with every confirmed word gap taken out. cands {src: [(e1,s2,w1,w2)]};
     confirm(src,e1,s2) -> (e1,s2) when a window re-transcription agrees, else None. The cut runs
     from pad_after_s past the last word to pad_before_s before the next, and works on any keep
@@ -400,12 +423,17 @@ def split_at_word_gaps(keeps, clauses, cands, confirm, a, loud=None):
     found part of the pause) is trimmed to the word, and one that lies wholly inside it is wind
     and is dropped. keep_whole clauses are never touched. Returns (keeps, [(src,g0,g1,w1,w2)]).
 
-    Two things cost no confirmation (3.9.0): a gap whose cut would remove less than min_cut
-    from the keeps (the envelope already took most of it; on 2026-10-25 fifteen of Anthropic's
-    27 "removed" pauses were under a tenth of a second, two whisper windows each), and, where
-    loud(src, g0, g1) says so, a gap on a quiet-floor take that is as loud as the voice inside:
-    that is speech the transcript dropped ("Congratulations" lost its first half that day,
-    its DTW start 0.65s late), never a pause."""
+    A gap whose cut would remove less than min_cut from the keeps costs no confirmation (3.9.0:
+    the envelope already took most of it; on 2026-10-25 fifteen of Anthropic's 27 "removed"
+    pauses were under a tenth of a second, two whisper windows each).
+
+    The words decide; the microphone only places the edges (3.9.4). edges(src, e1, s2) walks
+    from the transcript's times to where the voice really ends and starts (yaplib/envelope
+    voiced_edge), so a late DTW start cannot clip a word ("Congratulations" lost its first half
+    on 2026-10-25, its start 0.65s late). Until 3.9.4 a gap as loud as the voice was kept
+    whole as "dropped words" without asking the windows: on 2026-10-29 that kept a 1.6s murmur
+    after "nothing." that three transcripts heard no word in, and the Honest Genius shipped
+    with a 1.3s hole at 7s."""
     whole=[(c["src"],float(c["start"])-a.padl,float(c["end"])) for c in clauses if c.get("keep_whole")]
     gaps={}
     out,made=[],[]
@@ -415,13 +443,10 @@ def split_at_word_gaps(keeps, clauses, cands, confirm, a, loud=None):
             todo=list(cands.get(src,[]))
             while todo:
                 e1,s2,w1,w2=todo.pop(0)
-                g0,g1=e1+WG["pad_after_s"],s2-WG["pad_before_s"]
+                v1,v2=edges(src,e1,s2) if edges is not None else (e1,s2)
+                g0,g1=v1+WG["pad_after_s"],v2-WG["pad_before_s"]
                 would=sum(min(g1,y)-max(g0,x) for x,y in pieces if x<g1 and g0<y)
                 if would<=a.min_cut:
-                    continue
-                if loud is not None and loud(src,g0,g1):
-                    print(f"  kept {g1-g0:.2f}s at {os.path.basename(src)} {g0:.2f}s: as loud as the voice, "
-                          f"the transcript dropped words here  (...{w1} | {w2}...)")
                     continue
                 if (src,e1,s2) not in gaps:
                     gaps[(src,e1,s2)]=confirm(src,e1,s2)
@@ -473,13 +498,18 @@ def main():
                 # only gaps a keep still touches cost a confirmation
                 if any(s==src and A<g[1] and g[0]<B for s,A,B,_g in keeps) and g not in held[src]:
                     held[src].append(g)
-        # on a take whose room tone sits well under the voice, the microphone vetoes a "pause"
-        # that is as loud as speech (the words' times were loose, not the take quiet)
+        # on a take whose room tone sits well under the voice, the microphone moves each edge from
+        # the words' loose times to where the voice is (never more than confirm_edge_s); on a
+        # noisy take it cannot tell voice from room, and the words' times stand
         VOICE={src: yenvelope.speech_level(ENV[src], yenvelope.floor_of(ENV[src])) for src in ENV}
         SEP={src: VOICE[src]-yenvelope.floor_of(ENV[src]) for src in ENV}
-        def loud(src,g0,g1):
-            return SEP[src]>=WG["mic_separation_db"] and yenvelope.peak(ENV[src],g0,g1)>VOICE[src]-WG["mic_veto_under_voice_db"]
-        keeps,made=split_at_word_gaps(keeps,clauses,held,GapConfirm(WAVS,f"{wd}/audio/word_gaps.json"),a,loud=loud)
+        def edges(src,e1,s2):
+            if SEP[src]<WG["mic_separation_db"]:
+                return e1,s2
+            lvl,mx=VOICE[src]-WG["edge_under_voice_db"],WG["confirm_edge_s"]
+            v1=yenvelope.voiced_edge(ENV[src],e1,+1,lvl,s2,mx)
+            return v1,yenvelope.voiced_edge(ENV[src],s2,-1,lvl,v1,mx)
+        keeps,made=split_at_word_gaps(keeps,clauses,held,GapConfirm(WAVS,f"{wd}/audio/word_gaps.json"),a,edges=edges)
         n=sum(len(v) for v in held.values())
         if n:
             print(f"word gaps: {len(made)} pause(s) cut that the envelope kept in whole or part, "
@@ -487,6 +517,11 @@ def main():
                   "each one proven by two window re-transcriptions)")
             for src,g0,g1,w1,w2 in made:
                 print(f"  removed {g1-g0:.2f}s of pause at {os.path.basename(src)} {g0:.2f}s  (...{w1} | {w2}...)")
+    if a.trims and os.path.isfile(a.trims):
+        trims=json.load(open(a.trims))
+        keeps,gone=apply_trims(keeps,trims,a.min_keep)
+        if gone>0:
+            print(f"trims: {gone:.2f}s the captions left without a word, {len(trims)} span(s) in {os.path.basename(a.trims)}")
     with open(f"{wd}/keeps_{outbase}.json","w") as f:   # QA: real cut points
         json.dump([{"src":s,"a":round(A,3),"b":round(B,3)} for s,A,B,g in keeps],f,indent=1)
 

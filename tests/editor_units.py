@@ -756,7 +756,7 @@ with tempfile.TemporaryDirectory() as t:
                                  {"offsets": {"from": 2300, "to": 3100}, "text": " second"}]}, open(_al, "w"))
     _r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al],
                         capture_output=True, text=True)
-    check(_r.returncode == 2 and "measured by the microphone" in _r.stdout and "DEAD AIR: 1." in _r.stdout,
+    check(_r.returncode == 2 and "voiced edges" in _r.stdout and "DEAD AIR: 1." in _r.stdout,
           f"a 1.2s pause between two words fails, measured by the microphone (rc {_r.returncode}): {_r.stdout.strip().splitlines()[-3:]}")
     _r2 = subprocess.run([sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al, "--allow", "1.1"],
                          capture_output=True, text=True)
@@ -767,6 +767,87 @@ with tempfile.TemporaryDirectory() as t:
     _r3 = subprocess.run([sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al],
                          capture_output=True, text=True)
     check(_r3.returncode == 0 and "clean" in _r3.stdout, f"a 0.4s pause is cadence (rc {_r3.returncode})")
+    # 2026-10-29, the Honest Genius: a murmur 6 dB under the voice between two words is still a pause
+    json.dump({"transcription": [{"offsets": {"from": 300, "to": 1100}, "text": " nothing."},
+                                 {"offsets": {"from": 2900, "to": 3700}, "text": " Yes,"}]}, open(_al, "w"))
+    _voice_wav(_wav, [(0.3, -75, "room"), (0.8, -26, "voice"), (0.3, -75, "room"), (1.2, -33, "room"),
+                      (0.3, -75, "room"), (0.8, -26, "voice"), (0.3, -75, "room")])
+    _r4 = subprocess.run([sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al],
+                         capture_output=True, text=True)
+    check(_r4.returncode == 2 and "DEAD AIR: 1.7" in _r4.stdout,
+          f"a murmur under the voice with no caption over it is dead air, not dropped words (rc {_r4.returncode}): {_r4.stdout.strip().splitlines()[-2:]}")
+    # a late caption start: the voice runs 0.4s into the transcript's gap, so the pause is what is left
+    json.dump({"transcription": [{"offsets": {"from": 300, "to": 1100}, "text": " first"},
+                                 {"offsets": {"from": 2000, "to": 2800}, "text": " second"}]}, open(_al, "w"))
+    _voice_wav(_wav, [(0.3, -75, "room"), (0.8, -26, "voice"), (0.5, -75, "room"), (1.2, -26, "voice"), (0.3, -75, "room")])
+    _r5 = subprocess.run([sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al],
+                         capture_output=True, text=True)
+    check(_r5.returncode == 0 and "not a pause" in _r5.stdout,
+          f"a word whose voice starts before its caption shrinks the gap to the real pause (rc {_r5.returncode})")
+
+# 2026-10-29: the take's own transcript heard "of it in the near in the coming years", the captions
+# "of in the coming years", and the restart shipped
+import xwin_scan as _xs  # noqa: E402
+with tempfile.TemporaryDirectory() as t:
+    os.makedirs(os.path.join(t, "audio"))
+    _take = [(0.94, 1.1, "you"), (1.1, 1.26, "know"), (2.29, 2.5, "more"), (2.5, 2.6, "of"), (2.6, 2.72, "it"),
+             (2.72, 2.76, "in"), (2.76, 2.9, "the"), (2.9, 3.4, "near"), (3.48, 3.58, "in"), (3.58, 3.98, "the"),
+             (3.98, 4.12, "coming"), (4.12, 4.3, "years"), (4.31, 4.4, "gone")]
+    json.dump({"model": "m", "spans": {"0.000-10.000": _take}}, open(os.path.join(t, "audio", "T.spans.json"), "w"))
+    json.dump([{"src": "/x/T.mov", "a": 0.9, "b": 0.9 + 3.4 / 1.1}], open(os.path.join(t, "k.json"), "w"))
+    _cap = [(0.04, 0.2, "You"), (0.2, 1.2, "know"), (1.2, 1.4, "more"), (1.4, 1.5, "of"), (1.5, 1.6, "in"),
+            (1.6, 2.2, "the"), (2.2, 2.5, "coming"), (2.5, 2.8, "years?")]
+    json.dump({"transcription": [{"offsets": {"from": int(a * 1000), "to": int(b * 1000)}, "text": " " + w}
+                                 for a, b, w in _cap]}, open(os.path.join(t, "w.json"), "w"))
+    _ev = _xs.take_events(os.path.join(t, "k.json"), 1.1, t, _xs.transcript_tokens(os.path.join(t, "w.json")))
+    check(len(_ev) == 1 and _ev[0]["keys"][0].startswith("in the"),
+          f"a restart the take's transcript hears and the captions merged is a decision: {[e['keys'] for e in _ev]}")
+    _cap2 = _cap[:4] + [(1.5, 1.55, "it"), (1.55, 1.6, "in"), (1.6, 1.7, "the"), (1.7, 1.8, "near"), (1.8, 1.9, "in")] + _cap[5:]
+    json.dump({"transcription": [{"offsets": {"from": int(a * 1000), "to": int(b * 1000)}, "text": " " + w}
+                                 for a, b, w in _cap2]}, open(os.path.join(t, "w.json"), "w"))
+    check(not _xs.take_events(os.path.join(t, "k.json"), 1.1, t, _xs.transcript_tokens(os.path.join(t, "w.json"))),
+          "the same restart the captions show twice is stutter_check's to judge, not a second flag")
+    json.dump([{"src": "/x/T.mov", "a": 0.9, "b": 0.9 + 1.84 / 1.1}, {"src": "/x/T.mov", "a": 3.46, "b": 3.46 + 0.9 / 1.1}],
+              open(os.path.join(t, "k.json"), "w"))
+    check(not _xs.take_events(os.path.join(t, "k.json"), 1.1, t, _xs.transcript_tokens(os.path.join(t, "w.json"))),
+          "a restart the clause plan cut out is not flagged")
+
+# 3.9.4: the captions decide. A gap the cut's captions leave is handed back to the take as a trim
+_k, _gone = ycut.apply_trims([(SRC, 1.55, 5.51, 0.0), (SRC, 5.77, 8.98, 0.0)],
+                             [{"src": SRC, "a": 4.4, "b": 5.3}, {"src": "other.mov", "a": 6.0, "b": 7.0}], 0.1)
+check([(x, y) for _s, x, y, _g in _k] == [(1.55, 4.4), (5.3, 5.51), (5.77, 8.98)] and abs(_gone - 0.9) < 1e-6,
+      f"a trim cuts its span out of the keeps of its own take only: {_k}")
+with tempfile.TemporaryDirectory() as t:
+    _wav = os.path.join(t, "w_x.wav")
+    _voice_wav(_wav, [(0.3, -75, "room"), (0.8, -26, "voice"), (1.2, -75, "room"), (0.8, -26, "voice"), (0.3, -75, "room")])
+    _al = os.path.join(t, "w_x.json")
+    json.dump({"transcription": [{"offsets": {"from": 300, "to": 1100}, "text": " years?"},
+                                 {"offsets": {"from": 2300, "to": 3100}, "text": " This"}]}, open(_al, "w"))
+    json.dump([{"src": "/x/T.mov", "a": 10.0, "b": 12.0}, {"src": "/x/T.mov", "a": 20.0, "b": 21.4}],
+              open(os.path.join(t, "k.json"), "w"))
+    _tr = os.path.join(t, "c.trims.json")
+    _args = [sys.executable, os.path.join(SCRIPTS, "gap_check.py"), "--video", _wav, "--aligned", _al,
+             "--keeps", os.path.join(t, "k.json"), "--speed", "1.1", "--trims-out", _tr]
+    _r = subprocess.run(_args, capture_output=True, text=True)
+    _t = json.load(open(_tr)) if os.path.exists(_tr) else []
+    check(_r.returncode == 3 and len(_t) == 2 and _t[0]["a"] > 11.2 and _t[1]["a"] == 20.0 and _t[1]["b"] < 20.4,
+          f"dead air across a join goes back to the take as one trim per keep, exit 3 (rc {_r.returncode}): {_t}")
+    _r2 = subprocess.run(_args, capture_output=True, text=True)
+    check(_r2.returncode == 2 and len(json.load(open(_tr))) == 2,
+          f"the same gap again adds no trim, and the gate fails as before (rc {_r2.returncode})")
+
+from yaplib import envelope as _yenv  # noqa: E402
+_E = [-75.0] * 30 + [-26.0] * 80 + [-75.0] * 30 + [-33.0] * 120 + [-75.0] * 30 + [-26.0] * 80
+check(abs(_yenv.voiced_edge(_E, 1.10, +1, -32.0, 2.9, 0.5) - 1.09) < 0.02,
+      "a word's end walks no further than its voice: the murmur after it is not voice")
+check(abs(_yenv.voiced_edge(_E, 3.3, -1, -32.0, 1.1, 0.5) - 2.9) < 0.02,
+      "a late transcript start walks back to where the voice begins")
+check(abs(_yenv.voiced_edge([-26.0] * 300, 2.0, -1, -32.0, 0.0, 0.5) - 1.5) < 0.02,
+      "an edge never walks further than max_s from the words' time")
+_o, _m = ycut.split_at_word_gaps([(SRC, 0.0, 6.0, 0.0)], [], {SRC: [(1.1, 3.3, "nothing", "yes")]},
+                                 lambda s, e1, s2: (e1, s2), A, edges=lambda s, e1, s2: (e1, 2.9))
+check([(round(x, 2), round(y, 2)) for _s, x, y, _g in _o] == [(0.0, 1.22), (2.82, 6.0)],
+      f"the cutter cuts a confirmed gap between the voice's edges, never as far as a late caption start: {_o}")
 
 # --- gates.sh: deferred decision gates stop together; the compose signature follows its inputs ----------
 with tempfile.TemporaryDirectory() as t:

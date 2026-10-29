@@ -527,6 +527,57 @@ def score(event, toks, script=None, free=None):
     return round(min(best, 1.0), 2), why
 
 
+def take_events(keeps_path, speed, workdir, toks):
+    """Restarts the take's own transcript hears that the captions merged (3.9.4).
+
+    yapcut.py transcribes every take whole (yaplib/gaps.span_words, cached in
+    audio/<take>.spans.json). That is a second hearing of the kept audio, made before the cut,
+    and it hears what the cut's transcript tidies away: on the 2026-10-29 Honest Genius take it
+    read "a lot more of it in the near in the coming years", the captions read "a lot more of
+    in the coming years", and neither window size decoded a repeat there, so "in the near"
+    shipped. The take's words inside the keeps, laid on the cut's clock, go through
+    stutter_check's detector; a repeat or restart whose words the captions say fewer times
+    across the same span is a MEDIUM, the shape score() calls merged."""
+    from stutter_check import find_flags, norm as snorm
+    keeps, c0, laid = json.load(open(keeps_path)), 0.0, []
+    for k in keeps:                   # (src, source a, source b, cut start)
+        clen = float(k["b"]) - float(k["a"])
+        laid.append((k["src"], float(k["a"]), float(k["a"]) + clen * speed, c0))
+        c0 += clen
+    heard = []
+    for src in dict.fromkeys(k[0] for k in laid):
+        stem = os.path.splitext(os.path.basename(src))[0]
+        try:
+            spans = json.load(open(os.path.join(workdir, "audio", stem + ".spans.json")))["spans"]
+        except (OSError, ValueError, KeyError):
+            spans = {}
+        whole = [s for s in spans if s.startswith("0.000-")]
+        for s, e, t in (spans[max(whole, key=lambda s: float(s.split("-")[1]))] if whole else []):
+            # a word whose loose times straddle a join is laid once, in the keep holding most of it,
+            # and only when that keep holds at least half of it: on the Undistracted take the
+            # stammer "get us" the cut removed started 0.04s before a keep's end
+            on = [(min(e, b) - max(s, a), a, b, c) for x, a, b, c in laid if x == src and s < b and e > a]
+            if on and max(on)[0] >= 0.5 * (e - s):
+                _o, a, b, c = max(on)
+                heard.append((c + (max(s, a) - a) / speed, c + (min(e, b) - a) / speed, t, snorm(t)))
+    heard.sort()
+    evs = []
+    for i, s, kind, _conf, text, t0, t1 in find_flags(heard):
+        if not (kind.startswith("repeat") or kind.startswith("restart")):
+            continue                  # a distant re-read is the cut transcript's job (stutter_check.py)
+        L = 1 if kind.startswith("repeat") else int(re.match(r"restart (\d+)w", kind).group(1))
+        gram = tuple(n for x in heard[i:i + L] for n in norm_words(x[2]))
+        said = sum(1 for j in range(i, s + L) if tuple(n for x in heard[j:j + L] for n in norm_words(x[2])) == gram)
+        lo, hi = heard[i][0], heard[min(s + L, len(heard)) - 1][1]
+        if decode_prone(gram) or transcript_count(toks, gram, lo - SPAN_PAD, hi + SPAN_PAD) >= said:
+            continue
+        evs.append({"kind": "take", "lo": lo, "hi": hi, "grams": {gram}, "words": set(gram), "wins": set(),
+                    "pairs": set(), "texts": (text, ""), "conf": 0.8, "keys": [accept_key(text)],
+                    "why": f"the take's own transcript says '{' '.join(gram)}' {said}x here, the captions "
+                           f"fewer: a restart the captions merged"})
+    return evs
+
+
 def events_of(hits):
     """Hits that overlap in time and share a word are one event (a restart shows up as
     several grams across several window pairs and both window sizes)."""
@@ -602,6 +653,8 @@ def main():
     for e in evs:
         e["conf"], e["why"] = score(e, toks, script, a.free_from)
         e["keys"] = sorted({accept_key(" ".join(g)) for g in e["grams"]}, key=lambda k: (-len(k), k))
+    if a.keeps and os.path.isfile(a.keeps) and workdir:
+        evs += take_events(a.keeps, a.speed, workdir, toks)
     accepted = load_accepted(a.accept_file)
     med = [e for e in evs if e["conf"] >= a.threshold]
     low = [e for e in evs if e["conf"] < a.threshold]
@@ -611,6 +664,10 @@ def main():
     for e in sorted(med + (low if a.show_low else []), key=lambda e: e["lo"]):
         conf = "MEDIUM" if e in med else "LOW"
         act = ("ok'd" if accepted & set(e["keys"]) else "JUDGE") if e in med else ""
+        if e["kind"] == "take":
+            print(f"  [{conf:6}] {e['lo']:6.2f}-{e['hi']:6.2f}s  take      '{e['keys'][0]}' {act}\n"
+                  f"           {e['why']}")
+            continue
         print(f"  [{conf:6}] {e['lo']:6.2f}-{e['hi']:6.2f}s  {e['kind']:9} '{e['keys'][0]}' "
               f"conf {e['conf']:.2f} ({len(e['pairs'])} window pair(s), {'/'.join(f'{w:g}s' for w in sorted(e['wins']))}) {act}")
         print(f"           | {e['texts'][0]} || {e['texts'][1]}" if e["kind"] == "x-window" else f"           | {e['texts'][0]}")

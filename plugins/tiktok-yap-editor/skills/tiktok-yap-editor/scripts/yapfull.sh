@@ -58,6 +58,7 @@ FINALBASE="$(basename "${OUT%.*}")"
 CUT="$WD/full_${CUTBASE}.mp4"
 WORDS="$WD/w_${CUTBASE}.json"
 KEEPS="$WD/keeps_full_${CUTBASE}.json"
+TRIMS="${CLAUSES%.json}.trims.json"   # take spans the cut's captions left without a word (3.9.4)
 ASS="$WD/cap_${FINALBASE}.ass"
 [ -n "$CORR" ] || CORR="$WD/${CUTBASE}_corrections.json"
 [ -f "$CORR" ] || echo '{}' > "$CORR"
@@ -86,7 +87,7 @@ FRESH_CUT=0
 if [ "${YAP_FROM_CUT:-0}" != "1" ]; then
   # every cut number comes from rules.json (cut.*); YAP_CUT_ARGS is the per-format exception
   # shellcheck disable=SC2086
-  python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$CUT" ${YAP_CUT_ARGS:-}
+  python3 "$SCRIPTS/yapcut.py" --clauses "$CLAUSES" --workdir "$WD" --out "$CUT" --trims "$TRIMS" ${YAP_CUT_ARGS:-}
   FRESH_CUT=1
   rm -f "$CUT.speed"
   if [ -n "${YAP_SPEED:-}" ] && [ "${YAP_SPEED}" != "1" ]; then
@@ -173,6 +174,19 @@ gates_settle
 gate_stutter_audio "$WORDS" "$CUT" "$STUTOK" "$KEEPS" "$SCRIPTFILE"
 
 # 2d. DEAD-AIR GATE: pauses that survived the cut, measured by the microphone or the words.
+# The captions decide first (3.9.4): a gap no caption covers is mapped back to the take, kept in
+# <clauses>.trims.json and cut on every run, and the video is cut again once with it. An editor
+# does the same: caption the cut, find where there are no captions, trim the gap.
+if [ "${YAP_TRIM_PASS:-0}" != "1" ] && [ "${YAP_ALLOW_GAPS:-0}" != "1" ] && [ -f "$KEEPS" ]; then
+  trc=0
+  python3 "$SCRIPTS/gap_check.py" --video "$CUT" --aligned "$WORDS" --allow "${YAP_ALLOW_GAPS:-}" \
+    --keeps "$KEEPS" --speed "${YAP_SPEED:-1}" --trims-out "$TRIMS" > "$WD/trims_${CUTBASE}.log" || trc=$?
+  if [ "$trc" = 3 ]; then
+    grep -E "DEAD AIR|trim:|cut again" "$WD/trims_${CUTBASE}.log" || true
+    echo "--- re-cutting with the trims ---"
+    YAP_FROM_CUT=0 YAP_TRIM_PASS=1 exec bash "$0" "$@"
+  fi
+fi
 gate_dead_air "$CUT" "$WORDS"
 
 # 4. compose: burn captions, loudness to -14 (measured, corrected, verified), clean CFR.

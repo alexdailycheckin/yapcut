@@ -2,6 +2,37 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.4 (tiktok-yap-editor)
+
+**The words decide where a pause is, and the microphone only places its edges.** The 2026-10-29
+Honest Genius shipped with a 1.3s hole at 7s and a restart in its first line. Three transcripts
+heard no word for 1.8s after "nothing.", but a murmur in that stretch peaked 3 dB under the
+voice. So `yapcut.py` kept the gap whole as "dropped words" without asking the windows, and
+`gap_check.py` measured the pause as the stretch under voice - 20 dB, found none, and dropped
+a gap it had already found without printing it. The same rule let two pauses of about 1s
+through in the Wanderer from that batch. `mic_veto_under_voice_db` is gone. In its place,
+`edge_under_voice_db` walks each edge of a gap the words prove from the transcript's time to
+where the voice really ends or starts, at most `confirm_edge_s` (`yaplib/envelope.voiced_edge`).
+A late word start still keeps its head, and a murmur, a breath or room tone with no caption
+over it is cut by the cutter and fails the gate. The gate prints every candidate it lets
+through, with the reason.
+
+**Caption the cut, find where there are no captions, trim.** The take's transcripts can stretch a
+word over the pause after it: the Wanderer take read "years?" from 3.86 to 5.81s while the voice
+stopped near 4.2, so the cutter never saw that 1s gap, and only the cut's captions showed it.
+Before its dead-air gate, `yapfull.sh` now runs `gap_check.py --trims-out`. Every gap the
+captions leave is mapped through the keeps back to the take and kept in
+`<clauses>.trims.json`, which `yapcut.py --trims` cuts on every run. The video is then cut
+again once. The gate after it fails only on what is still there.
+
+**A restart the captions merged is a decision.** The take's whole-take transcript, which
+`yapcut.py` already makes, read "a lot more of it in the near in the coming years". The
+captions read "a lot more of in the coming years", and neither window size decoded a repeat.
+`xwin_scan.py` now lays the take's words inside the keeps on the cut's clock and runs
+`stutter_check.py`'s detector over them. A repeat or restart whose words the captions say
+fewer times across the same span is a MEDIUM that names the span (`take` in the scan's
+output). On the four October 29th cuts it flags only that line.
+
 ## What's new in 3.24.2 (outlier-radar)
 
 **Take lessons read only what was said.** `take_lessons.py` read every `.txt` under a batch's

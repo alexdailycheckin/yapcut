@@ -4,6 +4,16 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.9.4: the captions decide where a pause is
+
+A gap the cut's captions leave without a word is now trimmed, even when the room isn't silent
+there: a murmur, a breath or room tone between two lines. The editor maps each gap back to the
+take, keeps it in `<clauses>.trims.json`, and cuts the video again once. The microphone now only
+places where a word starts and ends. A restart that the take's own transcript hears and the
+captions merged ("in the near, in the coming years" captioned once) stops the build as a
+decision. Nothing to do: update the plugin. Clips cut before 3.9.4 can hold a hole of a second
+or more; re-run the batch to find them.
+
 ## 3.9.3: a whisper abort falls back to greedy decoding
 
 On some cuts whisper.cpp aborts while timing words with beam search (exit 134). The cut's word

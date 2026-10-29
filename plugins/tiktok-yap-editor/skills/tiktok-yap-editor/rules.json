@@ -48,7 +48,7 @@
     },
     "forward_merge_max_s": 1.0,
     "word_gaps": {
-      "_about": "3.8.1: a pause the envelope cannot see (wind, fans, room tone as loud as the voice) is cut where the take's own word transcript and a window re-transcription both hear no speech. 3.9.0: on a take whose voice sits mic_separation_db over the room tone, a candidate as loud as the voice (within mic_veto_under_voice_db) is dropped words, never cut; a candidate whose cut would remove under cut.min_cut_s is not confirmed.",
+      "_about": "3.8.1: a pause the envelope cannot see (wind, fans, room tone as loud as the voice) is cut where the take's own word transcript and a window re-transcription both hear no speech. 3.9.0: a candidate whose cut would remove under cut.min_cut_s is not confirmed. 3.9.4: the words decide and the microphone only places the edges: on a take whose voice sits mic_separation_db over the room tone, each edge walks from the transcript's time to the last frame above the voice less edge_under_voice_db, at most confirm_edge_s (the 3.9.0 mic_veto_under_voice_db, which kept a whole gap as dropped words when one frame came within 3 dB of the voice, is gone: it kept a 1.6s murmur in the 2026-10-29 Honest Genius).",
       "enabled": true,
       "min_gap_s": 0.6,
       "pad_after_s": 0.12,
@@ -58,7 +58,7 @@
       "confirm_window_s": 28.0,
       "confirm_stride_s": 8.0,
       "mic_separation_db": 15.0,
-      "mic_veto_under_voice_db": 3.0
+      "edge_under_voice_db": 6.0
     },
     "crop_alternation": [
       1.0,
