@@ -26,9 +26,21 @@ ffmpeg -nostdin -y -i "$VIDEO" -ar 16000 -ac 1 -c:a pcm_s16le "$WAV" \
   -hide_banner -loglevel error
 
 if [ "$MODE" = "--words" ]; then
+  # a failed run must leave nothing behind: on 2026-10-29 align_words.py read the .full.json an
+  # earlier run left and captioned a cut with the previous cut's words
+  rm -f "${OUT}.full.json" "${OUT}.json"
   # -ml 1 -sow = one token per segment (word-level); -dtw = accurate alignment
-  whisper-cli -m "$MODEL" -f "$WAV" -ml 1 -sow -nfa -dtw "$DTW" -ojf -of "${OUT}.full" \
-    2>/dev/null >/dev/null
+  WARGS=(-m "$MODEL" -f "$WAV" -ml 1 -sow -nfa -dtw "$DTW" -ojf -of "${OUT}.full")
+  WLOG="${OUT}.whisper.log"
+  if ! whisper-cli "${WARGS[@]}" 2>"$WLOG" >/dev/null; then
+    # whisper-cli 1.9.0 aborts in DTW's median filter under beam search on some cuts (exit 134,
+    # filter_width < a->ne[2]); padding the audio does not help, greedy decoding does (2026-10-29)
+    echo "whisper-cli failed with beam search ($(grep -m1 -E 'ASSERT|error' "$WLOG" || tail -1 "$WLOG")): fell back to greedy (-bs 1 -bo 1)"
+    rm -f "${OUT}.full.json"
+    whisper-cli "${WARGS[@]}" -bs 1 -bo 1 2>"$WLOG" >/dev/null || {
+      rc=$?; echo "whisper-cli failed greedy too (exit $rc): see $WLOG" >&2; exit "$rc"; }
+  fi
+  rm -f "$WLOG"
   python3 "$SCRIPTS/align_words.py" "${OUT}.full.json" "${OUT}.json" "$WAV"
   echo "word-level timestamps: ${OUT}.json ($(basename "$MODEL"), DTW $DTW)"
 else

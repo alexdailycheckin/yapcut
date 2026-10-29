@@ -127,7 +127,13 @@ if [ "${YAP_FROM_CUT:-0}" = "1" ] && [ -s "$WORDS" ] && [ "$(cat "$WORDS.cut" 2>
   echo "reusing transcript: $WORDS"
 else
   [ -s "$WORDS" ] && [ "${YAP_FROM_CUT:-0}" = "1" ] && echo "transcript is from another cut: re-transcribing"
-  bash "$SCRIPTS/transcribe.sh" "$CUT" "$WD/w_${CUTBASE}" --words >/dev/null 2>&1
+  # a failure names this step: on 2026-10-29 a whisper abort here ended the build with a bare 134
+  rm -f "$WORDS.cut"
+  TXLOG="$WD/transcribe_${CUTBASE}.log"
+  bash "$SCRIPTS/transcribe.sh" "$CUT" "$WD/w_${CUTBASE}" --words >"$TXLOG" 2>&1 || {
+    rc=$?; echo "STEP transcribe FAILED (rc $rc): the cut's word transcript (transcribe.sh --words). $(tail -1 "$TXLOG")"
+    exit "$rc"; }
+  grep -h "fell back" "$TXLOG" || true
   echo "$CUTSIG" > "$WORDS.cut"
 fi
 

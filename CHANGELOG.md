@@ -2,6 +2,29 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.24.2 (outlier-radar)
+
+**Take lessons read only what was said.** `take_lessons.py` read every `.txt` under a batch's
+`.yap_build/`, and since yapprep that folder holds two per take: `tx/<take>.txt`, whose first
+lines are `#` headers (the take's length and levels, the phrases said twice) and whose runs carry
+`[m:ss.s]` stamps, and `seg/<take>.txt`, the numbered runs with their times. On the 2026-10-29
+batch each take was matched twice, and both "said:" texts opened with headers, stamps or run
+numbers, the text `voice-corpus/takes.jsonl` would have kept as the creator's voice. Now `seg/`
+is skipped, each take is read once, and `#` lines and stamps are dropped before the match.
+
+## What's new in 3.9.3 (tiktok-yap-editor)
+
+**A beam-search abort in the cut's word transcript falls back to greedy.** On 2026-10-29
+whisper-cli 1.9.0 aborted on the Honest Genius cut (exit 134, `filter_width < a->ne[2]` in DTW's
+median filter) every time beam search ran; padding the audio did not help, and greedy decoding
+transcribed it clean. `transcribe.sh --words` now retries once with `-bs 1 -bo 1` when whisper-cli
+exits non-zero and prints one line saying it fell back. It also deletes the earlier run's
+`<out>.full.json` and `<out>.json` before whisper runs: that night `align_words.py` read the
+`.full.json` the previous cut left and captioned the new cut with its words. `yapfull.sh` no
+longer hides the step: a transcript that still fails ends the build with `STEP transcribe FAILED
+(rc n)` and the log's last line, the fallback line shows in the build's output, and yapbatch puts
+that step in the batch status in place of a bare exit code.
+
 ## What's new in 3.9.2 (tiktok-yap-editor)
 
 **A whisper abort no longer kills a cut.** On 2026-10-26 the Magic take's re-cut died twice in a

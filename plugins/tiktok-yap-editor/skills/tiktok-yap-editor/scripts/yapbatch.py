@@ -152,6 +152,14 @@ def failing_gate(log):
     return ("+".join(g for g, _ in found), " | ".join(f"{g}: {fix}" for g, fix in found) if len(found) > 1 else found[0][1])
 
 
+def failing_step(log):
+    """yapfull's 'STEP x FAILED (rc n): what' line for a step that broke rather than a gate that ruled."""
+    for line in open(log, errors="ignore"):
+        if line.startswith("STEP ") and " FAILED " in line:
+            return line.strip()
+    return None
+
+
 def run_logged(cmd, log, env, cwd=None, shell=False):
     with open(log, "w") as f:
         f.write(f"$ {cmd if shell else ' '.join(cmd)}\n"); f.flush()
@@ -272,8 +280,9 @@ def main():
                 st.set(v["name"], state="gate-failed", gate=gate, fix=fix)
                 print(f"  {v['name']}: stopped at the {gate} gate. {fix} (log: {log})", flush=True)
             else:
-                st.set(v["name"], state="failed", error=f"yapfull exit {rc}, see {os.path.basename(log)}")
-                print(f"  {v['name']}: yapfull exit {rc} (log: {log})", flush=True)
+                step = failing_step(log)
+                st.set(v["name"], state="failed", error=f"{step or f'yapfull exit {rc}'}, see {os.path.basename(log)}")
+                print(f"  {v['name']}: {step or f'yapfull exit {rc}'} (log: {log})", flush=True)
             continue
         if v["after"]:
             t1 = now()

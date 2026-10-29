@@ -4,6 +4,13 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.9.3: a whisper abort falls back to greedy decoding
+
+On some cuts whisper.cpp aborts while timing words with beam search (exit 134). The cut's word
+transcript now retries once with greedy decoding and says so in the build's output; if that fails
+too, the build stops with `STEP transcribe FAILED` instead of a bare exit code, and no earlier
+cut's words are left for the captions. Nothing to do: update the plugin.
+
 ## 3.9.2: a whisper abort no longer kills a cut
 
 whisper.cpp now and then aborts while timing words (exit 134). The word-gap pass retries it up to
