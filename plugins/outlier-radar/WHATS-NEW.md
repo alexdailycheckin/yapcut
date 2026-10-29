@@ -4,6 +4,14 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.24.2: take lessons read only what you said
+
+**What's new.** `take_lessons.py` reads each take once and drops the editor's `#` header lines and
+`[m:ss.s]` stamps, so a lesson's "said:" is your words and nothing else.
+
+**To get it.** Update the plugin. If you recorded a batch's lessons before this release, check
+`voice-corpus/takes.jsonl` for rows whose "said" starts with `#` or a stamp and delete them.
+
 ## 3.24.1: pick a week by its dates
 
 **What's new.** The dashboard's week control is one dropdown that names each week by its dates,

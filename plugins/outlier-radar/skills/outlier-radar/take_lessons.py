@@ -14,7 +14,8 @@ Usage:
   python3 take_lessons.py <batch folder> --dry    print only, record nothing
 
 The batch folder is the one the editor transcribes into (`input/<batch>`); transcripts are read
-from its `.yap_build/` (`*.txt`, or the cut's `w_<name>.json`). Scripts come from every week
+from its `.yap_build/` (`*.txt`, one per take, `#` header lines and `[m:ss.s]` stamps dropped; or
+the cut's `w_<name>.json`). Scripts come from every week
 file and every campaign. Each lesson lands once in `voice-corpus/takes.jsonl`, keyed on the
 take, so running it twice changes nothing. `voice_brief.py` prints the newest of them under
 "HOW THEY ACTUALLY SAID IT", right after the approved scripts.
@@ -48,6 +49,17 @@ def raw_words(text):
     return re.findall(r"\S+", (text or "").replace("\n", " "))
 
 
+STAMP = re.compile(r"\[\d+(?::\d{2})+(?:\.\d+)?\]")
+
+
+def speech(text):
+    """Only what was said: yapprep's tx/<take>.txt opens with `#` lines (the take's summary, the
+    phrases said twice) and stamps each run `[m:ss.s]`. Read as speech, those headers became the
+    first "said:" of every take on 2026-10-29."""
+    return "\n".join(STAMP.sub("", line).strip() for line in (text or "").splitlines()
+                     if not line.lstrip().startswith("#")).strip()
+
+
 def scripts(home):
     """Every item with a script, from every week file and every campaign."""
     out = []
@@ -77,11 +89,15 @@ def takes(batch):
     build = batch / ".yap_build"
     clips = {p.stem.split("-")[0].split(" ")[0].upper() for p in batch.iterdir()
              if p.suffix.lower() in (".mp4", ".mov", ".m4v")} if batch.exists() else set()
-    found = []
+    found, have = [], set()
     for f in sorted(build.rglob("*.txt")) if build.exists() else []:
         stem = f.stem[2:] if f.stem.startswith("t_") else f.stem
+        # seg/<take>.txt is yapprep's numbered runs with their times, not the words said
+        if "seg" in f.relative_to(build).parts[:-1] or stem in have:
+            continue
         if stem.split("-")[0].upper() in clips:
-            found.append((stem, f.read_text(encoding="utf-8", errors="ignore")))
+            have.add(stem)
+            found.append((stem, speech(f.read_text(encoding="utf-8", errors="ignore"))))
     if not found and build.exists():
         for f in sorted(build.rglob("w_*.json")):
             try:

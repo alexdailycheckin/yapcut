@@ -881,6 +881,61 @@ check(_g(SRC, 71.18, 74.36) is None and not any(k.startswith(os.path.basename(SR
       and not any(k.startswith("win:") for k in _g.d),
       "a gap whose windows whisper could not transcribe is kept, and nothing about it is cached")
 
+
+# --- transcribe.sh --words: a beam-search abort falls back to greedy; a failure leaves no stale words ----
+with tempfile.TemporaryDirectory() as t:
+    import wave as _wave
+    _bin = os.path.join(t, "bin"); os.makedirs(_bin)
+    open(os.path.join(_bin, "whisper-cli"), "w").write("""#!/usr/bin/env bash
+echo "$*" >> "$FAKE_WHISPER_LOG"
+if [ "${FAKE_WHISPER_FAIL:-}" = always ] || [[ " $* " != *" -bs 1 "* ]]; then
+  echo "WHISPER_ASSERT: whisper.cpp:8807: filter_width < a->ne[2]" >&2; exit 134
+fi
+while [ $# -gt 0 ]; do [ "$1" = -of ] && of="$2"; shift; done
+echo '{"transcription": []}' > "$of.json"
+""")
+    os.chmod(os.path.join(_bin, "whisper-cli"), 0o755)
+    _clip = os.path.join(t, "clip.wav")
+    with _wave.open(_clip, "w") as _w:
+        _w.setnchannels(1); _w.setsampwidth(2); _w.setframerate(16000); _w.writeframes(b"\0\0" * 16000)
+    _out = os.path.join(t, "w_clip")
+    _env = dict(os.environ, PATH=_bin + os.pathsep + os.environ["PATH"], WHISPER_MODEL=os.path.join(t, "ggml-small.en.bin"),
+                FAKE_WHISPER_LOG=os.path.join(t, "calls.txt"))
+    _r = subprocess.run(["bash", os.path.join(SCRIPTS, "transcribe.sh"), _clip, _out, "--words"], env=_env,
+                        capture_output=True, text=True)
+    _calls = open(os.path.join(t, "calls.txt")).read().splitlines()
+    check(_r.returncode == 0 and len(_calls) == 2 and "-bs 1 -bo 1" in _calls[1] and "fell back to greedy" in _r.stdout
+          and "filter_width" in _r.stdout and os.path.exists(_out + ".json"),
+          f"a beam-search abort is retried greedy and says so (rc {_r.returncode}, {len(_calls)} calls)")
+    for _f in (_out + ".full.json", _out + ".json"):
+        open(_f, "w").write('{"transcription": [{"text": "the last cut", "offsets": {"from": 0, "to": 500}}]}')
+    _r = subprocess.run(["bash", os.path.join(SCRIPTS, "transcribe.sh"), _clip, _out, "--words"],
+                        env=dict(_env, FAKE_WHISPER_FAIL="always"), capture_output=True, text=True)
+    check(_r.returncode == 134 and not os.path.exists(_out + ".full.json") and not os.path.exists(_out + ".json"),
+          f"whisper failing both ways exits non-zero and leaves no earlier run's words (rc {_r.returncode})")
+    import yapbatch as _yb  # noqa: E402
+    _log = os.path.join(t, "yapfull.log")
+    open(_log, "w").write("--- dur: 50 ---\nSTEP transcribe FAILED (rc 134): the cut's word transcript (transcribe.sh --words). x\nexit 134\n")
+    check((_yb.failing_step(_log) or "").startswith("STEP transcribe FAILED (rc 134)"), "yapbatch names the yapfull step that broke")
+
+# --- take_lessons reads only what was said: no seg/ runs, no # headers, no [m:ss.s] stamps -------------
+with tempfile.TemporaryDirectory() as t:
+    sys.path.insert(0, RADAR)
+    import take_lessons as _tl  # noqa: E402
+    _b = os.path.join(t, "takes"); os.makedirs(os.path.join(_b, ".yap_build", "tx")); os.makedirs(os.path.join(_b, ".yap_build", "seg"))
+    open(os.path.join(_b, "AB12-CD.mp4"), "w").close()
+    _said = " ".join(["word%d" % i for i in range(25)])
+    open(os.path.join(_b, ".yap_build", "tx", "AB12-CD.txt"), "w").write(
+        "# AB12-CD.mp4: 60.0s, 25 words\n# said twice (1): the restarts\n#     9.08  'word1'  again at 10.2\n\n"
+        f"[0:00.9]  {' '.join(_said.split()[:10])} \n[1:05.1]  {' '.join(_said.split()[10:])} \n")
+    open(os.path.join(_b, ".yap_build", "seg", "AB12-CD.txt"), "w").write("0\t0.93-3.01\t" + _said + "\n")
+    import pathlib as _pl
+    _found = _tl.takes(_pl.Path(_b))
+    check(len(_found) == 1 and _found[0][0] == "AB12-CD", f"one transcript per take, seg/ left out: {[k for k, _ in _found]}")
+    _txt = _found[0][1] if _found else ""
+    check("#" not in _txt and "[" not in _txt and "said twice" not in _txt and _txt.split() == _said.split(),
+          f"the take reads as speech only: {_txt[:60]!r}")
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)
