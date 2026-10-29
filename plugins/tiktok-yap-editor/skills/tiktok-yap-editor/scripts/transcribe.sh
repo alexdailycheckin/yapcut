@@ -32,12 +32,13 @@ if [ "$MODE" = "--words" ]; then
   # -ml 1 -sow = one token per segment (word-level); -dtw = accurate alignment
   WARGS=(-m "$MODEL" -f "$WAV" -ml 1 -sow -nfa -dtw "$DTW" -ojf -of "${OUT}.full")
   WLOG="${OUT}.whisper.log"
-  if ! whisper-cli "${WARGS[@]}" 2>"$WLOG" >/dev/null; then
+  # the braces send bash's own "Abort trap: 6" report into the log with whisper's stderr
+  if ! { whisper-cli "${WARGS[@]}"; } 2>"$WLOG" >/dev/null; then
     # whisper-cli 1.9.0 aborts in DTW's median filter under beam search on some cuts (exit 134,
     # filter_width < a->ne[2]); padding the audio does not help, greedy decoding does (2026-10-29)
     echo "whisper-cli failed with beam search ($(grep -m1 -E 'ASSERT|error' "$WLOG" || tail -1 "$WLOG")): fell back to greedy (-bs 1 -bo 1)"
     rm -f "${OUT}.full.json"
-    whisper-cli "${WARGS[@]}" -bs 1 -bo 1 2>"$WLOG" >/dev/null || {
+    { whisper-cli "${WARGS[@]}" -bs 1 -bo 1; } 2>"$WLOG" >/dev/null || {
       rc=$?; echo "whisper-cli failed greedy too (exit $rc): see $WLOG" >&2; exit "$rc"; }
   fi
   rm -f "$WLOG"
