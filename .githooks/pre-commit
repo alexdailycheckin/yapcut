@@ -15,7 +15,8 @@ MODE="${1:-}"
 
 fail() { echo "PRE-COMMIT GATE: $1" >&2; exit 1; }
 
-STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+# R included: a `git mv` into weeks/ is a rename, and ACM alone let it through (2026-10-31)
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$STAGED" ] && [ "$MODE" != "--history" ] && exit 0
 
 # 1. Private files must never be staged, even force-added.
@@ -78,11 +79,20 @@ SECRET_PATTERNS="$SECRET_PATTERNS|$PRIVATE_PATTERNS"
 STYLE_PATTERNS='Reach (sells|pipeline|brand|block|wordmark|customer)|Reach'"'"'s (product|own|brand)|joining Reach|at Reach\b'
 
 PATTERNS="$SECRET_PATTERNS|$STYLE_PATTERNS"
+# A malformed line in private-patterns.txt made grep exit 2, the `|| true` below swallowed it, and the
+# gate printed "history clean" over a planted secret (2026-10-31). grep exits 2 only on an error.
+RC=0; echo | grep -E "$PATTERNS" >/dev/null 2>&1 || RC=$?; [ "$RC" -le 1 ] || fail "the denylist is not a valid regex (check private-patterns.txt line by line with grep -E); refusing to run a blind gate"
 # --history: scan every reachable commit for the same patterns (the 3.4.4 scrub cleaned HEAD and
 # left a customer's figures in commit 15838a7; a staged-diff gate can never see that).
+# Every line that ever existed was added by some commit, so each commit's added lines (-m for
+# merges, --text for binaries) cover the same content as grepping all 257 full trees, which cost
+# 32s and 160s of CPU per release. Same hits, under a second.
 if [ "$MODE" = "--history" ]; then
-  HITS=$(git grep -nE "$SECRET_PATTERNS" $(git rev-list --all) -- . ':(exclude).githooks/*' 2>/dev/null | head -20 || true)
+  HITS=$(git log --all -m -p --text --no-color --no-ext-diff --format='commit %h' -- . ':(exclude).githooks/*' \
+         | LC_ALL=C awk '/^commit [0-9a-f]+$/{c=$2;next} /^\+\+\+ /{f=substr($0,7);next} /^\+/{print c":"f":"substr($0,2)}' \
+         | LC_ALL=C grep -aE "$SECRET_PATTERNS"; exit "${PIPESTATUS[0]}") || fail "git log failed; the history scan did not run"
   if [ -n "$HITS" ]; then
+    HITS=$(echo "$HITS" | head -20)
     echo "$HITS" >&2
     fail "SECRET markers are reachable in git history ($(echo "$HITS" | wc -l | tr -d ' ') hits shown). Rewrite with git filter-repo --replace-text before releasing."
   fi

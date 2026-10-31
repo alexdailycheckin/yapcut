@@ -40,12 +40,14 @@ json.dump(m, open(".claude-plugin/marketplace.json", "w"), indent=2); open(".cla
 print(f"{plugin} -> {version}" + ("; marketplace and README header follow it" if plugin == "outlier-radar" else "; marketplace version unchanged (tracks outlier-radar)"))
 PY
 
+# a failed gate used to leave the bumped files behind, and the dirty-tree check then refused the retry
+rollback() { git checkout -q -- "plugins/$PLUGIN/.claude-plugin/plugin.json" .claude-plugin/marketplace.json README.md; echo "version bump rolled back"; }
 if [ "$SKIP_HISTORY" = "--skip-history" ]; then
   echo "WARNING: history scan skipped on request. Private strings remain reachable in public git history until the rewrite in yapcut-alex/archive/history-rewrite-2026-09-09/RUNBOOK.md runs. Do not make a habit of this flag."
 else
-  bash .githooks/pre-commit --history || { echo "history scan failed: private material is reachable in git history. Run the rewrite runbook, or pass --skip-history knowingly."; exit 1; }
+  bash .githooks/pre-commit --history || { rollback; echo "history scan failed: private material is reachable in git history. Run the rewrite runbook, or pass --skip-history knowingly."; exit 1; }
 fi
-if [ -x tests/run.sh ]; then tests/run.sh --fast || { echo "fast tests failed"; exit 1; }; fi
+if [ -x tests/run.sh ]; then tests/run.sh --fast || { rollback; echo "fast tests failed"; exit 1; }; fi
 
 git add -A
 if git diff --cached --quiet; then echo "version already at $VERSION in the tree; tagging HEAD"; else git commit -m "$PLUGIN $VERSION: $NOTE"; fi
