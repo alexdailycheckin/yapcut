@@ -26,7 +26,7 @@ Usage: clauses_from_script.py --src <take> --script <name>_script.txt --workdir 
 The plan also cuts a restart inside a chosen line (the words say it twice where the script says
 it once), the earlier of two passes the transcript merged (the audio heard both), a fragment said
 again after a pause, and the word or two left beside a cut.
-Exit 0 with a plan, 2 when the take does not read the script (fewer than half its sentences found).
+Exit 0 with a plan, 2 when the take does not read the script (fewer than a third of its sentences found).
 """
 import argparse
 import difflib
@@ -42,6 +42,9 @@ from yaplib import script as yscript  # noqa: E402
 from yaplib import take as ytake  # noqa: E402
 
 C = rules.get("cut")
+DANGLING = set("""a an the and or but to of for with from at in on by if than because
+gonna gotta wanna going you're i'm we're they're he's she's it's you'll i'll we'll
+your my our their his her its""".split())    # words no spoken sentence ends on
 NOISE = {"you", "thank you", "thanks", "bye", "okay", "ok", "so", "um", "uh", "yeah", "thank you bye", "hmm"}
 
 
@@ -115,30 +118,68 @@ def earlier_attempts(toks, sent, start, stop, near):
 
 
 def choose(toks, sents, min_sim, slack=0.08, near=0.6):
-    """For each sentence, in order: (chosen (i, j) or None, [earlier attempts (i, j)]). The last of
-    the attempts within `slack` of the best wins (the creator's later pass is the cleaner one),
-    searched from the end of the previous sentence's chosen attempt. Earlier, abandoned attempts
-    at the sentence are looked for one sentence further back (a restart of this line can sit
-    between two attempts at the line before) and only before the chosen one; anything after it
-    belongs to a later sentence or is a callback and is left alone."""
-    plan, start, prev_start = [], 0, 0
-    for sent, _text in sents:
-        found = attempts(toks, sent, start, min_sim)
-        back = False
-        if not found:
-            # a line said out of its script order (the Warhound take said its last two lines
-            # mid-take): take it where it is, and the search for the next line stays put
-            found = attempts(toks, sent, 0, min_sim, stop=start)
-            back = True
-        if not found:
-            plan.append((None, []))
+    """For each sentence, in order: (chosen (i, j) or None, [earlier attempts (i, j)]).
+
+    The sentences are placed all at once (3.9.5): every stretch of the take that resembles each
+    sentence is a candidate, and the chosen set is the one, in script order and never overlapping,
+    with the highest total resemblance. Until 3.9.5 each sentence took its best match from where the
+    last one ended, so one short line matched late in the take ("This series is for you." against a
+    "this is you" near the end of the 2026-10-31 Tenth Explanation take) dragged the search to the
+    end and every later line was read as out of order, with no earlier attempts looked for.
+
+    Within that order the last attempt within `slack` of the sentence's best wins (the creator's
+    later pass is the cleaner one). Earlier, abandoned attempts are looked for from the end of the
+    line two back (a restart of this line can sit between two attempts at the line before) up to
+    the chosen one. A sentence the ordered set leaves out but that the take says somewhere unused
+    (a line said out of script order) is taken where it is, with no earlier attempts."""
+    K = len(sents)
+    cands = [attempts(toks, sent, 0, min_sim) for sent, _t in sents]
+    # longest-path over (sentence, candidate): best[k][c] = best total with sentence k on candidate c
+    best = [[None] * len(c) for c in cands]
+    back = [[None] * len(c) for c in cands]
+    for k in range(K):
+        for c, (s, i, j) in enumerate(cands[k]):
+            score, prev = s, None
+            for k2 in range(k):
+                for c2, (s2, i2, j2) in enumerate(cands[k2]):
+                    if j2 <= i and best[k2][c2] is not None and best[k2][c2] + s > score:
+                        score, prev = best[k2][c2] + s, (k2, c2)
+            best[k][c], back[k][c] = score, prev
+    chain, top = {}, None
+    for k in range(K):
+        for c in range(len(cands[k])):
+            if top is None or best[k][c] > best[top[0]][top[1]]:
+                top = (k, c)
+    while top is not None:
+        chain[top[0]] = cands[top[0]][top[1]]
+        top = back[top[0]][top[1]]
+    order = sorted(chain)
+    # the last attempt within slack of the sentence's best that still fits between its neighbours
+    for n, k in enumerate(order):
+        lo = chain[order[n - 1]][2] if n else 0
+        hi = chain[order[n + 1]][1] if n + 1 < len(order) else len(toks)
+        bestk = max(x[0] for x in cands[k])
+        fit = [x for x in cands[k] if x[0] >= bestk - slack and x[1] >= lo and x[2] <= hi]
+        if fit:
+            chain[k] = fit[-1]
+    used = [(chain[k][1], chain[k][2]) for k in order]
+    plan = []
+    for k in range(K):
+        if k in chain:
+            n = order.index(k)
+            lo = chain[order[n - 2]][2] if n >= 2 else 0
+            s, i, j = chain[k]
+            others = [(oi, oj) for _os, oi, oj in earlier_attempts(toks, sents[k][0], lo, i, near)
+                      if not any(oi < uj and oj > ui for ui, uj in used)]
+            plan.append(((i, j), others))
             continue
-        best = max(s for s, _i, _j in found)
-        s, i, j = [(s, i, j) for s, i, j in found if s >= best - slack][-1]
-        others = [] if back else [(oi, oj) for _os, oi, oj in earlier_attempts(toks, sent, prev_start, i, near)]
-        plan.append(((i, j), others))
-        if not back:
-            prev_start, start = start, j
+        free = [x for x in cands[k] if not any(x[1] < uj and x[2] > ui for ui, uj in used)]
+        if free:
+            s, i, j = max(free)
+            used.append((i, j))
+            plan.append(((i, j), []))
+        else:
+            plan.append((None, []))
     return plan
 
 
@@ -260,6 +301,49 @@ def roles_of(words, toks, sents, plan, take, script_toks):
                 for x in range(p1[0], e1):
                     if role[x] == "adlib":
                         role[x], why[x] = "attempt", f"a fragment said again at {r['again']:.2f}s"
+    # inside an aside (3.9.5). Three shapes, all from the 2026-10-31 takes:
+    #  - a stall said back to back ("the the", "we must we must": a repeat, or a restart with nothing
+    #    between the passes) is cut; a repeat with a word between is the creator's rhythm as often
+    #    as a restart ("you guys are going to be friends, you're going to be good"), so it is listed
+    #  - a short aside made only of words from the line right after it is a false start of that
+    #    line ("Khan Academy. Khan." before "So in 2006, he started Khan Academy and moved...")
+    #  - an aside whose last phrase is a few words that stop on a word no sentence ends on, before a
+    #    pause and a kept line, is abandoned ("congratulations, you're gonna ... if you know someone")
+    i = 0
+    while i < len(words):
+        if role[i] != "adlib":
+            i += 1
+            continue
+        j = i
+        while j < len(words) and role[j] == "adlib":
+            j += 1
+        w = [(words[x][0], words[x][1], words[x][2], sc.norm(words[x][2])) for x in range(i, j)]
+        for st, en, kind, conf, text, _t0, _t1 in sc.find_flags(w):
+            m = re.match(r"restart (\d+)w", kind)
+            stall = kind.startswith("repeat") or kind.endswith("adjacent") or bool(m and int(m.group(1)) >= 4)
+            if conf == "HIGH" and stall and not sc.scripted((st, en, kind, conf, text, _t0, _t1), w, script_toks):
+                for x in range(i + st, i + en):
+                    role[x], why[x] = "attempt", f"a stall inside an aside: {text!r}"
+            elif kind.startswith(("restart", "repeat")):
+                listen.append((w[st][0], f"said twice inside an aside, a decision (deliberate or a restart): {text!r}"))
+        if j < len(words) and role[j] == "kept" and words[j][0] - words[j - 1][1] < 1.5:
+            nxt = {toks[x] for x in range(j, min(len(words), j + 10))}
+            b = j
+            while b > i and j - b < 5 and toks[b - 1] in nxt and (b == j or words[b][0] - words[b - 1][1] < 1.0):
+                b -= 1
+            if j - b >= 2 and all(role[x] == "adlib" for x in range(b, j)):
+                for x in range(b, j):
+                    role[x], why[x] = "attempt", "a false start of the next line"
+        if j < len(words) and role[j] == "kept" and words[j][0] - words[j - 1][1] >= 0.5 \
+                and role[j - 1] == "adlib" and sc.norm(words[j - 1][2]) in DANGLING \
+                and not words[j - 1][2].rstrip().endswith((".", "?", "!", ",")):
+            b = j - 1
+            while b > i and words[b][0] - words[b - 1][1] < 0.4:
+                b -= 1
+            if j - b <= 4:
+                for x in range(b, j):
+                    role[x], why[x] = "attempt", "a phrase abandoned before the next line"
+        i = j
     # whisper's breath words
     i = 0
     while i < len(words):
@@ -287,8 +371,16 @@ def roles_of(words, toks, sents, plan, take, script_toks):
             while j < len(words) and role[j] == "adlib":
                 j += 1
             short = (j - i) <= 2 and words[j - 1][1] - words[i][0] <= 0.6
-            glued_before = i > 0 and role[i - 1] == "attempt" and words[i][0] - words[i - 1][1] < 0.35
-            glued_after = j < len(words) and role[j] == "attempt" and words[j][0] - words[j - 1][1] < 0.35
+            # a stall cut is one word lifted out of a phrase: its neighbours are not leftovers
+            glued_before = i > 0 and role[i - 1] == "attempt" and not why[i - 1].startswith("a stall") \
+                and words[i][0] - words[i - 1][1] < 0.35
+            glued_after = j < len(words) and role[j] == "attempt" and not why[j].startswith("a stall") \
+                and words[j][0] - words[j - 1][1] < 0.35
+            # an island of up to three words between two cuts is the tail of the pass before it
+            # ("...started Khan Academy | on YouTube. | Khan Academy. Khan." on 2026-10-31)
+            if (j - i) <= 3 and i > 0 and j < len(words) and role[i - 1] == "attempt" and role[j] == "attempt" \
+                    and words[i][0] - words[i - 1][1] < 1.5 and words[j][0] - words[j - 1][1] < 1.5:
+                short = glued_before = True
             if short and (glued_before or glued_after):
                 for x in range(i, j):
                     role[x], why[x] = "attempt", "a fragment left beside a cut"
@@ -401,7 +493,9 @@ def main():
         rep.append(f"  {c['start']:7.2f}  {c['end']:7.2f}  {c['label']}")
     md = out[:-5] + ".proposed.md" if out.endswith(".json") else out + ".proposed.md"
     open(md, "w", encoding="utf-8").write("\n".join(rep) + "\n")
-    if found < len(sents) / 2:
+    # a third, not a half (3.9.5): since 2026-10-31 the scripts are long on purpose and the creator
+    # leaves out what he does not want, so a right script can be half unsaid; a wrong one is not a third said
+    if found < len(sents) / 3:
         print(f"clauses_from_script: only {found} of {len(sents)} script sentences found in the take; "
               f"is this the right script? Nothing written except the report: {md}")
         return 2

@@ -4,6 +4,17 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.9.5: proposed clause plans catch more restarts
+
+**What's new.** `clauses_from_script.py` places every script line at once, in order, so one line
+said late in a take no longer throws the rest off, and it finds restarts inside the things you say
+off script: a word said twice back to back, a false start of the next line, a phrase you abandon
+before starting again. On the October 31st takes the proposals keep 40% fewer words you cut by
+hand. It also proposes a plan when a third of the script is said, not half, since you now leave
+out what you do not want.
+
+**What you need to do.** Nothing. Read `clauses_<name>.proposed.md` before running a plan, as before.
+
 ## 3.9.4: the captions decide where a pause is
 
 A gap the cut's captions leave without a word is now trimmed, even when the room isn't silent

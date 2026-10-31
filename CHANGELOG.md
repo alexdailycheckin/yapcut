@@ -2,6 +2,37 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.5 (tiktok-yap-editor)
+
+**The clause proposer places every line at once and reads restarts inside asides.** Run on the five
+2026-10-31 takes against the plans that shipped, `clauses_from_script.py` kept a few restarts the
+hand plans cut. Two causes:
+
+- **Lines are placed in order, all together.** Each script sentence used to take its best match
+  from where the previous one ended, so one short line matched late in the take ("This series is
+  for you." against a "this is you" near the end of The Tenth Explanation) dragged the search to
+  the end, every later line was read as out of order, and no earlier attempt was looked for: "So in
+  2006, he started Khan Academy on YouTube. Khan Academy. Khan." stayed in as an aside. Now every
+  stretch that resembles a sentence is a candidate and the proposer keeps the in-order,
+  non-overlapping set with the highest total resemblance; a line left out of that order but said
+  somewhere unused is still taken where it is.
+- **Restarts inside an aside.** A stall said back to back ("the the") or a 4-word-or-longer echo
+  is cut; a shorter echo with words between ("you guys are going to be friends, you're going to be
+  good") is the creator's rhythm as often as a restart and is listed to listen to; a short aside
+  made only of words from the line right after it is a false start of that line; an aside whose last
+  few words stop on a word no sentence ends on ("congratulations, you're gonna"), before a pause and
+  a kept line, is abandoned; an island of up to three words between two cuts goes with them.
+
+The refusal threshold drops from half the script's sentences found to a third: since 2026-10-31 the
+scripts are long on purpose and the creator leaves out what he does not want. A take that reads
+another version of the script (HeyGen Voice Turbo, 3 of 24) is still refused.
+
+Against the shipped plans, word by word, on the four October 31st takes it proposes for: words the
+proposal keeps and the hand plan cut go from 62 to 37 (The Tenth Explanation 19 to 7, Decisions API
+13 to 6, The Next Wave 7 to 3, The Generous Rival 23 to 21); words the hand plan kept and the
+proposal cuts go from 1 to 3, all at restart seams. What it still keeps is mostly editorial
+("congratulations", "the official of course said no"), which words alone cannot decide.
+
 ## What's new in 3.9.4 (tiktok-yap-editor)
 
 **The words decide where a pause is, and the microphone only places its edges.** The 2026-10-29

@@ -1017,6 +1017,43 @@ with tempfile.TemporaryDirectory() as t:
     check("#" not in _txt and "[" not in _txt and "said twice" not in _txt and _txt.split() == _said.split(),
           f"the take reads as speech only: {_txt[:60]!r}")
 
+
+# --- 3.9.5: the clause proposer places every line at once, and reads restarts inside asides ------------
+def _wl(text, gaps=()):
+    """words at 0.45s a word, with a pause of 0.6s before each index in gaps."""
+    out, t = [], 0.0
+    for i, w in enumerate(text.split()):
+        if i in gaps:
+            t += 0.6
+        out.append((t, t + 0.35, w)); t += 0.45
+    return out
+
+
+# a short line matched late in the take must not drag every later line out of order (2026-10-31)
+_s5 = "This series is for you. So in 2006 he started Khan Academy and moved his lessons to YouTube. People loved it."
+_t5 = ("intro words here so in 2006 he started khan academy on youtube khan academy khan "
+       "so in 2006 he started khan academy and moved his lessons to youtube people loved it if this is you")
+_w5 = _wl(_t5, gaps=(3, 13, 16))
+_k5 = [yscript2.norm(w[2]) for w in _w5]
+_se5 = cfs.sentences(_s5)
+_p5 = cfs.choose(_k5, _se5, 0.6)
+check(_p5[1][0] == (15, 28) and _p5[1][1] and _p5[1][1][0][0] == 3,
+      f"the line is placed in order and its earlier pass is found, though line one matches only at the end: {_p5}")
+_r5, _y5, _l5 = cfs.roles_of(_w5, _k5, _se5, _p5, {"repeats": [], "voice": -26.0}, yscript2.tokens(_s5))
+check(all(r == "attempt" for r in _r5[3:15]), f"the earlier pass, the island after it and 'khan academy khan' are all cut: {_r5[3:15]}")
+check(_r5[15:28] == ["kept"] * 13, "the full pass is kept")
+# an aside: a stall is cut, a 3-word echo with a word between is listed, a dangling phrase before a line is cut
+_s6 = "We shipped the product. The buyers loved it."
+_t6 = "we shipped the product and the the market wins honestly you guys are going to be friends you're going to be good congratulations you're gonna the buyers loved it"
+_w6 = _wl(_t6, gaps=(4, 23, 25))
+_k6 = [yscript2.norm(w[2]) for w in _w6]
+_se6 = cfs.sentences(_s6)
+_r6, _y6, _l6 = cfs.roles_of(_w6, _k6, _se6, cfs.choose(_k6, _se6, 0.6), {"repeats": [], "voice": -26.0}, yscript2.tokens(_s6))
+check(_r6[5] == "attempt" and _r6[4] == "adlib" and _r6[6:9] == ["adlib"] * 3, f"a back-to-back stall in an aside is cut: {_r6[4:9]}")
+check(all(r == "adlib" for r in _r6[9:23]) and any("going to be" in m for _t, m in _l6),
+      f"a 3-word echo with a word between is the creator's rhythm: kept and listed: {_r6[9:23]}")
+check(_r6[23:25] == ["attempt", "attempt"] and _r6[22] == "adlib", f"'you're gonna' before a pause and a line is abandoned: {_r6[22:25]}")
+check(cfs.DANGLING >= {"gonna", "the", "to"} and "that" not in cfs.DANGLING, "a phrase may end on 'that'")
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)
