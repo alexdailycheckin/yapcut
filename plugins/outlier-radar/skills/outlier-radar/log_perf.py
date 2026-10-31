@@ -633,9 +633,10 @@ def weights_out():
            "source": "log_perf --weights-out", "min_n": MIN_N,
            "populations": pops, "dims": dims}
     os.makedirs(PERFDIR, exist_ok=True)
-    with open(LEARNED, "w") as fh:
+    with open(LEARNED + ".tmp", "w") as fh:   # replaced whole: a kill mid-write left half a file
         json.dump(out, fh, indent=2)
         fh.write("\n")
+    os.replace(LEARNED + ".tmp", LEARNED)
     print(f"wrote {LEARNED}: {len(dims)} dimension(s) with a value past n={MIN_N}")
     for dim, vals in dims.items():
         for k, v in sorted(vals.items(), key=lambda kv: -kv[1]["ratio"]):
@@ -648,6 +649,21 @@ def weights_out():
 
 # --- tracking ----------------------------------------------------------------------------
 
+_TRACK = {"key": None, "rows": []}
+
+
+def _tracking():
+    """tracking.jsonl, read once per change: an import called track() per record and each call
+    parsed the whole log again (records x lines)."""
+    try:
+        st = os.stat(TRACKING)
+    except OSError:
+        return []
+    if _TRACK["key"] != (st.st_mtime_ns, st.st_size):
+        _TRACK.update(key=(st.st_mtime_ns, st.st_size), rows=_read_jsonl(TRACKING))
+    return _TRACK["rows"]
+
+
 def track(event, pid, at=None, link=None, notes=None, platform=None, quiet=False):
     if event not in TRACK_EVENTS:
         raise ValueError(f"event must be one of {TRACK_EVENTS}")
@@ -658,15 +674,19 @@ def track(event, pid, at=None, link=None, notes=None, platform=None, quiet=False
         row["notes"] = notes
     if platform:
         row["platform"] = platform
-    for e in _read_jsonl(TRACKING):
+    for e in _tracking():
         if e.get("id") == pid and e.get("event") == event and e.get("link") == row.get("link") \
                 and e.get("at") == row["at"]:
             if not quiet:
                 print(f"already tracked: {pid} {event} {row['at']}")
             return False
     os.makedirs(PERFDIR, exist_ok=True)
+    rows = _tracking()
     with open(TRACKING, "a") as fh:
         fh.write(json.dumps(row) + "\n")
+    st = os.stat(TRACKING)
+    rows.append(row)
+    _TRACK.update(key=(st.st_mtime_ns, st.st_size), rows=rows)
     if not quiet:
         print(f"tracked {event}: {pid}" + (f"  {link}" if link else "") + f" -> {TRACKING}")
     return True
@@ -726,6 +746,14 @@ def import_export(path):
             try:
                 metric = "impressions" if lane == "linkedin" else "views"
                 row = {"id": pid, metric: int(views), "measured": at, "note": "dashboard export"}
+                # its age, from the posted date: with none, is_mature() called a 3-hour reading mature
+                # while the dashboard labelled the same row early (2026-10-31)
+                posted = max((e.get("at") or "" for e in _tracking()
+                              if e.get("id") == pid and e.get("event") == "posted"), default="")
+                try:
+                    row["age_hours"] = max(0, (date.fromisoformat(at) - date.fromisoformat(posted[:10])).days * 24)
+                except ValueError:
+                    row["mature"] = False
                 if platform:
                     row["platform"] = platform
                 perf_rows.append(row)
@@ -780,9 +808,10 @@ def merge_edits(output_dir):
         base.update({k: v for k, v in patch.items() if v is not None})
         merged += 1
     os.makedirs(PERFDIR, exist_ok=True)
-    with open(POSTMETA, "w") as fh:
+    with open(POSTMETA + ".tmp", "w") as fh:
         json.dump(meta, fh, indent=2, ensure_ascii=False)
         fh.write("\n")
+    os.replace(POSTMETA + ".tmp", POSTMETA)
     print(f"merged {merged} edit record(s) into {POSTMETA}"
           + (f", skipped {skipped} (standalone or unreadable)" if skipped else ""))
     return 0
@@ -843,8 +872,11 @@ def due():
             continue
         if h >= TARGET_HOURS:
             continue                       # already measured at or past the target age
-        posted = datetime.strptime(m, "%Y-%m-%d").date() - timedelta(hours=h)
-        now_h = (today - posted).days * 24
+        # a date minus hours drops anything under a day (a 22h reading posted "today"): count whole days
+        # since the measurement and add the age it was measured at
+        measured = datetime.strptime(m, "%Y-%m-%d").date()
+        posted = measured - timedelta(days=round(h / 24))
+        now_h = (today - measured).days * 24 + h
         if now_h >= TARGET_HOURS:
             pending.append((r, posted, now_h))
     if not pending:

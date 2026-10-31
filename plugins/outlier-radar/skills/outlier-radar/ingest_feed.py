@@ -252,7 +252,8 @@ def parse_table(text):
         cells = [c for c in cells if c != ""]
         if len(cells) < 6:
             continue
-        if cells[0].lower().startswith("#") or "impress" in line.lower():
+        # a header has no digits; "Why impressions lie to your CMO" is a post, and was dropped as one
+        if cells[0].lower().startswith("#") or ("impress" in line.lower() and not any(re.search(r"\d", c) for c in cells)):
             continue
         # Leading row number is optional.
         if re.fullmatch(r"\d{1,3}", cells[0]) and parse_age(cells[1])[0] is not None:

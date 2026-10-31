@@ -373,8 +373,9 @@ def main():
         for it in wk.get("distribution", []):
             if a.episode and it["id"] != a.episode:
                 continue
-            for s in it.get("shot_list", []):
-                sid = str(s.get("n", s.get("shot", s.get("id"))))
+            for k, s in enumerate(it.get("shot_list", []), 1):
+                # an unnumbered shot is its position: str(None) wrote every one to <ep>_None.png
+                sid = str(next((s[f] for f in ("n", "shot", "id") if s.get(f) is not None), k))
                 u = (s.get("url") or "").strip()
                 what = s.get("what") or s.get("shoot") or ""
                 if u.startswith("http"):

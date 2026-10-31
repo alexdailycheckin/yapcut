@@ -97,6 +97,43 @@ def _selector_cfg():
 
 
 _SCFG = _selector_cfg()
+
+
+def _facets():
+    """radar-config facets, lowercased. Unset, the two facets this file used to hardcode."""
+    try:
+        fs = json.load(open(os.path.join(RADAR, "radar-config.json"))).get("facets") or []
+    except Exception:
+        fs = []
+    return {str(x).strip().lower() for x in fs if str(x).strip()} or {"gtm-distribution", "organic"}
+
+
+FACETS = _facets()
+RECENT_COMPANIES = set()   # filled by main(): companies posted on LinkedIn in the 8 weeks before this one
+
+
+def recent_companies(wk, d):
+    """Companies carried by LinkedIn posts in the week files dated up to 56 days before this week.
+    The weight repeat_company_8wk was in the table and the docstring, and applied nowhere."""
+    try:
+        this = datetime.date.fromisoformat(str(d.get("week") or "").split()[0][:10])
+    except ValueError:
+        return set()
+    out = set()
+    for f in glob.glob(os.path.join(os.path.dirname(os.path.abspath(wk)), "*.json")):
+        if os.path.abspath(f) == os.path.abspath(wk) or f.endswith(".gate.json"):
+            continue
+        try:
+            o = json.load(open(f))
+            then = datetime.date.fromisoformat(str(o.get("week") or "").split()[0][:10])
+        except (OSError, ValueError, AttributeError):
+            continue
+        if not 0 < (this - then).days <= 56:
+            continue
+        posts = [i for i in o.get("distribution") or [] if isinstance(i, dict) and i.get("linkedin")]
+        posts += [t for t in o.get("linkedin") or [] if isinstance(t, dict)]
+        out |= {str(p.get("company")).strip().lower() for p in posts if p.get("company")}
+    return out
 TARGET_MIX = _SCFG.get("target_mix") or {"reach": 2, "playbook": 2, "authority": 1}
 
 # How many of the week's video scripts may also ship as LinkedIn twins.
@@ -365,7 +402,8 @@ def features(item):
         "units": enumerated_units(body),
         "has_verified_number": bool(has_number(body) and item.get("sources")),
         "no_proof": not item.get("sources"),
-        "in_lane": item.get("facet") in ("gtm-distribution", "organic"),
+        "in_lane": str(item.get("facet") or "").strip().lower() in FACETS,
+        "repeat_company": bool(item.get("company")) and str(item.get("company")).strip().lower() in RECENT_COMPANIES,
         "carousel_shaped": enumerated_units(body) >= 3,
     }
     f["moves"], f["heads"] = playbook_moves(body)
@@ -431,6 +469,9 @@ def score(f, fmt):
         if f.get(key):
             s += WEIGHTS[key]
             why.append(f"{key} {WEIGHTS[key]:+d}")
+    if f.get("repeat_company"):
+        s += WEIGHTS["repeat_company_8wk"]
+        why.append(f"repeat_company_8wk {WEIGHTS['repeat_company_8wk']:+d}")
     if f.get("peg_decay"):
         pts = int(round(WEIGHTS["news_peg"] * f["peg_decay"]))
         s += pts
@@ -727,6 +768,9 @@ def main():
     ap.add_argument("--dir", help="workspace (consumed by yapcut_home when given)")
     ap.add_argument("--weights", action="store_true", help="print the weight table and exit")
     ap.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
+    # documented in the usage above since 3.11.0 and refused by the parser until 2026-10-31
+    ap.add_argument("--twin-cap", type=int, help="override the twin ceiling")
+    ap.add_argument("--no-write", action="store_true", help="report only, do not write")
     a = ap.parse_args()
     DRY_RUN = a.dry_run
     if "--weights" in sys.argv:
@@ -762,10 +806,11 @@ def main():
         return 2
 
     twin_cap = TWIN_CAP
-    if "--twin-cap" in sys.argv:
-        twin_cap = int(sys.argv[sys.argv.index("--twin-cap") + 1])
+    if a.twin_cap is not None:
+        twin_cap = a.twin_cap
 
     d = json.load(open(wk))
+    RECENT_COMPANIES.update(recent_companies(wk, d))
     items = [dict(i, _kind="twin") for i in d.get("distribution", []) if i.get("linkedin")]
     items += [dict({"linkedin": t, **{k: v for k, v in t.items() if k != "linkedin"}},
                    _kind="solo") for t in d.get("linkedin", [])]
@@ -953,7 +998,7 @@ def main():
     # rendering the video's post_type and the dashboard showed five identical shapes on a
     # week the selector had already assigned four different ones. A proposal that is not
     # written down is a proposal nobody acts on.
-    if "--no-write" not in sys.argv:
+    if not a.no_write:
         written, pinned, marked = 0, 0, 0
         for s, it, f, fmt, conf, job, why in selected:
             twin = it.get("linkedin")
@@ -997,9 +1042,10 @@ def main():
                   f"{f', {marked} cut' if marked else ''}. Nothing written.")
             written = marked = pinned = 0
         else:
-          with open(wk, "w") as fh:
+          with open(wk + ".tmp", "w") as fh:   # the week file is replaced whole, never truncated in place
             json.dump(d, fh, indent=2)
             fh.write("\n")
+          os.replace(wk + ".tmp", wk)
         if not DRY_RUN:
           print(f"wrote shape + post_day to {written} post(s) in {os.path.basename(wk)}"
               f"{f', cut {marked}' if marked else ''}"

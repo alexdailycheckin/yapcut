@@ -2,6 +2,62 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.24.3 (outlier-radar)
+
+**A code review on 2026-10-31 found gates that passed what they should fail.** Each is fixed and,
+where a test can hold it, pinned in `tests/run.sh`.
+
+- **A crashing sub-gate read as a pass.** An uncaught exception exits 1, which `radar_gate.py`
+  scored as "PASS with warnings" and stamped `ok: true`. A traceback now scores 2. `visual_lint.py`
+  exits 2, not 1, when it cannot run (no Pillow, a bad `--accent`). `check_fidelity.py` reads a
+  lane set to `null` as empty instead of crashing on it.
+- **A twin under `office[]` or `days[]` skipped the LinkedIn gate.** Only `distribution[]` twins
+  were read. Every video lane's twin is gated now.
+- **A perfect judge could pass the Turing check.** `--answers` rebuilt the sheet and key with the
+  current `--n` and corpus, scored against that, and overwrote the files the judge was given. It
+  now scores against the saved key.
+- **`spoken_lint.py --apply-safe` deleted from the wrong field.** It removed the first match
+  anywhere in the file, so a sentence repeated in `pov_beat` was deleted there and the flagged
+  script kept it. It now edits the flagged field and writes the week file whole.
+- **A fresh pack failed the pack gate** when an episode sat under `office[]` or `days[]`, or was
+  titled by its subject. The gate now knows every episode `build_pack.py` renders.
+- **Re-gating an old week failed its freshness claims** once its sources aged past 45 days.
+  `source_check.py` now measures ages to the week, as the news-age check does.
+- **`select_linkedin.py`:** `--twin-cap` and `--no-write`, documented since 3.11.0, are accepted;
+  the in-lane bonus reads `radar-config.json` facets, falling back to the two it hardcoded; and
+  the documented -25 for a company posted in the last eight weeks is applied.
+- **`log_perf.py`:** a dashboard-export reading records its age from the posted date, so a 3-hour
+  number no longer counts as mature in the report while the dashboard calls it early; `--due`
+  counts hours under a day; importing reads `tracking.jsonl` once instead of once a record.
+- **Smaller:** `ingest_feed.py` kept a post whose topic says "impressions"; `capture_gate.py` names
+  an unnumbered shot by its position, not `None`; a headless Chrome that never answers is closed;
+  week files, `learned.json` and `post-meta.json` are replaced whole, never truncated in place.
+
+## What's new in 3.9.6 (tiktok-yap-editor)
+
+**A code review on 2026-10-31: a gate that failed every counter, paths with an apostrophe, and
+whisper decodes that skipped the queue.**
+
+- **The caption gate failed every default counter.** A counter sits at y 1150 and the gate skipped
+  overlays only above 1150, so its tick frames ("300", "600") were diffed against the script.
+  Overlays are now named `ovl` in the subtitle file and skipped by name.
+- **An apostrophe in a folder name broke the build.** The concat lists and the `ass` filter quoted
+  paths one level deep; both now escape them in full (brackets, commas and semicolons too).
+- **Every whisper decode queues on the machine-wide lock**, as 3.9.0 said it did. The cut's
+  transcript, the restart scan and the cross-window scan each ran outside it.
+- **The restart scan decodes 16 windows to one whisper call** instead of one call a window: about
+  a second of model load saved per window, some 50 seconds on a 2-minute cut. A word's end time
+  can move by a tenth of a second against the old per-window decode; the words are the same.
+- **A trimmed video is scanned for repetition once.** The trim pass now runs before the audio
+  repetition scan, so the cut it throws away is no longer scanned.
+- **A re-exported take is decoded again.** Its audio and its gap decisions were kept forever under
+  the take's name; they are remade when the take is newer. Two takes with one name are refused.
+- **Smaller:** an empty script is refused instead of proposing a keep-everything plan; a dash in
+  the hook names itself and lists the rulings the gates deferred; `"after": null` in a batch file
+  means "use the batch's"; the spark word colours only a whole word ("AI", never the AI in
+  "BRAIN"); `gap_check.py --trims-out` without an aligned transcript no longer crashes; the clause
+  proposer is about a fifth faster with the same plan.
+
 ## What's new in 3.9.5 (tiktok-yap-editor)
 
 **The clause proposer places every line at once and reads restarts inside asides.** Run on the five

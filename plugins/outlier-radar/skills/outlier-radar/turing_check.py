@@ -275,6 +275,20 @@ def build(wpath, n, lane):
     return {"sheet": sheet, "key": key, "paths": (sp, kp, ap)}, 0
 
 
+def saved(wpath):
+    """The sheet and key the judge was actually given, as build() wrote them. Scoring against a
+    rebuilt key (another --n, a corpus that grew since) graded a judge who copied the key at 50%
+    and overwrote the files the judge had (2026-10-31)."""
+    week = str(json.load(open(wpath)).get("week") or wpath.stem)
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", week)
+    vc = HOME / "voice-corpus"
+    sp, kp, ap = vc / f"turing-{slug}.json", vc / f"turing-{slug}.key.json", vc / f"turing-{slug}.answers.json"
+    if not (sp.exists() and kp.exists()):
+        return None
+    return {"sheet": json.loads(sp.read_text(encoding="utf-8")),
+            "key": json.loads(kp.read_text(encoding="utf-8")), "paths": (sp, kp, ap)}
+
+
 def load_answers(path):
     data = json.load(open(path))
     raw = data.get("answers") if isinstance(data, dict) and isinstance(data.get("answers"), dict) else data
@@ -388,9 +402,15 @@ def main():
     if not wpath:
         print(f"no week file for {a.week!r} (looked in the cwd, {HOME} and {HOME / 'weeks'})")
         return 2
-    built, rc = build(wpath, max(2, a.n), a.lane)
-    if built is None:
-        return rc
+    if a.answers:
+        built = saved(wpath)
+        if built is None:
+            print("no saved sheet and key for this week: build them first (run without --answers)")
+            return 2
+    else:
+        built, rc = build(wpath, max(2, a.n), a.lane)
+        if built is None:
+            return rc
     if a.answers:
         p = pathlib.Path(a.answers)
         if not p.exists() and (HOME / a.answers).exists():

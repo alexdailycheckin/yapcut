@@ -212,7 +212,11 @@ class Browser:
             args.append(f"--host-resolver-rules={rules}")
         self.proc = subprocess.Popen(args, stdout=subprocess.DEVNULL,
                                      stderr=subprocess.DEVNULL)
-        self.ws_url = self._wait_devtools()
+        try:
+            self.ws_url = self._wait_devtools()
+        except Exception:
+            self.close()    # __exit__ never runs when __init__ raises: the headless Chrome stayed up
+            raise
 
     def _wait_devtools(self, timeout=25.0) -> str:
         deadline = time.time() + timeout

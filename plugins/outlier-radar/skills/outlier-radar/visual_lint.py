@@ -32,7 +32,8 @@ import glob
 try:
     from PIL import Image
 except ImportError:
-    sys.exit("visual_lint needs Pillow: pip3 install Pillow")
+    print("visual_lint needs Pillow: pip3 install Pillow", file=sys.stderr)
+    sys.exit(2)   # a gate that cannot run is a fail, never a warning
 
 # LinkedIn's feed background. The asset has to have an edge against THIS, not white.
 FEED_BG_LUM = 240.3          # luminance of #F4F2EE
@@ -98,14 +99,16 @@ def main(argv):
         try:
             ACCENT = parse_hex(args[i + 1])
         except (IndexError, ValueError):
-            sys.exit("--accent needs a hex colour like #FEA3B4")
+            print("--accent needs a hex colour like #FEA3B4", file=sys.stderr)
+            sys.exit(2)   # a gate that cannot run is a fail, never a warning
         del args[i:i + 2]
     if not args:
         sys.exit(__doc__)
 
     if args[0] == "--dir":
         if len(args) < 2:
-            sys.exit("--dir needs a path")
+            print("--dir needs a path", file=sys.stderr)
+            sys.exit(2)   # a gate that cannot run is a fail, never a warning
         paths = sorted(
             p for ext in ("png", "jpg", "jpeg", "webp")
             for p in glob.glob(os.path.join(args[1], f"*.{ext}"))

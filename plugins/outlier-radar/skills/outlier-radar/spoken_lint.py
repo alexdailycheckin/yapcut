@@ -549,6 +549,7 @@ def lint_week(path: pathlib.Path):
     findings = []
     targets = load_targets()
     spoken_items = []
+    at = {}     # where -> (the dict, its key): --apply-safe edits the field a finding came from
     for lane in VIDEO_LANES + ("linkedin",):
         for it in d.get(lane) or []:
             # format class is a skit: speaker marks, deliberately clipped, words are the
@@ -558,12 +559,15 @@ def lint_week(path: pathlib.Path):
                 continue
             for f in FIELDS_SPOKEN:
                 if it.get(f):
+                    at[f"{it['id']}.{f}"] = (it, f)
                     findings += lint_text(it[f], f"{it['id']}.{f}", spoken=True)
             for f in FIELDS_WRITTEN:
                 if it.get(f):
+                    at[f"{it['id']}.{f}"] = (it, f)
                     findings += lint_text(it[f], f"{it['id']}.{f}", spoken=False)
             tw = it.get("linkedin")
             if isinstance(tw, dict) and tw.get("body"):
+                at[f"{tw.get('id','twin')}.body"] = (tw, "body")
                 findings += lint_text(tw["body"], f"{tw.get('id','twin')}.body", spoken=False)
                 findings += check_rejected({"id": tw.get("id", f"{it['id']}-twin"), "body": tw["body"]})
             findings += check_rejected(it)
@@ -585,7 +589,7 @@ def lint_week(path: pathlib.Path):
                          "why": ("an onboarding state, not a defect: without it the speech-shape "
                                  "checks cannot run and the cadence floors fall back to the "
                                  "pre-2026-09-09 constants.")})
-    return d, findings
+    return d, findings, at
 
 
 def corpus_path():
@@ -662,7 +666,7 @@ def main():
     if not path.exists():
         print(f"no week file at {path}")
         return 2
-    d, findings = lint_week(path)
+    d, findings, at = lint_week(path)
 
     order = {"high": 0, "medium": 1, "warn": 2}
     findings.sort(key=lambda f: (order.get(f["severity"], 9), f["where"]))
@@ -693,14 +697,19 @@ def main():
     if a.apply_safe and safe:
         bak = path.with_suffix(path.suffix + ".bak-spokenlint")
         bak.write_text(json.dumps(d, indent=2, ensure_ascii=False), encoding="utf-8")
-        raw = path.read_text(encoding="utf-8")
+        # in the flagged field only: a text search of the whole file deleted the same sentence from
+        # pov_beat and left the flagged script as it was, then said "applied 1" (2026-10-31)
         n = 0
         for f in safe:
-            frag = json.dumps(f["text"], ensure_ascii=False)[1:-1]
-            if frag in raw:
-                raw = raw.replace(frag + " ", "", 1) if frag + " " in raw else raw.replace(frag, "", 1)
+            obj, key = at.get(f["where"], (None, None))
+            frag = f["text"]
+            if obj is not None and isinstance(obj.get(key), str) and frag in obj[key]:
+                v = obj[key]
+                obj[key] = v.replace(frag + " ", "", 1) if frag + " " in v else v.replace(frag, "", 1)
                 n += 1
-        path.write_text(raw, encoding="utf-8")
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
         print(f"applied {n} deletion(s). backup at {bak.name}. Re-run check_fidelity.py.")
 
     n_high = sum(1 for f in findings if f["severity"] == "high")

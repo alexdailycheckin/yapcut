@@ -576,8 +576,9 @@ def source_law(body, sources):
 def run_linkedin(d):
     """The linkedin[] lane plus every embedded twin body. Returns (n_fail, n_warn)."""
     rows = [(p.get("id"), p, p.get("sources"), "lane", p.get("proof"))
-            for p in d.get("linkedin", [])]
-    for it in d.get("distribution", []):
+            for p in d.get("linkedin") or []]
+    # every lane that can carry a twin: a twin under office[] or days[] skipped the gate until 2026-10-31
+    for it in (x for lane in VIDEO_LANES for x in d.get(lane) or []):
         tw = it.get("linkedin")
         if tw:
             # the twin borrows the parent episode's already-verified sources
@@ -1092,7 +1093,7 @@ def run_week(path):
     if SCHEMA_ONLY:
         return n_fail, n_warn
 
-    items = d.get("distribution", []) + d.get("office", [])
+    items = (d.get("distribution") or []) + (d.get("office") or [])   # null is allowed by the schema
     shapes = Counter()
     classes = Counter()
     spoken = {}

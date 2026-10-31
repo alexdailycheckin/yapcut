@@ -74,6 +74,10 @@ def engine_version():
 def run(cmd, timeout=300):
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        # an uncaught exception exits 1, which read as "PASS with warnings" and stamped ok:true
+        # (a week with "office": null, 2026-10-31); a crash is a 2, reported as one
+        if p.returncode == 1 and "Traceback (most recent call last)" in (p.stderr or ""):
+            return 3, p.stdout, p.stderr
         return p.returncode, p.stdout, p.stderr
     except subprocess.TimeoutExpired:
         return 2, "", f"timed out after {timeout}s"
@@ -309,8 +313,11 @@ def pack_check(wpath, d):
     if os.path.getmtime(pack) < os.path.getmtime(wpath):
         lines.append(f"FAIL: the pack is older than the week file. Re-render: python3 build_pack.py --week {rel}")
     text = open(pack, encoding="utf-8").read()
-    known = " || ".join(f"{it.get('company') or ''} {it.get('title') or ''}"
-                        for it in (d.get("distribution") or []) if isinstance(it, dict)).lower()
+    # every lane build_pack renders as an episode, and its subject: a fresh pack with an
+    # office[] or days[] episode, or one titled by subject, failed its own gate (2026-10-31)
+    known = " || ".join(f"{it.get('company') or ''} {it.get('subject') or ''} {it.get('title') or ''}"
+                        for lane in ("distribution", "office", "days")
+                        for it in (d.get(lane) or []) if isinstance(it, dict)).lower()
     for _n, subj in PACK_HEAD.findall(text):
         sj = subj.strip()
         if sj and sj.lower() not in known:

@@ -132,6 +132,34 @@ python3 "$RADAR/spoken_lint.py" --dir "$WS" --week "$WS/weeks/0000-00-00-twin.js
 rc=$?
 if [ "$rc" = 2 ] && grep -q "d-example-1-li.body" /tmp/yapcut-twin.log; then ok "a rejected phrase in a twin exits 2"; else bad "twin rejection did not fire (rc $rc)"; tail -8 /tmp/yapcut-twin.log; fi
 rm -f "$WS/weeks/0000-00-00-twin.json" "$WS/voice-corpus/rejections.json"
+# 2026-10-31 review: a crashing sub-gate is a 2, a twin under office[] is gated, --apply-safe
+# edits the flagged field and nothing else
+python3 - "$RADAR" <<'CRASH' && ok "a sub-gate that crashes scores 2, never PASS with warnings" || bad "a crashing sub-gate scored below 2"
+import sys; sys.path.insert(0, sys.argv[1]); sys.argv = ["radar_gate.py"]
+import radar_gate as g
+rc, _o, e = g.run([sys.executable, "-c", "raise ValueError('boom')"])
+sys.exit(0 if g.norm_rc(rc) == 2 and g.summarise(rc, _o, e).startswith("crashed") else 1)
+CRASH
+python3 - "$WS" <<'LANES'
+import json, sys, os
+ws = sys.argv[1]; d = json.load(open(os.path.join(ws, "weeks", "0000-00-00-example.json")))
+tw = dict(d["distribution"][0]["linkedin"], id="d-office-li", body="We grew revenue 40% in a quarter with no ads.", sources=[])
+d["office"] = [dict(d["office"][0], linkedin=tw, sources=[])]
+json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-lanes.json"), "w"))
+it = d["distribution"][0]
+it["pov_beat"] = "Nobody paid for ads. That is the angle."
+it["script"] = (it.get("script") or "") + " Nobody paid for ads."
+json.dump(d, open(os.path.join(ws, "weeks", "0000-00-00-apply.json"), "w"))
+LANES
+python3 "$RADAR/check_fidelity.py" --dir "$WS" --week "$WS/weeks/0000-00-00-lanes.json" >/tmp/yapcut-lanes.log 2>&1
+grep -q "\[FAIL\] d-office-li" /tmp/yapcut-lanes.log && ok "a twin under office[] goes through the LinkedIn gate" || { bad "a twin under office[] skipped the LinkedIn gate"; tail -5 /tmp/yapcut-lanes.log; }
+python3 "$RADAR/spoken_lint.py" --dir "$WS" --week "$WS/weeks/0000-00-00-apply.json" --apply-safe >/tmp/yapcut-apply.log 2>&1
+python3 - "$WS" <<'APPLY' && ok "--apply-safe deletes from the flagged field only" || { bad "--apply-safe edited the wrong field"; grep -E "applied|absence" /tmp/yapcut-apply.log | head -3; }
+import json, sys, os
+it = json.load(open(os.path.join(sys.argv[1], "weeks", "0000-00-00-apply.json")))["distribution"][0]
+sys.exit(0 if "Nobody paid for ads." not in it["script"] and it["pov_beat"].startswith("Nobody paid for ads.") else 1)
+APPLY
+rm -f "$WS/weeks/0000-00-00-lanes.json" "$WS/weeks/0000-00-00-apply.json" "$WS/weeks/"0000-00-00-apply.json.bak-spokenlint
 # the story in one line (3.18.2): an episode's story_line prints above its script in the pack,
 # so the read starts from what happened and why it matters.
 python3 - "$WS" <<'STORY'

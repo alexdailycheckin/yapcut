@@ -4,6 +4,17 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.24.3: gates fail what they should
+
+**What's new.** A gate that crashes now fails the week instead of passing it with a warning. A
+LinkedIn twin under any video lane goes through the LinkedIn gate. The Turing check scores against
+the key the judge was given. `spoken_lint.py --apply-safe` edits only the field it flagged. The
+LinkedIn selector applies its eight-week repeat-company penalty and reads your facets from
+`radar-config.json`.
+
+**To get it.** Update the plugin. The selector may now rank a post lower when its company had a
+LinkedIn post in the last eight weeks: that is the documented rule, applied for the first time.
+
 ## 3.24.2: take lessons read only what you said
 
 **What's new.** `take_lessons.py` reads each take once and drops the editor's `#` header lines and

@@ -349,6 +349,12 @@ def main():
             print(f"no week file at {wpath}")
             sys.exit(2)
         week = json.loads(wpath.read_text(encoding="utf-8"))
+        # ages run to the week, as check_fidelity's news age does: measured from today, a week
+        # that passed on its Sunday failed on any later re-gate once its sources aged past the limit
+        try:
+            today = min(today, datetime.date.fromisoformat(str(week.get("week") or "").split()[0][:10]))
+        except ValueError:
+            pass
         for iid, idx, s, item in iter_sources(week):
             if a.item and iid != a.item:
                 continue
