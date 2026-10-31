@@ -212,7 +212,7 @@ def main():
         v["clauses"] = os.path.join(wd, os.path.expanduser(v.get("clauses") or f"clauses_{v['name']}.json"))
         v["out"] = os.path.join(wd, os.path.expanduser(fill(v.get("out") or b.get("out") or "{workdir}/house/{name}.mp4",
                                                             name=v["name"], workdir=wd, out="")))
-        v["after"] = fill(v.get("after", b.get("after")) or "", name=v["name"], workdir=wd, out=v["out"])
+        v["after"] = fill((v["after"] if v.get("after") is not None else b.get("after")) or "", name=v["name"], workdir=wd, out=v["out"])
         vids.append(v)
     st = Status(wd, [v["name"] for v in vids])
     if a.status:

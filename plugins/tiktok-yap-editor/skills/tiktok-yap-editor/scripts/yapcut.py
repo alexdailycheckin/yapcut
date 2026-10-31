@@ -476,9 +476,16 @@ def main():
     segdir=f"{wd}/segs_{outbase}"; os.makedirs(segdir,exist_ok=True)
     clauses=json.load(open(a.clauses))
     ENV={}
+    stems={}
+    for src in {c["src"] for c in clauses}:
+        stems.setdefault(os.path.splitext(os.path.basename(src))[0],set()).add(os.path.abspath(src))
+    clash=[f"{k}: {sorted(v)}" for k,v in stems.items() if len(v)>1]
+    if clash:   # audio/<stem>.wav, spans and gap decisions are keyed by the name: one take would read the other's
+        sys.exit("yapcut: two takes share a name, rename one: "+"; ".join(clash))
     for src in {c["src"] for c in clauses}:
         wav=f"{wd}/audio/{os.path.splitext(os.path.basename(src))[0]}.wav"
-        if not os.path.exists(wav):
+        # a re-exported take (the 2K HDR conversion keeps the name) used to keep its first audio forever
+        if not os.path.exists(wav) or os.path.getmtime(wav)<os.path.getmtime(src):
             subprocess.run(["ffmpeg","-nostdin","-y","-i",src,"-vn","-ar","16000","-ac","1",
                 wav,"-hide_banner","-loglevel","error"],check=True)
         ENV[src]=envelope(wav)
@@ -615,8 +622,8 @@ def main():
             "-video_track_timescale","30000","-an",ov,
             "-map","0:a","-af",af,"-c:a","pcm_s16le","-ar","48000","-ac","2","-vn",oa,
             "-hide_banner","-loglevel","error"],check=True)
-        open(concat_v,"a").write(f"file '{os.path.abspath(ov)}'\n")
-        open(concat_a,"a").write(f"file '{os.path.abspath(oa)}'\n")
+        open(concat_v,"a").write("file '" + os.path.abspath(ov).replace("'", "'\\''") + "'\n")
+        open(concat_a,"a").write("file '" + os.path.abspath(oa).replace("'", "'\\''") + "'\n")
 
     tmpv=f"{wd}/cc_{outbase}.mov"; tmpa=f"{wd}/cc_{outbase}.wav"
     subprocess.run(["ffmpeg","-nostdin","-y","-f","concat","-safe","0","-i",concat_v,

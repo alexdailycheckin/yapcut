@@ -58,9 +58,16 @@ def sentences(text):
     return out
 
 
+_SM = [None, None]    # (sentence, its matcher): attempts() slides every window over one sentence
+
+
 def sim(a, b):
-    """Token similarity in [0, 1]: a ratio over tokens, with inflections and mis-hearings alike."""
-    sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
+    """Token similarity in [0, 1]: a ratio over tokens, with inflections and mis-hearings alike.
+    The matcher indexes b once and is reused while b is the same object (about a fifth faster)."""
+    if _SM[0] is not b:
+        _SM[:] = [b, difflib.SequenceMatcher(None, (), b, autojunk=False)]
+    sm = _SM[1]
+    sm.set_seq1(a)
     m = sum(bl.size for bl in sm.get_matching_blocks())
     near = 0
     for op, i1, i2, j1, j2 in sm.get_opcodes():
@@ -495,7 +502,7 @@ def main():
     open(md, "w", encoding="utf-8").write("\n".join(rep) + "\n")
     # a third, not a half (3.9.5): since 2026-10-31 the scripts are long on purpose and the creator
     # leaves out what he does not want, so a right script can be half unsaid; a wrong one is not a third said
-    if found < len(sents) / 3:
+    if not sents or found < len(sents) / 3:
         print(f"clauses_from_script: only {found} of {len(sents)} script sentences found in the take; "
               f"is this the right script? Nothing written except the report: {md}")
         return 2

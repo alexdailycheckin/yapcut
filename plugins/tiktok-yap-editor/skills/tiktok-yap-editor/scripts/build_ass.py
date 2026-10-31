@@ -439,7 +439,8 @@ def main():
                 if not a.hook_spark:
                     return text
                 wd = a.hook_spark.upper() if p["caps"] else a.hook_spark
-                return text.replace(wd, f"{{\\1c{spark_ass}}}{wd}{{\\1c{hk_col}}}", 1)
+                return re.sub(rf"(?:(?<=\\N)|(?<![A-Za-z0-9'])){re.escape(wd)}(?![A-Za-z0-9'])",   # \N is a line break
+                              lambda m: f"{{\\1c{spark_ass}}}{m.group(0)}{{\\1c{hk_col}}}", text, count=1)
 
             if a.hook_anim == "typewriter" and not a.hook_static:
                 # LEGACY: the whole hook types in from 0.00 (frame zero shows
@@ -504,7 +505,7 @@ def main():
                     lines = lines[:SRC_MAX_LINES]
                 body = "\\N".join(lines)
                 y = SRC_BASE_Y - (len(lines) - 1) * SRC_LINE_H
-                events.append((o["start"], o["end"], "Cap",
+                events.append((o["start"], o["end"], "Cap", "ovl",
                                f"{{\\an1\\pos(48,{y})\\fn Space Mono\\fs{SRC_FS}"
                                f"\\bord6\\shad0\\1c{base_ass}\\3c{out_ass}"
                                f"\\fad(150,150)}}{body}"))
@@ -531,14 +532,14 @@ def main():
                     val = f"{int(target * s / steps):,}"
                     st = o["start"] + (s / steps) * cdur
                     en = o["start"] + ((s + 1) / steps) * cdur
-                    events.append((st, en, "Cap",
+                    events.append((st, en, "Cap", "ovl",
                                    f"{{\\an5\\pos({W // 2},{y})\\fn {p['font']}\\fs118\\bord10\\shad3"
                                    f"\\1c{spark_ass}\\3c{out_ass}\\4c&H00000000}}{val}"))
-                events.append((o["start"] + cdur, o["end"], "Cap",
+                events.append((o["start"] + cdur, o["end"], "Cap", "ovl",
                                f"{{\\an5\\pos({W // 2},{y})\\fn {p['font']}\\fs118\\bord10\\shad3"
                                f"\\1c{spark_ass}\\3c{out_ass}\\4c&H00000000\\fad(0,150)}}{o['value']}"))
                 if o.get("label"):
-                    events.append((o["start"], o["end"], "Cap",
+                    events.append((o["start"], o["end"], "Cap", "ovl",
                                    f"{{\\an5\\pos({W // 2},{y + 92})\\fn Space Mono\\fs32\\fsp2"
                                    f"\\bord4\\1c{base_ass}\\3c{out_ass}\\fad(150,150)}}{o['label']}"))
 
@@ -579,8 +580,11 @@ def main():
     lines.append("")
     lines.append("[Events]")
     lines.append("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text")
-    for st, en, style, txt in events:
-        lines.append(f"Dialogue: 0,{cs(st)},{cs(en)},{style},,0,0,0,,{txt}")
+    # overlays (counters, source lower-thirds) carry Name=ovl so caption_qa skips them by name: a counter
+    # sits at y 1150 by default, which the old height rule (< 1150) diffed tick by tick against the script
+    for st, en, style, *rest in events:
+        *name, txt = rest
+        lines.append(f"Dialogue: 0,{cs(st)},{cs(en)},{style},{name[0] if name else ''},0,0,0,,{txt}")
 
     with open(a.out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")

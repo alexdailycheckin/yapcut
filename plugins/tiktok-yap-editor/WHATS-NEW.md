@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.9.6: counters pass the caption gate, and decodes wait their turn
+
+**What's new.** A counter overlay no longer fails the caption gate. A folder with an apostrophe in
+its name no longer breaks the build. Every whisper decode now waits for the one before it, and the
+restart scan decodes its windows in batches, so a video's scans finish sooner. A take you
+re-export under the same name is transcribed again instead of reusing the old one.
+
+**What you need to do.** Nothing.
+
 ## 3.9.5: proposed clause plans catch more restarts
 
 **What's new.** `clauses_from_script.py` places every script line at once, in order, so one line

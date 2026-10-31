@@ -33,18 +33,19 @@ if [ "$MODE" = "--words" ]; then
   WARGS=(-m "$MODEL" -f "$WAV" -ml 1 -sow -nfa -dtw "$DTW" -ojf -of "${OUT}.full")
   WLOG="${OUT}.whisper.log"
   # the braces send bash's own "Abort trap: 6" report into the log with whisper's stderr
-  if ! { whisper-cli "${WARGS[@]}"; } 2>"$WLOG" >/dev/null; then
+  # every decode queues on the machine-wide lock (yaplib/whisper.py, 3.9.0); this one used to skip it
+  if ! { python3 "$SCRIPTS/yaplib/whisper.py" run -- whisper-cli "${WARGS[@]}"; } 2>"$WLOG" >/dev/null; then
     # whisper-cli 1.9.0 aborts in DTW's median filter under beam search on some cuts (exit 134,
     # filter_width < a->ne[2]); padding the audio does not help, greedy decoding does (2026-10-29)
     echo "whisper-cli failed with beam search ($(grep -m1 -E 'ASSERT|error' "$WLOG" || tail -1 "$WLOG")): fell back to greedy (-bs 1 -bo 1)"
     rm -f "${OUT}.full.json"
-    { whisper-cli "${WARGS[@]}" -bs 1 -bo 1; } 2>"$WLOG" >/dev/null || {
+    { python3 "$SCRIPTS/yaplib/whisper.py" run -- whisper-cli "${WARGS[@]}" -bs 1 -bo 1; } 2>"$WLOG" >/dev/null || {
       rc=$?; echo "whisper-cli failed greedy too (exit $rc): see $WLOG" >&2; exit "$rc"; }
   fi
   rm -f "$WLOG"
   python3 "$SCRIPTS/align_words.py" "${OUT}.full.json" "${OUT}.json" "$WAV"
   echo "word-level timestamps: ${OUT}.json ($(basename "$MODEL"), DTW $DTW)"
 else
-  whisper-cli -m "$MODEL" -f "$WAV" -otxt -oj -of "$OUT" 2>/dev/null >/dev/null
+  python3 "$SCRIPTS/yaplib/whisper.py" run -- whisper-cli -m "$MODEL" -f "$WAV" -otxt -oj -of "$OUT" 2>/dev/null >/dev/null
   echo "transcript: ${OUT}.txt  (json: ${OUT}.json)"
 fi

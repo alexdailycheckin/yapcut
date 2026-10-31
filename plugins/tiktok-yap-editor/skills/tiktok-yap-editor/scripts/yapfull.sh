@@ -159,7 +159,11 @@ gate_stutter_transcript "$WORDS" "$STUTOK" "$SCRIPTFILE"
 python3 "$SCRIPTS/build_ass.py" --words "$WORDS" --out "$ASS" \
   --preset minimal --font "$CFONT" --caps "$CCASE" --accent none \
   --hook "$HOOK" --hook-secs "$HOOK_SECS" --hook-anim "$HANIM" --hook-style "$HSTYLE" \
-  --hook-spark "$HOOKWORD" --accent-hex "$ACCENT" --overlays "$OVRFILE" --corrections "$CORR"
+  --hook-spark "$HOOKWORD" --accent-hex "$ACCENT" --overlays "$OVRFILE" --corrections "$CORR" || {
+  # a dash in the hook or a caption exits 2 here: under set -e that ended the run with no GATE line and
+  # the rulings the gates above deferred unprinted, so yapbatch reported a bare "yapfull exit 2"
+  rc=$?; echo "GATE dash FAILED (rc $rc). Replace the em or en dash named above with a comma, colon or full stop."
+  gates_settle; exit "$rc"; }
 gate_hook_drawn "$ASS.meta.json"
 python3 "$SCRIPTS/cta_block.py" --ass "$ASS" --dur "$DUR" --handle "$HANDLE" --contact "$CONTACT" \
   --font "$HFONT" --accent "$ACCENT" --base "$BASE" --ink "$INK" --lead 9.7
@@ -169,9 +173,6 @@ gate_caption "$ASS" "$SCRIPTFILE" "$CFG" "$OVRFILE" "$CAPOK" "$WORDS" "$CORR"
 
 # every decision is on the screen: stop here if any gate above went red
 gates_settle
-
-# 2c. REPETITION GATE, the audio half (cached on the cut and on the takes' windows)
-gate_stutter_audio "$WORDS" "$CUT" "$STUTOK" "$KEEPS" "$SCRIPTFILE"
 
 # 2d. DEAD-AIR GATE: pauses that survived the cut, measured by the microphone or the words.
 # The captions decide first (3.9.4): a gap no caption covers is mapped back to the take, kept in
@@ -187,6 +188,10 @@ if [ "${YAP_TRIM_PASS:-0}" != "1" ] && [ "${YAP_ALLOW_GAPS:-0}" != "1" ] && [ -f
     YAP_FROM_CUT=0 YAP_TRIM_PASS=1 exec bash "$0" "$@"
   fi
 fi
+
+# 2c. REPETITION GATE, the audio half (cached on the cut and on the takes' windows). After the trim
+# pass: when trims fire the run re-cuts with exec, and a scan of the cut it throws away cost a minute
+gate_stutter_audio "$WORDS" "$CUT" "$STUTOK" "$KEEPS" "$SCRIPTFILE"
 gate_dead_air "$CUT" "$WORDS"
 
 # 4. compose: burn captions, loudness to -14 (measured, corrected, verified), clean CFR.

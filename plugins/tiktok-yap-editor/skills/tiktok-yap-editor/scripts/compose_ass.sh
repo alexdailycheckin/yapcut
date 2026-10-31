@@ -29,8 +29,10 @@ PY
 )
 LOUDNORM="loudnorm=I=${LUFS}:TP=${TP}:LRA=${LRA}"
 
-# ass filter wants the path escaped (colons/commas break the filter parser).
-ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:/g')
+# ass filter wants the path escaped twice, unquoted: once for the option value (\ ' :), once for the
+# filtergraph (\ ' [ ] , ;). One level inside quotes broke on an apostrophe in the folder name (2026-10-31).
+ASS_ESC=$(printf '%s' "$ASS" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/:/\\:/g' \
+  | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g" -e 's/\[/\\[/g' -e 's/\]/\\]/g' -e 's/,/\\,/g' -e 's/;/\\;/g')
 
 # setpts=N/(30*TB) RENUMBERS every frame onto a gapless 30fps grid BEFORE the
 # ass burn. yapcut's segment video is concat-demuxed with -c copy, which leaves
@@ -106,7 +108,7 @@ fi
 [ -n "$AF" ] || { AF="$LOUDNORM"; echo "  (loudnorm measure failed, single-pass fallback)"; }
 
 ffmpeg -nostdin -y -i "$CUT" \
-  -vf "setpts=N/(30*TB),ass='${ASS_ESC}',setsar=1,format=yuv420p" \
+  -vf "setpts=N/(30*TB),ass=${ASS_ESC},setsar=1,format=yuv420p" \
   -af "$AF" -ar 48000 \
   -c:v libx264 -preset medium -crf 16 -r 30 -vsync cfr \
   -video_track_timescale 30000 -c:a aac -b:a 192k -movflags +faststart \

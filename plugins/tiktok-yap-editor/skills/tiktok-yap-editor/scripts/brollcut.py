@@ -110,7 +110,7 @@ def main():
                          "t_start": round(t, 3), "t_end": round(t + real, 3),
                          "dur": round(real, 3)})
         t += real
-        open(concat, "a").write(f"file '{os.path.abspath(o)}'\n")
+        open(concat, "a").write("file '" + os.path.abspath(o).replace("'", "'\\''") + "'\n")
 
     media.ffmpeg(["-f", "concat", "-safe", "0", "-i", concat, "-c", "copy", a.out],
                  what="ffmpeg concat")

@@ -10,9 +10,18 @@ Usage:
 """
 import argparse, json, os, sys
 
+
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from yaplib import ass as yass  # noqa: E402
 from yaplib import media  # noqa: E402
+
+
+def ffesc(p):
+    """A path as an ffmpeg filter option: escaped for the option value, then for the filtergraph."""
+    for chars in ("\\':", "\\'[],;"):
+        p = "".join("\\" + c if c in chars else c for c in p)
+    return p
+
 
 ass_time = yass.cs
 
@@ -89,14 +98,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     lead_clip, "-hide_banner", "-loglevel", "error"], what="ffmpeg vo guide")
     cat = os.path.join(wd, "_guidecat.txt")
     with open(cat, "w") as f:
-        f.write(f"file '{os.path.abspath(lead_clip)}'\n")
-        f.write(f"file '{os.path.abspath(a.picture)}'\n")
+        f.write("file '" + os.path.abspath(lead_clip).replace("'", "'\\''") + "'\n")
+        f.write("file '" + os.path.abspath(a.picture).replace("'", "'\\''") + "'\n")
     base = os.path.join(wd, "_guidebase.mp4")
     media.run(["ffmpeg", "-nostdin", "-y", "-f", "concat", "-safe", "0",
                     "-i", cat, "-c", "copy", base,
                     "-hide_banner", "-loglevel", "error"], what="ffmpeg vo guide")
     media.run(["ffmpeg", "-nostdin", "-y", "-i", base,
-                    "-vf", f"ass={ass}", "-c:v", "libx264", "-preset", "veryfast",
+                    "-vf", "ass=" + ffesc(ass), "-c:v", "libx264", "-preset", "veryfast",
                     "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy",
                     a.out, "-hide_banner", "-loglevel", "error"], what="ffmpeg vo guide")
     print(f"guide -> {a.out}  (leader {a.lead}s + {n} beats)")

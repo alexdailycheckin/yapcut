@@ -116,7 +116,10 @@ def caption_words(ass_path: str, free_from=None) -> list:
                     continue
             except (IndexError, ValueError):
                 pass
-        text = line.split(",,", 1)[-1]
+        f = line.split(",", 9)
+        if len(f) == 10 and f[4].strip() == "ovl":       # counters and lower-thirds (build_ass names them)
+            continue
+        text = f[-1]
         m = re.search(r"\\pos\(\s*[\d.]+\s*,\s*([\d.]+)\s*\)", text)
         if m and float(m.group(1)) < 1150:
             continue

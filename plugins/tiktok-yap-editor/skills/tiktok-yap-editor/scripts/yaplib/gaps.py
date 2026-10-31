@@ -110,6 +110,9 @@ class GapConfirm:
             d = json.load(open(cache))
         except (OSError, ValueError):
             d = {}
+        # decisions about a take whose audio was made again (a re-export) are about other audio
+        if d and any(os.path.isfile(w) and os.path.getmtime(w) > os.path.getmtime(cache) for w in wavs.values()):
+            d = {}
         self.d = d if d.get("model") == model and d.get("v") == 4 else {"model": model, "v": 4}
 
     def window_words(self, src, t0, t1):

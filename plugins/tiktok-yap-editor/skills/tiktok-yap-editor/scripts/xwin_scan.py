@@ -75,6 +75,7 @@ from stutter_check import accept_key, load_accepted  # noqa: E402
 from yaplib import repeats, rules  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
 from yaplib import script as yscript  # noqa: E402
+from yaplib import whisper as ywhisper  # noqa: E402
 
 MODEL = ywords.whisper_model()   # the same model as the cut's words, or two wordings read as a restart
 RATE = 16000
@@ -197,45 +198,6 @@ def clean_text(segs):
     return "" if (not txt or "BLANK_AUDIO" in txt or not norm_words(txt)) else txt
 
 
-class whisper_lock:
-    """One whisper decode at a time across processes (3.8.0): yapbatch runs the next video's
-    prescan beside the current video's cut and render, and two whisper-cli processes on one GPU
-    are slower together than one after the other. A mkdir lock beside the window store, taken
-    per chunk; a lock whose owner is gone is taken over."""
-
-    def __init__(self, store_dir):
-        self.dir = os.path.join(store_dir, ".whisper.lock") if store_dir else ""
-
-    def __enter__(self):
-        if not self.dir:
-            return self
-        os.makedirs(os.path.dirname(self.dir), exist_ok=True)
-        waited = 0
-        while True:
-            try:
-                os.mkdir(self.dir)
-                open(os.path.join(self.dir, "pid"), "w").write(str(os.getpid()))
-                return self
-            except FileExistsError:
-                try:
-                    pid = int(open(os.path.join(self.dir, "pid")).read() or 0)
-                    os.kill(pid, 0)
-                except (OSError, ValueError):
-                    if waited >= 2:                       # gone or never wrote a pid: take it over
-                        subprocess.run(["rm", "-rf", self.dir])
-                        continue
-                if waited == 0:
-                    print("  waiting for another whisper decode to finish", flush=True)
-                time.sleep(1); waited += 1
-
-    def __exit__(self, *exc):
-        if self.dir:
-            subprocess.run(["rm", "-rf", self.dir])
-
-
-LOCK_DIR = ""
-
-
 def decode_batch(jobs, tmpdir, label=""):
     """jobs: [(store, key, audio)]. Decodes every key not yet in its store, in ONE whisper-cli
     call per chunk (the model loads once; each window is still its own -f input, so nothing
@@ -258,7 +220,7 @@ def decode_batch(jobs, tmpdir, label=""):
         cmd = ["whisper-cli", "-m", MODEL, "-oj", "-np"]
         for f in files:
             cmd += ["-f", f]
-        with whisper_lock(LOCK_DIR):
+        with ywhisper.lock():   # the machine-wide queue, not a lock only this build folder sees
             r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             # a scan that could not run must never read as a clean zero
@@ -631,8 +593,6 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(a.cache)) if a.cache else (a.workdir or os.getcwd())
     store_dir = a.store_dir or os.path.join(base_dir, "xwin_src")
     workdir = a.workdir or (os.path.dirname(os.path.abspath(a.keeps)) if a.keeps else "")
-    global LOCK_DIR
-    LOCK_DIR = store_dir
     if a.prescan:
         prescan(a.prescan, store_dir, workdir or base_dir, windows, a.hop, everywhere=a.everywhere)
         return

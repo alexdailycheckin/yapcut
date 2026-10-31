@@ -31,23 +31,38 @@ from stutter_check import find_flags, norm, accept_key, load_accepted, load_acce
 from yaplib import media  # noqa: E402
 from yaplib import words as ywords  # noqa: E402
 from yaplib import script as yscript  # noqa: E402
+from yaplib import whisper as ywhisper  # noqa: E402
 
 MODEL = ywords.whisper_model()   # the same model as the cut's words
 
-def window_tokens(video, t0, t1, tmpdir):
-    base = os.path.join(tmpdir, f"w_{int(t0*1000)}")
-    subprocess.run(["ffmpeg", "-nostdin", "-y", "-ss", f"{t0:.2f}", "-to", f"{t1:.2f}",
-                    "-i", video, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
-                    base + ".wav", "-hide_banner", "-loglevel", "error"], check=True)
-    subprocess.run(["whisper-cli", "-m", MODEL, "-f", base + ".wav", "-ml", "1",
-                    "-sow", "-dtw", ywords.dtw_preset(MODEL), "-oj", "-of", base],
-                   capture_output=True, check=True)
+DECODE_CHUNK = 16
+
+
+def windows_tokens(video, spans, tmpdir):
+    """Each window's tokens, in order. The windows decode DECODE_CHUNK files to one whisper-cli call
+    under the machine-wide lock: the model loads once a call instead of once a window (about 1.1s
+    each, some 50s on a 2-minute cut's 48 windows), and the scan no longer shares the GPU unqueued."""
+    bases = []
+    for t0, t1 in spans:
+        base = os.path.join(tmpdir, f"w_{int(t0*1000)}_{int(t1*1000)}")   # both tiers start at 0.0
+        subprocess.run(["ffmpeg", "-nostdin", "-y", "-ss", f"{t0:.2f}", "-to", f"{t1:.2f}",
+                        "-i", video, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
+                        base + ".wav", "-hide_banner", "-loglevel", "error"], check=True)
+        bases.append(base)
+    for c in range(0, len(bases), DECODE_CHUNK):
+        cmd = ["whisper-cli", "-m", MODEL, "-ml", "1", "-sow", "-dtw", ywords.dtw_preset(MODEL), "-oj"]
+        for b in bases[c:c + DECODE_CHUNK]:
+            cmd += ["-f", b + ".wav"]
+        ywhisper.run(cmd, capture_output=True, check=True)
     out = []
-    for s, e, t in ywords.load_words(base + ".json", offset=t0):
-        if t.startswith("["):
-            continue
-        out.append((s, e, t, norm(t)))
+    for (t0, _t1), base in zip(spans, bases):
+        out.append([(s, e, t, norm(t)) for s, e, t in ywords.load_words(base + ".wav.json", offset=t0)
+                    if not t.startswith("[")])
     return out
+
+
+def window_tokens(video, t0, t1, tmpdir):
+    return windows_tokens(video, [(t0, t1)], tmpdir)[0]
 
 def audio_sig(video, args):
     """The cut's audio plus every setting that changes the findings: a rerun on the same cut
@@ -155,9 +170,11 @@ def main():
       # "a viral marketing, a viral marketing" and gates HIGH. Short windows
       # give whisper no room to smooth, which is the entire point.
       for win, hop in ((a.win, a.hop), (a.short_win, a.short_hop)):
-        t = 0.0
+        spans, t = [], 0.0
         while t < dur - 1.0:
-            w = window_tokens(a.video, t, min(dur, t + win), td)
+            spans.append((t, min(dur, t + win)))
+            t += hop
+        for w in windows_tokens(a.video, spans, td):
             for fl in find_flags(w):
                 _i, _j, kind, conf, text, t0, t1 = fl
                 # dedupe across overlapping windows by time+text
@@ -166,7 +183,6 @@ def main():
                     continue
                 found.append((t0, t1, kind, conf, text))
                 ctx[(t0, text)] = (fl, w)
-            t += hop
       # HIGH must reproduce in a tight re-transcription or it is demoted.
       # Runs once, after BOTH tiers have contributed.
       verified = []

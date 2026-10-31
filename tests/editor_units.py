@@ -1054,6 +1054,29 @@ check(all(r == "adlib" for r in _r6[9:23]) and any("going to be" in m for _t, m 
       f"a 3-word echo with a word between is the creator's rhythm: kept and listed: {_r6[9:23]}")
 check(_r6[23:25] == ["attempt", "attempt"] and _r6[22] == "adlib", f"'you're gonna' before a pause and a line is abandoned: {_r6[22:25]}")
 check(cfs.DANGLING >= {"gonna", "the", "to"} and "that" not in cfs.DANGLING, "a phrase may end on 'that'")
+# --- 2026-10-31 review: counters, the spark word, an apostrophe in the path ---------------------------
+with tempfile.TemporaryDirectory(prefix="Alex's [day], one; 1-2 ") as _t:
+    _wj, _ov, _sc = (os.path.join(_t, n) for n in ("w.json", "ov.json", "s.txt"))
+    json.dump({"transcription": [{"offsets": {"from": i * 400, "to": i * 400 + 350}, "text": " " + w}
+                                 for i, w in enumerate("We made 1,200 sales today.".split())]}, open(_wj, "w"))
+    json.dump([{"type": "counter", "value": "1,200", "label": "sales", "start": 0.5, "end": 2.5}], open(_ov, "w"))
+    open(_sc, "w").write("We made 1,200 sales today.\n")
+    _ass = os.path.join(_t, "c.ass")
+    subprocess.run([sys.executable, os.path.join(SCRIPTS, "build_ass.py"), "--words", _wj, "--out", _ass, "--overlays", _ov],
+                   capture_output=True)
+    _qa = subprocess.run([sys.executable, os.path.join(SCRIPTS, "caption_qa.py"), "--ass", _ass, "--script", _sc,
+                          "--overlays", _ov, "--words", _wj, "--no-lexicon"], capture_output=True, text=True)
+    check(_qa.returncode == 0, f"a counter at its default height is an overlay, not a caption the script must say (rc {_qa.returncode})")
+    for _h, _want in (("BRAIN DRAIN|AI", "BRAIN DRAIN\\N{"), ("WAIT|AI WINS", "WAIT\\N{")):
+        subprocess.run([sys.executable, os.path.join(SCRIPTS, "build_ass.py"), "--words", _wj, "--out", _ass, "--hook", _h,
+                        "--hook-spark", "AI", "--accent-hex", "#FF3300", "--caps", "on"], capture_output=True)
+        _hook = next((l for l in open(_ass) if ",Hook," in l), "")
+        check(_want in _hook, f"the spark word colours the word AI, not the AI inside another word ({_h})")
+    import vo_guide  # noqa: E402
+    _burn = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=320x240:d=0.5",
+                            "-vf", "ass=" + vo_guide.ffesc(_ass), "-y", os.path.join(_t, "o.mp4")], capture_output=True, text=True)
+    check(_burn.returncode == 0, f"the ass filter burns from a folder with an apostrophe, brackets, a comma and a semicolon {_burn.stderr[-120:]}")
+
 if fails:
     print(f"{len(fails)} failure(s)")
     sys.exit(2)

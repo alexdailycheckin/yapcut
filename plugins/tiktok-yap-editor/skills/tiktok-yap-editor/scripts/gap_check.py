@@ -256,7 +256,7 @@ def main() -> int:
 
     lead = toks[0][0]
     if lead > a.lead:
-        fails.append((0.0, lead, "<start>", toks[0][2]))
+        fails.append((0.0, lead, "<start>", toks[0][2], 0.0, lead))
 
     for (s1, e1, t1), (s2, e2, t2) in zip(toks, toks[1:]):
         g = s2 - e1
@@ -265,7 +265,7 @@ def main() -> int:
         if any(abs(e1 - t) <= 0.3 for t in allow):
             print(f"  allowed beat: {g:.2f}s @ {e1:.2f}s  (...{t1} | {t2}...)")
             continue
-        (fails if g >= a.fail else warns).append((e1, s2, t1, t2))
+        (fails if g >= a.fail else warns).append((e1, s2, t1, t2, e1, s2))
 
     if a.trims_out and a.keeps and fails:
         added = write_trims(fails, a)
