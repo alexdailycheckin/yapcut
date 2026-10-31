@@ -75,6 +75,13 @@ squash = lambda s: re.sub(r"\s+", " ", s)
 if ra:
     if ra["gates"]["two_question"] not in text(os.path.join(RA, "SKILL.md")):
         fails.append("radar rules.json gates.two_question no longer appears verbatim in SKILL.md")
+    mult = f'{ra["outlier"]["min_multiple"]}x'
+    for doc in (os.path.join(RA, "SKILL.md"), os.path.join(ROOT, "README.md")):
+        if mult not in text(doc):
+            fails.append(f"{os.path.relpath(doc, ROOT)} no longer says {mult}, the outlier multiple rules.json gates on")
+    if re.search(r"\b[2-9]x or more is an outlier", text(os.path.join(RA, "SKILL.md"))) and \
+            f"{mult} or more is an outlier" not in text(os.path.join(RA, "SKILL.md")):
+        fails.append("SKILL.md states an outlier multiple other than rules.json outlier.min_multiple")
     if squash(ra["gates"]["vacuum_test"]) not in squash(text(os.path.join(RA, "hook_lint.py"))):
         fails.append("radar rules.json gates.vacuum_test no longer matches hook_lint.py's docstring")
 

@@ -2,6 +2,29 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.25.0 (outlier-radar)
+
+**The outlier rule is a gate: 5x the account's own median, computed from the numbers.** The rule
+was prose only. The README and the watch-accounts template said 5x, SKILL.md said 3x, and no script
+computed either, so an `inspiration[]` entry needed no baseline to count as an outlier.
+
+- **Each `inspiration[]` entry carries `value`, `median` and `multiple`.** `value` is the post's
+  number on its metric, `median` the same account's median on that metric over its recent posts
+  (the post itself left out), `multiple` value / median.
+- **`radar_gate.py` completeness FAILs an entry** under `rules.json` outlier.min_multiple (5),
+  one without the three numbers, or one whose `multiple` the numbers do not back. The ratio is
+  computed from value and median, never read from `multiple`. Weeks dated before 2026-11-02 are
+  exempt: they were written under the old rule.
+- **SKILL.md says 5x**, and `tests/rules_check.py` fails when SKILL.md or the README stops saying
+  the multiple `rules.json` gates on.
+- **The dashboard's best outlier** reads value / median, falling back to an "(Nx)" note in older
+  weeks.
+
+**The `weeks` gate is retired** to make room, per the rule that a new gate costs an old one. It
+FAILed two week files with one `week` string and warned on ids shared across files. It found
+nothing in 11 gated weeks, and it re-read every week file for each week it gated. Duplicate ids
+inside one file still FAIL in `check_fidelity.py`. `--skip weeks` is accepted and does nothing.
+
 ## What's new in 3.24.3 (outlier-radar)
 
 **A code review on 2026-10-31 found gates that passed what they should fail.** Each is fixed and,

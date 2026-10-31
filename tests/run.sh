@@ -140,6 +140,24 @@ import radar_gate as g
 rc, _o, e = g.run([sys.executable, "-c", "raise ValueError('boom')"])
 sys.exit(0 if g.norm_rc(rc) == 2 and g.summarise(rc, _o, e).startswith("crashed") else 1)
 CRASH
+# the outlier rule (3.25.0): value / median of the account's own posts, 5x or more, computed not trusted
+python3 - "$RADAR" <<'OUTLIER' && ok "an inspiration entry under 5x, without its numbers, or with a wrong multiple FAILs; a real one and an old week pass" || bad "the outlier gate misjudged an entry"
+import sys; sys.path.insert(0, sys.argv[1]); sys.argv = ["radar_gate.py"]
+import radar_gate as g
+e = lambda **k: {"week": "2026-11-09", "inspiration": [dict({"creator": "@x", "link": "https://x"}, **k)]}
+cases = [
+    (e(value=500000, median=100000, multiple=5.0), 0),      # exactly 5x
+    (e(value=4100000, median=80000, multiple=51.2), 0),     # rounded multiple
+    (e(value=300000, median=100000, multiple=3.0), 1),      # a 3x post is not an outlier
+    (e(metric="4.1M views"), 1),                            # no numbers
+    (e(value=300000, median=100000, multiple=9.0), 1),      # a multiple the numbers do not back
+    (e(value=300000, median=0, multiple=5.0), 1),           # no baseline
+    (dict(e(value=1, median=100000, multiple=0.0), week="2026-10-26"), 0),   # written under the old rule
+]
+bad = [(c, len(g.outlier_check(c)), want) for c, want in cases if len(g.outlier_check(c)) != want]
+print(bad)
+sys.exit(1 if bad else 0)
+OUTLIER
 python3 - "$WS" <<'LANES'
 import json, sys, os
 ws = sys.argv[1]; d = json.load(open(os.path.join(ws, "weeks", "0000-00-00-example.json")))

@@ -4,6 +4,16 @@ The first session after an update shows the entries you have not seen yet, once,
 what your workspace still needs for them (`hooks/whats_new.py`, run by the plugin's
 session-start hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.25.0: an outlier is 5x its account's median, and the gate checks it
+
+**What's new.** Every outlier you bank in `inspiration[]` now carries three numbers: `value` (the
+post's views or impressions), `median` (the same account's median on that metric, this post left
+out) and `multiple` (value / median). The gate fails an entry under 5x or without the numbers.
+The `weeks` gate, which never found anything, is gone.
+
+**To get it.** Update the plugin. Weeks dated before November 2nd are not checked. From the next
+weekly run, write the three numbers for every outlier the sweep banks.
+
 ## 3.24.3: gates fail what they should
 
 **What's new.** A gate that crashes now fails the week instead of passing it with a warning. A

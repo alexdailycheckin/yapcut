@@ -197,6 +197,9 @@
       "creator": "@example.creator",
       "platform": "tiktok",
       "metric": "4.1M views vs a creator median around 80k",
+      "value": 4100000,
+      "median": 80000,
+      "multiple": 51.2,
       "metric_confidence": "estimated",
       "mechanic": "Relatable-callout list: hyper-specific insider proofs that drive tagging",
       "link": "https://example.com"
@@ -204,7 +207,10 @@
     {
       "creator": "@another.example",
       "platform": "instagram",
-      "metric": "620k views, reported by a teardown article",
+      "metric": "620k views, reported by a teardown article, vs a median around 95k",
+      "value": 620000,
+      "median": 95000,
+      "multiple": 6.5,
       "metric_confidence": "reported",
       "mechanic": "Deadpan literal misread of in-group jargon",
       "link": "https://example.com"

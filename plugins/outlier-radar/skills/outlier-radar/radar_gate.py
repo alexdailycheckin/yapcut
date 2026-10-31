@@ -19,8 +19,6 @@ WHAT IT RUNS, in order:
                    page. Network. --skip source when offline.
   visual_lint      the feed floor on any render path the week file names (`render` keys and
                    `visual.path`). Skipped when the file names none.
-  weeks            cross-file: two week files carrying the same `week` string FAIL, ids
-                   shared across week files WARN (a superseded pair is exempt).
 
 EXIT CODE = the highest rc any gate returned (Contract 1: 0 pass, 1 warnings, 2 any FAIL). A
 gate that crashes counts as 2. build_dashboard.py reads the stamp this writes.
@@ -56,9 +54,9 @@ import rules  # noqa: E402
 HOME = radar_home()          # consumes --dir; exits 2 with the places looked when none found
 PY = sys.executable or "python3"
 GATES = ("check_fidelity", "hook_lint", "spoken_lint", "source_check", "visual_lint",
-         "completeness", "pack", "weeks")
+         "completeness", "pack")
 SKIP_ALIASES = {"source": "source_check", "visual": "visual_lint", "fidelity": "check_fidelity",
-                "hook": "hook_lint", "spoken": "spoken_lint", "weeks": "weeks",
+                "hook": "hook_lint", "spoken": "spoken_lint",
                 "complete": "completeness", "completeness": "completeness", "pack": "pack"}
 TIMEOUT = {"source_check": 900}
 
@@ -149,67 +147,42 @@ def find_renders(d):
     return found, missing
 
 
-def collect_ids(d):
-    ids = set()
-    for lane in ("distribution", "office", "linkedin", "gtm_linkedin"):
-        for it in d.get(lane) or []:
-            if isinstance(it, dict):
-                if it.get("id"):
-                    ids.add(it["id"])
-                tw = it.get("linkedin")
-                if isinstance(tw, dict) and tw.get("id"):
-                    ids.add(tw["id"])
-    return ids
-
-
-def cross_week(path, d):
-    """Cross-file checks. Returns (rc, lines)."""
-    lines, rc = [], 0
-    mine = os.path.abspath(path)
-    week = d.get("week")
-    my_ids = collect_ids(d)
-    supersedes = d.get("supersedes")
-    others = []
-    for f in sorted(glob.glob(os.path.join(str(HOME), "weeks", "*.json"))):
-        if not is_week_file(f) or os.path.abspath(f) == mine:
-            continue
-        if os.path.basename(f) == os.path.basename(mine):
-            # The gated file lives outside the workspace (the bundled example, or a file
-            # passed by absolute path) and the workspace holds a same-named copy. Two paths
-            # to one week file are not two week files; only one can render.
-            lines.append(f"note: {os.path.basename(f)} also exists in the workspace weeks/; "
-                         f"treated as the same week file, not a duplicate")
-            continue
-        try:
-            od = json.load(open(f))
-        except Exception as e:
-            lines.append(f"warn: {os.path.basename(f)} is not valid JSON ({type(e).__name__})")
-            rc = max(rc, 1)
-            continue
-        if isinstance(od, dict):
-            others.append((f, od))
-    for f, od in others:
-        if week and od.get("week") == week:
-            lines.append(f"FAIL: {os.path.basename(f)} carries the same week string {week!r}. "
-                         f"Two files for one week render twice on the dashboard and split "
-                         f"performance rows. Archive one, or set `supersedes` and change `week`.")
-            rc = 2
-    for f, od in others:
-        exempt = (supersedes and od.get("week") == supersedes) or \
-                 (od.get("supersedes") and od.get("supersedes") == week)
-        shared = sorted(my_ids & collect_ids(od))
-        if shared and not exempt:
-            shown = ", ".join(shared[:6]) + (" ..." if len(shared) > 6 else "")
-            lines.append(f"warn: {len(shared)} id(s) also in {os.path.basename(f)}: {shown}. "
-                         f"Tracking and performance key on id; one file overwrites the other.")
-            rc = max(rc, 1)
-    if not any(l.startswith(("FAIL", "warn")) for l in lines):
-        lines.insert(0, f"weeks: {len(others) + 1} week file(s), no duplicate week string, no shared ids")
-    return rc, lines
-
-
 VIDEO_LANES = rules.video_lanes()
 POST_LANES = ("linkedin", "gtm_linkedin")
+
+
+def _num(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def outlier_check(d):
+    """FAIL lines for inspiration[] entries that are not outliers (3.25.0). The rule was prose
+    only: the README said 5x the creator's own median, SKILL.md said 3x, and no script computed
+    either, so a post with no baseline at all banked as an outlier. Each entry now carries
+    {value, median, multiple}; the ratio is computed from value and median, never taken from
+    `multiple`, and must reach rules.json outlier.min_multiple. Weeks before from_week are
+    exempt: they were written under the old rule."""
+    lim, since = rules.get("outlier.min_multiple"), rules.get("outlier.from_week")
+    wk = str(d.get("week") or "")[:10]
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", wk) and wk < since:
+        return []
+    out = []
+    for i, o in enumerate(d.get("inspiration") or []):
+        if not isinstance(o, dict):
+            continue
+        who = f"inspiration[{i}] ({o.get('creator') or '?'})"
+        v, m, x = o.get("value"), o.get("median"), o.get("multiple")
+        if not (_num(v) and _num(m) and _num(x)) or v <= 0 or m <= 0:
+            out.append(f"FAIL: {who} needs numeric value, median and multiple: the post's number and the "
+                       f"median of the same account's recent posts on the same metric")
+            continue
+        ratio = v / m
+        if abs(x - ratio) > 0.05 * ratio + 0.05:
+            out.append(f"FAIL: {who} says {x}x but value / median is {ratio:.1f}x. Fix the numbers.")
+        elif ratio < lim:
+            out.append(f"FAIL: {who} is {ratio:.1f}x its account's median; an outlier is {lim}x or more. "
+                       f"Drop it from inspiration[].")
+    return out
 
 
 def completeness(d):
@@ -252,6 +225,9 @@ def completeness(d):
             lines.append(f"warn: {len(bad)} of {outliers} inspiration entries lack a link or a "
                          f"metric_confidence. An outlier you cannot source is not evidence.")
             rc = max(rc, 1)
+        for l in outlier_check(d):
+            lines.append(l)
+            rc = 2
 
     if n("ammo") == 0:
         lines.append("warn: ammo[] is empty. The daily comment block and the reply pass both "
@@ -426,18 +402,6 @@ def gate_week(wpath, skip, allow_unvalidated, strict_cadence, verbose, cadence=F
             for l in lines:
                 print(f"  pack: {l}")
 
-    if "weeks" in skip:
-        skipped.append("weeks")
-        rows.append(("weeks", "-", "skipped"))
-    else:
-        rc, lines = cross_week(wpath, d)
-        n_f = sum(1 for l in lines if l.startswith("FAIL"))
-        n_w = sum(1 for l in lines if l.startswith("warn"))
-        record("weeks", rc, lines[0][:110] if not (n_f or n_w) else
-               f"{n_f} fail, {n_w} warn: " + lines[0][:80])
-        if verbose or n_f or n_w:
-            for l in lines:
-                print(f"  weeks: {l}")
 
     worst = max([rc for rc in results.values()] or [0])
     stamp = {
@@ -491,6 +455,8 @@ def main():
         if not s:
             continue
         name = SKIP_ALIASES.get(s, s)
+        if name == "weeks":     # retired in 3.25.0; an old command line still runs
+            continue
         if name not in GATES:
             print(f"unknown gate in --skip: {s!r}. Known: {', '.join(GATES)}")
             return 2

@@ -20,7 +20,7 @@ week files carry history; fields marked FAIL stop the batch.
 | `moments[]` | items | optional (3.17.0): ids `m-YYYYMMDD-n`, `script_class: moment`. Day-in-the-life and break clips, filmed not read. |
 | `linkedin[]` | posts | LinkedIn-only posts. |
 | `gtm_linkedin[]` | posts | the leaders-scan posts (legacy key, still read). |
-| `inspiration[]` | `{creator, platform, metric, metric_confidence, mechanic, link}` | the outliers found. |
+| `inspiration[]` | `{creator, platform, metric, value, median, multiple, metric_confidence, mechanic, link}` | the outliers found. `value`: the post's number on `metric`. `median`: the same account's median on that metric over its recent posts, this one left out. `multiple`: value / median, at least 5 (`rules.json` outlier.min_multiple); `radar_gate.py` computes it from value and median and fails an entry below it or without the numbers. |
 | `experiment` | `{dim, arms: {a: [ids], b: [ids]}, metric, question}` | optional, validated when present, asked for by no gate since 3.11.0. `log_perf.py --report` answers it at n=4. |
 | `ammo[]` | `[{fact (or round), number, source (or url), lanes[], spent_on}]` | optional: 10 to 15 receipt-bearing rounds for the daily comment block, a by-product of the research sweep. The dashboard lists them under Comment ammo on the Post tab. |
 | `promised[]` | `[{text, made_in, due_week, paid_in}]` | optional: promises the show made to its audience. `radar_gate.py` warns on a due promise neither paid nor retracted. |

@@ -521,7 +521,7 @@ function ammoRow(w, r, i){
 }
 const PLATFORM={linkedin:"LinkedIn", tiktok:"TikTok", instagram:"Instagram", youtube:"YouTube", x:"X"};
 const poss = n => n+(/s$/.test(n)?"'":"'s");
-function multOf(i){ const m=String(i.metric||"").match(/\(([\d.]+)x\)/); return m?Number(m[1]):null; }
+function multOf(i){ if(+i.value>0&&+i.median>0) return Math.round(i.value/i.median*10)/10; const m=String(i.metric||"").match(/\(([\d.]+)x\)/); return m?Number(m[1]):null; }
 function linkOf(i){ const m=String(i.link||"").match(/https?:\/\/\S+/); return m?m[0]:""; }
 function renderPost(){
   const w=W(); if(!w){ $("p-post").innerHTML=""; return; }

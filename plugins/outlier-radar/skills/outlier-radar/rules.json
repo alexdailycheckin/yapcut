@@ -60,6 +60,11 @@
       "day"
     ]
   },
+  "outlier": {
+    "_about": "An inspiration[] entry is an outlier when its value is at least min_multiple times the median of the same account's recent posts on the same metric, the outlier left out. radar_gate.py completeness FAILs an entry below it, or one without numeric value, median and multiple, in weeks dated from_week or later.",
+    "min_multiple": 5,
+    "from_week": "2026-11-02"
+  },
   "script": {
     "_about": "check_fidelity.py length: spoken_hook plus script, split on whitespace. radar-config.json show.word_ceiling and show.words_per_second override per creator. max_news_age_days: a research item's `news_date` (the day the thing happened, not the day an article ran) may be at most this many days before the week; radar-config show.max_news_age_days overrides.",
     "word_ceiling": 189,
