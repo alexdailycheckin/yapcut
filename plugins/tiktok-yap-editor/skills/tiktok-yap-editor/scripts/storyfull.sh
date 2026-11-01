@@ -117,6 +117,7 @@ if [ -n "$SFX" ] && [ -f "$SFX" ]; then
 else
   cp "$CAPPED" "$OUT"
 fi
+python3 "$SCRIPTS/strip_meta.py" "$OUT" || exit 2   # no tool fingerprints in the file (3.9.7)
 
 # 6. gates on the FINISHED file (same ladder as Mode A)
 gate_seam "$KEEPS" "$OUT"

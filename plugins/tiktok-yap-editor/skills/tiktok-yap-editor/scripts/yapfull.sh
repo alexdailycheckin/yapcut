@@ -211,6 +211,8 @@ else
       --meta "$ASS.meta.json" --out "$OUT.pips.mp4"
     [ -f "$OUT.pips.mp4" ] && mv "$OUT.pips.mp4" "$OUT"
   fi
+  # 4b. no tool fingerprints in the file: tags, FFmpeg's encoder strings, x264's settings (3.9.7)
+  python3 "$SCRIPTS/strip_meta.py" "$OUT" || exit 2
   echo "$SIG" > "$OUT.sig"
   FRESH_OUT=1
 fi

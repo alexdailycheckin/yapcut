@@ -4,6 +4,15 @@ The first session after an update shows the entries you have not seen yet, once,
 what your machine still needs for them (`hooks/whats_new.py`, run by the plugin's session-start
 hook). Newest first. Each entry says what changed and what you have to do to get it.
 
+## 3.9.7: exports carry no tool fingerprints
+
+**What's new.** Every finished video loses the tags that named its renderer (HyperFrames), FFmpeg's
+encoder tags and x264's settings string, with no re-encode: the picture, sound, length and sync stay
+exactly as they were. `strip_meta.py --check <file>` tells you whether a file is clean.
+
+**What you need to do.** Nothing for new renders. For videos you rendered before this update, run
+`strip_meta.py <file>` on each one before you post it.
+
 ## 3.9.6: counters pass the caption gate, and decodes wait their turn
 
 **What's new.** A counter overlay no longer fails the caption gate. A folder with an apostrophe in

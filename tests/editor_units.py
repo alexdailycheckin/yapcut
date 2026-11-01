@@ -95,7 +95,9 @@ check((w, y) == (640, 170), f"an explicit y is honoured: y {y}, w {w}")
 with tempfile.TemporaryDirectory() as t:
     foot = os.path.join(t, "input", "sep 1"); build = os.path.join(foot, ".yap_build")
     os.makedirs(build)
-    final = os.path.join(build, "clip.mp4"); open(final, "wb").write(b"\0" * 64)
+    final = os.path.join(build, "clip.mp4")   # a real clip: finalize strips the delivered file's metadata (3.9.7)
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=64x64:d=0.2", "-c:v", "libx264", "-y", final],
+                   capture_output=True)
     env = dict(os.environ, YAPCUT_HOME=os.path.join(t, "ws"), HOME=t)
     env.pop("YAP_LIBRARY", None)
     r = subprocess.run(["bash", os.path.join(SCRIPTS, "finalize.sh"), final, foot, "clip", "--standalone",
@@ -1076,6 +1078,24 @@ with tempfile.TemporaryDirectory(prefix="Alex's [day], one; 1-2 ") as _t:
     _burn = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=320x240:d=0.5",
                             "-vf", "ass=" + vo_guide.ffesc(_ass), "-y", os.path.join(_t, "o.mp4")], capture_output=True, text=True)
     check(_burn.returncode == 0, f"the ass filter burns from a folder with an apostrophe, brackets, a comma and a semicolon {_burn.stderr[-120:]}")
+
+# 3.9.7: strip_meta takes the renderer's tags, FFmpeg's encoder strings and x264's settings out of an export
+import strip_meta  # noqa: E402
+with tempfile.TemporaryDirectory() as _t:
+    _v = os.path.join(_t, "export.mp4")
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=108x192:d=1:r=30",
+                    "-f", "lavfi", "-i", "sine=d=1", "-c:v", "libx264", "-c:a", "aac", "-shortest",
+                    "-metadata", "hyperframes_renderer=hyperframes", "-metadata", "hyperframes_version=0.8.96",
+                    "-movflags", "use_metadata_tags", "-y", _v],
+                   capture_output=True)
+    check(any("hyperframes" in f for f in strip_meta.findings(_v)) and any("x264" in f for f in strip_meta.findings(_v)),
+          "the check sees a renderer tag and the x264 settings string in an untreated export")
+    with contextlib.redirect_stdout(io.StringIO()):
+        _ok = strip_meta.strip(_v)
+    check(_ok and strip_meta.findings(_v) == [], f"a stripped export carries no tool tag or string: {strip_meta.findings(_v)}")
+    _d = strip_meta.probe(_v)
+    check(strip_meta.shape(_d)[:2] == (2, (108, 192)) and abs(strip_meta.shape(_d)[2] - 1.0) < 0.1,
+          f"stripping keeps both streams, the resolution and the duration: {strip_meta.shape(_d)}")
 
 if fails:
     print(f"{len(fails)} failure(s)")

@@ -265,7 +265,7 @@ because of a shipped defect (why: `references/gotchas.md`, CHANGELOG).
 | 7. Captions, hook, CTA | the hook (9 words or fewer, first line static at frame zero, `|` breaks at about 16 characters a line) and the spark word | `yapfull.sh <workdir> <clauses> <out> "<hook|line two>" "<spark>"`; a `minimal` hook whose later line is longer than line 1 is drawn `outline` | hook too long: cut words, never shrink type | `hook_styles.py` for a designed hook; gotchas.md "Captions" |
 | 8. Compose, receipts, cover | `<out>_overlays.json` pip entries; cover title and kicker (from `series`) | `compose_ass.sh`, `burn_pips.py` (inside yapfull), `cover.py --video <caption-free cut> --contact-sheet`, then `--frame N --title` | loudness is measured and printed; check the line | `references/receipts.md`, 8c below |
 | 8b. Variants and platforms | a second hook | `hook_variant.sh <workdir> <clauses> <out> "<hook B>" "<spark B>"`; `YAP_PLATFORM=linkedin yapfull.sh ...` re-composes from the cut | outside the platform's length band: a warning | brand config `platforms` |
-| 9. Finalize | the Radar item id, pillar, episode | `finalize.sh <final> <footage_dir> <name> --radar-id <id>` (or `--standalone`) | refuses without an id: the edit record is the point | Contract in the script header |
+| 9. Finalize | the Radar item id, pillar, episode | `finalize.sh <final> <footage_dir> <name> --radar-id <id>` (or `--standalone`); it, yapfull, storyfull and `hfkit.run` strip tool metadata from every export (`strip_meta.py`, `--check` to verify a file) | refuses without an id: the edit record is the point | Contract in the script header |
 | 10. Measure | | the Radar's `log_perf.py --edits <output dir>`, `--posted <id> <url>` | | outlier-radar SKILL.md |
 
 ### Batches

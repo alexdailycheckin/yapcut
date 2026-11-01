@@ -59,6 +59,15 @@ def sh(cmd, cwd):
     return subprocess.run(cmd, cwd=cwd)
 
 
+def strip(path):
+    """Take the renderer's tags, FFmpeg's encoder strings and x264's settings out of a render (3.9.7):
+    a HyperFrames export names hyperframes_renderer and hyperframes_version in its container."""
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    import strip_meta
+    if not strip_meta.strip(path):
+        raise SystemExit(f"{path}: rendered, but its metadata did not strip clean (strip_meta.py --check)")
+
+
 def run(ep, args=(), out=None):
     root = ep.build()
     if not os.path.exists(os.path.join(root, ".bed.carved.html")):
@@ -70,5 +79,6 @@ def run(ep, args=(), out=None):
         print(f"look at every frame in {root}/snapshots before rendering: a card whose content leaves its box fails there, not in check")
     if "render" in args:
         out = out or os.path.join(root, f"{ep.name}.mp4")
-        sh(["npx", "-y", HFV, "render", "-o", out], root)
+        if sh(["npx", "-y", HFV, "render", "-o", out], root).returncode == 0:
+            strip(out)
     return r.returncode

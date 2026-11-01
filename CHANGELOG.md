@@ -2,6 +2,26 @@
 
 Release notes for [YapCut](README.md), newest first.
 
+## What's new in 3.9.7 (tiktok-yap-editor)
+
+**Exports no longer name the tools that made them.** A HyperFrames render from 2026-11-01 carried
+`hyperframes_renderer` and `hyperframes_version` in its container, FFmpeg's `encoder` tags (Lavf on
+the file, Lavc and libx264 on the video stream) and x264's settings string inside the H.264
+bitstream. No platform is known to act on them; they fingerprint the tool for no benefit.
+
+- **`strip_meta.py`** rewrites a finished file in place with no re-encode: every global and stream
+  tag and the chapters go (`-map_metadata -1 -map_chapters -1`), bitexact flags stop FFmpeg writing
+  its own encoder tags, and on H.264 and HEVC the SEI units that hold the encoder's settings string
+  are dropped (`filter_units`; a plain stream copy keeps them). `-movflags +faststart` as before.
+- **It checks its own result** and leaves the original untouched when the check fails: no tag
+  containing hyperframes, heygen, Lavf, Lavc, c2pa or the word ai, no "hyperframes", "heygen" or
+  "x264 - core" in the bytes, and the same streams, resolution and duration (within a frame).
+  `strip_meta.py --check <file>` runs the check alone, for a pre-upload pass.
+- **Every export runs it**: `yapfull.sh` on the composed file, `storyfull.sh` on the finished file,
+  `finalize.sh` on what it delivers, and `hfkit.run` after a HyperFrames render.
+- **Left as is:** FFmpeg's AAC encoder writes a "Lavc" version string inside the audio frames.
+  Removing it means re-encoding the audio; it names FFmpeg, not the renderer, and no tag carries it.
+
 ## What's new in 3.25.0 (outlier-radar)
 
 **The outlier rule is a gate: 5x the account's own median, computed from the numbers.** The rule

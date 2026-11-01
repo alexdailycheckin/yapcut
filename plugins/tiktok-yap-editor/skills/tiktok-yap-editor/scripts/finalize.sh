@@ -69,6 +69,8 @@ DEST="$OUTDIR/$NAME.mp4"
 if [ "$(cd "$(dirname "$FINAL")" && pwd)/$(basename "$FINAL")" != "$(cd "$OUTDIR" && pwd)/$NAME.mp4" ]; then
   cp "$FINAL" "$DEST"
 fi
+# no tool fingerprints in what ships, whichever step made it (3.9.7)
+python3 "$SCRIPTS/strip_meta.py" "$DEST" || exit 2
 echo "delivered: $DEST"
 
 # the cover: --cover, else <outdir>/<name>.jpg if the cover step already put it there
